@@ -1,0 +1,10 @@
+---
+import AstroLayout from '../layouts/Layout.astro';
+import SignupForm from '../components/SignupForm.tsx';
+import styles from './signup.module.css';
+---
+<AstroLayout title="Sign Up">
+  <div class={styles.pageContainer}>
+    <SignupForm client:load />
+  </div>
+</AstroLayout>

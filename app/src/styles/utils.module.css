@@ -1,0 +1,59 @@
+/* Generic Button */
+.button {
+  display: inline-block;
+  padding: 8px 16px;
+  border: none;
+  background-color: #007bff;
+  color: white;
+  text-decoration: none;
+  font-size: 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.button:hover {
+  background-color: #0056b3;
+}
+.button:disabled {
+  background-color: #aaa;
+  cursor: not-allowed;
+}
+
+/* Form Styles */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+.form label {
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
+  color: #555;
+}
+.form input {
+  margin-top: 5px;
+  padding: 10px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+.form .button { /* Target button specifically within a form */
+  margin-top: 10px;
+  padding: 12px;
+  font-size: 16px;
+}
+
+/* Messages */
+.error {
+  color: #d9534f;
+  font-size: 14px;
+  text-align: center;
+  margin: 10px 0 0;
+}
+.success {
+  color: #5cb85c;
+  font-size: 14px;
+  text-align: center;
+  margin: 10px 0 0;
+}

@@ -1,8 +1,11 @@
 ---
 import AstroLayout from '../layouts/Layout.astro';
 import ThreeViewer from '../components/ThreeViewer.tsx';
+import Auth from '../components/Auth.tsx';
 ---
 <AstroLayout title="Astro 3D Viewer">
+    <Auth client:load />
+
     <div class="background-canvas">
         <ThreeViewer client:load />
     </div>
