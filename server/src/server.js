@@ -3,9 +3,8 @@ import path from 'path';
 import express from 'express';
 import { initializeSupabase } from './supabase.js';
 import navigationRoutes from './routes/navigation.js';
-import tileRoutes from './routes/tiles.js';
 
-const envFile = 'env/.env';
+const envFile = '.env';
 dotenv.config({ path: path.resolve(process.cwd(), envFile) });
 
 const app = express();
