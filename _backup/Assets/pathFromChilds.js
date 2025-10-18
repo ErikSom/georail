@@ -1,0 +1,1 @@
+pc.pathFromChilds = (entity) => entity.children.map(child => child.getPosition().clone());

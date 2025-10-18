@@ -1,0 +1,524 @@
+This file is a merged representation of a subset of the codebase, containing specifically included files, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of a subset of the repository's contents that is considered the most important context.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Only files matching these patterns are included: ./src/**/*.*
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+./
+  src/
+    components/
+      Layout.tsx
+      ThreeViewer.tsx
+    layouts/
+      Layout.astro
+    lib/
+      Drone.ts
+      MapViewer.ts
+      World.ts
+    pages/
+      index.astro
+    env.d.ts
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="./src/components/Layout.tsx">
+import { h } from 'preact';
+import type { ComponentChildren } from 'preact';
+
+// Define the props, which will be the content passed from Astro
+interface LayoutProps {
+  children: ComponentChildren;
+}
+
+/**
+ * This is a Preact component to wrap the 2D UI content.
+ * It renders the <main> tag with the foreground styles.
+ */
+function Layout({ children }: LayoutProps) {
+  return (
+    <main className="foreground-content">
+      {children}
+    </main>
+  );
+}
+
+export default Layout;
+</file>
+
+<file path="./src/components/ThreeViewer.tsx">
+import { useState, useEffect, useRef } from 'preact/hooks';
+import { World } from '../lib/World';
+
+function ThreeViewer() {
+    const mountRef = useRef<HTMLDivElement | null>(null);
+    const [credits, setCredits] = useState<string>('');
+
+    useEffect(() => {
+        let world: World | null = null;
+
+        if (mountRef.current) {
+            world = new World(mountRef.current, setCredits);
+            world.init();
+        }
+
+        return () => {
+            world?.cleanup();
+        };
+
+    }, []);
+
+    return (
+        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+            <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
+            
+            <div style={{
+                position: 'absolute',
+                bottom: '10px',
+                left: '10px',
+                color: 'white',
+                fontSize: '12px',
+                fontFamily: 'sans-serif',
+                textShadow: '1px 1px 2px black',
+                whiteSpace: 'pre-wrap',
+                zIndex: 10,
+                maxWidth: 'calc(100% - 20px)',
+            }}>
+                {credits}
+            </div>
+        </div>
+    );
+}
+
+export default ThreeViewer;
+</file>
+
+<file path="./src/layouts/Layout.astro">
+---
+// This is the main page layout, required by Astro
+interface Props {
+	title: string;
+}
+
+const { title } = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="description" content="Astro 3D Viewer" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<title>{title}</title>
+	</head>
+	<body>
+        <slot />
+	</body>
+</html>
+<style is:global>
+	html,
+	body {
+		margin: 0;
+		padding: 0;
+        width: 100%;
+        height: 100%;
+        font-family: system-ui, sans-serif;
+        overflow: hidden;
+	}
+</style>
+</file>
+
+<file path="./src/lib/Drone.ts">
+import {
+    Group,
+    Mesh,
+    BoxGeometry,
+    MeshBasicMaterial,
+} from 'three';
+
+export class Drone extends Group {
+    public moveSpeed = 50; // 50 meters per second
+    private mesh: Mesh;
+
+    constructor() {
+        super();
+
+        const droneGeo = new BoxGeometry(5, 2, 10); // A simple drone shape
+        const droneMat = new MeshBasicMaterial({ color: 0x00ff00 }); // Make it bright green
+        this.mesh = new Mesh(droneGeo, droneMat);
+        
+        // Start 10m above its local origin
+        this.mesh.position.set(0, 10, 0); 
+        this.add(this.mesh);
+    }
+
+    public update(deltaTime: number, keysPressed: { [key: string]: boolean }): void {
+        const moveDistance = this.moveSpeed * deltaTime;
+
+        // W/S: Move forward/backward (local Z-axis)
+        if (keysPressed['w']) {
+            this.translateZ(-moveDistance);
+        }
+        if (keysPressed['s']) {
+            this.translateZ(moveDistance);
+        }
+
+        // A/D: Strafe left/right (local X-axis)
+        if (keysPressed['a']) {
+            this.translateX(-moveDistance);
+        }
+        if (keysPressed['d']) {
+            this.translateX(moveDistance);
+        }
+
+        // Q/Z: Move up/down (local Y-axis)
+        if (keysPressed['q']) {
+            this.translateY(moveDistance);
+        }
+        if (keysPressed['z']) {
+            this.translateY(-moveDistance);
+        }
+    }
+
+    public dispose(): void {
+        this.mesh.geometry.dispose();
+        (this.mesh.material as MeshBasicMaterial).dispose();
+    }
+}
+</file>
+
+<file path="./src/lib/MapViewer.ts">
+import { GeoUtils, WGS84_ELLIPSOID, TilesRenderer } from '3d-tiles-renderer';
+import {
+    TilesFadePlugin,
+    TileCompressionPlugin,
+    GLTFExtensionsPlugin,
+    GoogleCloudAuthPlugin,
+    ReorientationPlugin
+} from '3d-tiles-renderer/plugins';
+import {
+    Scene,
+    WebGLRenderer,
+    PerspectiveCamera,
+    Vector3,
+    MathUtils
+} from 'three';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+
+const getDracoDecoderPath = (): string => {
+    return 'https://unpkg.com/three@0.153.0/examples/jsm/libs/draco/gltf/';
+};
+
+export class MapViewer {
+    private scene: Scene | null = null;
+    private camera: PerspectiveCamera | null = null;
+    private renderer: WebGLRenderer | null = null;
+ 
+    public tiles: TilesRenderer | null = null;
+    private reorientationPlugin: ReorientationPlugin | null = null;
+
+    constructor() {
+    }
+
+    public init(
+        scene: Scene, 
+        camera: PerspectiveCamera, 
+        renderer: WebGLRenderer
+    ): void {
+        this.scene = scene;
+        this.camera = camera;
+        this.renderer = renderer;
+
+        this.reinstantiateTiles();
+    }
+
+    public cleanup(): void {
+        this.tiles?.dispose();
+    }
+
+    private reinstantiateTiles(): void {
+        if (!this.scene || !this.camera || !this.renderer) return;
+
+        this.tiles = new TilesRenderer();
+        
+        this.tiles.registerPlugin(new GoogleCloudAuthPlugin({ 
+            apiToken: import.meta.env.PUBLIC_GOOGLE_MAPS_API_KEY, 
+            autoRefreshToken: true 
+        }));
+        this.tiles.registerPlugin(new TileCompressionPlugin());
+        this.tiles.registerPlugin(new TilesFadePlugin());
+        this.tiles.registerPlugin(new GLTFExtensionsPlugin({
+            dracoLoader: new DRACOLoader().setDecoderPath(getDracoDecoderPath())
+        }));
+
+        this.reorientationPlugin = new ReorientationPlugin();
+    
+        this.tiles.registerPlugin(this.reorientationPlugin);
+
+        this.scene.add(this.tiles.group);
+        this.tiles.setResolutionFromRenderer(this.camera, this.renderer);
+        this.tiles.setCamera(this.camera);
+    }
+
+    public reorient(latRad: number, lonRad: number): void {
+        if (!this.reorientationPlugin) return;
+
+        this.reorientationPlugin.transformLatLonHeightToOrigin(latRad, lonRad, 0);
+    }
+
+    public update(): void {
+        if (!this.tiles || !this.camera || !this.renderer) {
+            return;
+        }
+        this.tiles.setResolutionFromRenderer(this.camera, this.renderer);
+        this.tiles.setCamera(this.camera);
+        this.tiles.update();
+    }
+
+    public getCredits(): string {
+        if (!this.tiles || !this.camera) {
+            return '';
+        }
+
+        // This logic is correct. It calculates the camera's real-world lat/lon.
+        const mat = this.tiles.group.matrixWorld.clone().invert();
+        const vec = this.camera.position.clone().applyMatrix4(mat);
+        
+        const res: { lat: number; lon: number; height?: number } = { lat: 0, lon: 0 };
+        
+        // @ts-ignore
+        WGS84_ELLIPSOID.getPositionToCartographic(vec, res);
+
+        const attributions = this.tiles.getAttributions()
+                                .map(a => a.value)
+                                .filter(Boolean)
+                                .join(', ');
+        
+        // @ts-ignore
+        return GeoUtils.toLatLonString(res.lat, res.lon, true) + '\n' + attributions;
+    }
+}
+</file>
+
+<file path="./src/lib/World.ts">
+import {
+    Scene,
+    WebGLRenderer,
+    PerspectiveCamera,
+    Clock,
+    MathUtils,
+    Vector3,
+} from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { MapViewer } from './MapViewer';
+import { Drone } from './Drone';
+
+export class World {
+    private scene!: Scene;
+    private camera!: PerspectiveCamera;
+    private renderer!: WebGLRenderer;
+    private clock!: Clock;
+
+    private controls!: OrbitControls;
+    private drone!: Drone;
+    private mapViewer!: MapViewer;
+
+    private rafId: number | null = null;
+    private mountElement: HTMLDivElement;
+    private setCreditsCallback: (credits: string) => void;
+    private keysPressed: { [key: string]: boolean } = {};
+
+    private tempVec = new Vector3();
+
+    constructor(mountElement: HTMLDivElement, setCreditsCallback: (credits: string) => void) {
+        this.mountElement = mountElement;
+        this.setCreditsCallback = setCreditsCallback;
+
+        this.animate = this.animate.bind(this);
+        this.onWindowResize = this.onWindowResize.bind(this);
+        this.onKeyDown = this.onKeyDown.bind(this);
+        this.onKeyUp = this.onKeyUp.bind(this);
+        this.onHashChange = this.onHashChange.bind(this);
+    }
+
+    public init(): void {
+        this.scene = new Scene();
+        this.clock = new Clock();
+        this.renderer = new WebGLRenderer({ antialias: true });
+        this.renderer.setClearColor(0x151c1f);
+        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.setSize(this.mountElement.clientWidth, this.mountElement.clientHeight);
+        this.mountElement.appendChild(this.renderer.domElement);
+
+        this.camera = new PerspectiveCamera(60, this.mountElement.clientWidth / this.mountElement.clientHeight, 100, 1600000);
+        this.camera.position.set(1e3, 1e3, 1e3).multiplyScalar(0.5);
+
+        this.drone = new Drone();
+        this.scene.add(this.drone);
+        
+
+        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+        this.controls.minDistance = 500;
+        this.controls.maxDistance = 1e4 * 2;
+        this.controls.minPolarAngle = 0;
+        this.controls.maxPolarAngle = 3 * Math.PI / 8;
+        this.controls.enableDamping = true;
+        this.controls.autoRotate = false;
+        this.controls.enablePan = false;
+        this.controls.target.copy(this.drone.position);
+        this.controls.update();
+        
+        this.mapViewer = new MapViewer();
+        this.mapViewer.init(this.scene, this.camera, this.renderer);
+        
+        window.addEventListener('resize', this.onWindowResize, false);
+        window.addEventListener('hashchange', this.onHashChange, false);
+        window.addEventListener('keydown', this.onKeyDown, false);
+        window.addEventListener('keyup', this.onKeyUp, false);
+
+        this.onHashChange();
+        this.animate(); 
+    }
+
+    public cleanup(): void {
+        if (this.rafId) {
+            cancelAnimationFrame(this.rafId);
+        }
+        
+        window.removeEventListener('resize', this.onWindowResize);
+        window.removeEventListener('hashchange', this.onHashChange);
+        window.removeEventListener('keydown', this.onKeyDown);
+        window.removeEventListener('keyup', this.onKeyUp);
+
+        this.mapViewer.cleanup();
+        this.drone.dispose();
+        this.controls.dispose();
+        this.renderer.dispose();
+        
+        if (this.mountElement) {
+            this.mountElement.removeChild(this.renderer.domElement);
+        }
+    }
+
+    private onWindowResize(): void {
+        const width = this.mountElement.clientWidth;
+        const height = this.mountElement.clientHeight;
+
+        this.camera.aspect = width / height;
+        this.renderer.setSize(width, height);
+        this.camera.updateProjectionMatrix();
+        this.renderer.setPixelRatio(window.devicePixelRatio);
+    }
+    
+    private onKeyDown(event: KeyboardEvent): void {
+        this.keysPressed[event.key.toLowerCase()] = true;
+    }
+
+    private onKeyUp(event: KeyboardEvent): void {
+        this.keysPressed[event.key.toLowerCase()] = false;
+    }
+
+    private onHashChange(): void {
+        const hash = window.location.hash.replace(/^#/, '');
+        const tokens = hash.split(/,/g).map(t => parseFloat(t));
+        
+        let lat, lon;
+        if (tokens.length !== 2 || tokens.findIndex(t => Number.isNaN(t)) !== -1) {
+            lat = 35.6586; // Tokyo Tower (default)
+            lon = 139.7454; 
+        } else {
+            [lat, lon] = tokens;
+        }
+
+        const latRad = lat * MathUtils.DEG2RAD;
+        const lonRad = lon * MathUtils.DEG2RAD;
+
+        // 1. Tell MapViewer to re-orient the world
+        this.mapViewer.reorient(latRad, lonRad);
+
+        // 2. Teleport the drone to the new origin (0, 0, 0)
+        this.drone.position.set(0, 0, 0);
+        this.drone.rotation.set(0, 0, 0);
+    }
+
+    private animate(): void {
+        this.rafId = requestAnimationFrame(this.animate);
+        const deltaTime = this.clock.getDelta();
+
+        this.drone.update(deltaTime, this.keysPressed);
+        this.mapViewer.update();
+        this.controls.target.copy(this.drone.position);
+        this.controls.update();
+        this.camera.updateMatrixWorld();
+        this.renderer.render(this.scene, this.camera);
+        
+        this.setCreditsCallback(this.mapViewer.getCredits());
+    }
+}
+</file>
+
+<file path="./src/pages/index.astro">
+---
+import AstroLayout from '../layouts/Layout.astro';
+import ThreeViewer from '../components/ThreeViewer.tsx';
+---
+<AstroLayout title="Astro 3D Viewer">
+    <div class="background-canvas">
+        <ThreeViewer client:load />
+    </div>
+</AstroLayout>
+
+<style>
+    .background-canvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+    }
+</style>
+</file>
+
+<file path="./src/env.d.ts">
+/// <reference types="astro/client" />
+</file>
+
+</files>

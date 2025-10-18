@@ -1,0 +1,182 @@
+import {
+    Scene,
+    WebGLRenderer,
+    PerspectiveCamera,
+    Clock,
+    MathUtils,
+    Vector3,
+} from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { MapViewer } from './MapViewer';
+import { Drone } from './Drone';
+
+export class World {
+    private scene!: Scene;
+    private camera!: PerspectiveCamera;
+    private renderer!: WebGLRenderer;
+    private clock!: Clock;
+
+    private controls!: OrbitControls;
+    private drone!: Drone;
+    private mapViewer!: MapViewer;
+    private tmp = new Vector3();
+
+    private rafId: number | null = null;
+    private mountElement: HTMLDivElement;
+    private setCreditsCallback: (credits: string) => void;
+    private keysPressed: { [key: string]: boolean } = {};
+    
+
+    constructor(mountElement: HTMLDivElement, setCreditsCallback: (credits: string) => void) {
+        this.mountElement = mountElement;
+        this.setCreditsCallback = setCreditsCallback;
+
+        this.animate = this.animate.bind(this);
+        this.onWindowResize = this.onWindowResize.bind(this);
+        this.onKeyDown = this.onKeyDown.bind(this);
+        this.onKeyUp = this.onKeyUp.bind(this);
+    }
+
+    public init(): void {
+        this.scene = new Scene();
+        this.clock = new Clock();
+        this.renderer = new WebGLRenderer({ antialias: true });
+        this.renderer.setClearColor(0x151c1f);
+        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.setSize(this.mountElement.clientWidth, this.mountElement.clientHeight);
+        this.mountElement.appendChild(this.renderer.domElement);
+
+        this.camera = new PerspectiveCamera(60, this.mountElement.clientWidth / this.mountElement.clientHeight, 1, 1e7);
+        this.camera.position.set(1e3, 1e3, 1e3).multiplyScalar(0.5);
+
+        this.drone = new Drone();
+        this.scene.add(this.drone);
+        
+
+        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+        this.controls.minDistance = 100;
+        this.controls.maxDistance = 500;
+        this.controls.minPolarAngle = 0;
+        this.controls.maxPolarAngle = 3 * Math.PI / 8;
+        this.controls.enableDamping = true;
+        this.controls.autoRotate = false;
+        this.controls.enablePan = false;
+        this.controls.target.copy(this.drone.position);
+        this.controls.update();
+        
+        this.mapViewer = new MapViewer();
+        this.mapViewer.init(this.scene, this.camera, this.renderer);
+        
+        window.addEventListener('resize', this.onWindowResize, false);
+        window.addEventListener('keydown', this.onKeyDown, false);
+        window.addEventListener('keyup', this.onKeyUp, false);
+
+        this.animate(); 
+    }
+
+    public cleanup(): void {
+        if (this.rafId) {
+            cancelAnimationFrame(this.rafId);
+        }
+        
+        window.removeEventListener('resize', this.onWindowResize);
+        window.removeEventListener('keydown', this.onKeyDown);
+        window.removeEventListener('keyup', this.onKeyUp);
+
+        this.mapViewer.cleanup();
+        this.drone.dispose();
+        this.controls.dispose();
+        this.renderer.dispose();
+        
+        if (this.mountElement) {
+            this.mountElement.removeChild(this.renderer.domElement);
+        }
+    }
+
+    private onWindowResize(): void {
+        const width = this.mountElement.clientWidth;
+        const height = this.mountElement.clientHeight;
+
+        this.camera.aspect = width / height;
+        this.renderer.setSize(width, height);
+        this.camera.updateProjectionMatrix();
+        this.renderer.setPixelRatio(window.devicePixelRatio);
+    }
+    
+    private onKeyDown(event: KeyboardEvent): void {
+        const key = event.key.toLowerCase();
+        this.keysPressed[key] = true;
+
+        switch (key) {
+            case '1':
+                // Eiffel Tower
+                this.teleportDroneTo(48.8584, 2.2945, 300);
+                break;
+            case '2':
+                // Mt Fuji
+                this.teleportDroneTo(35.3606, 138.7274, 5000);
+                break;
+            case '3':
+                // Colosseum
+                this.teleportDroneTo(41.8902, 12.4922);
+                break;
+            case '4':
+                // Grand Canyon
+                this.teleportDroneTo(36.2679, -112.3535);
+                break;
+        }
+    }
+
+    private onKeyUp(event: KeyboardEvent): void {
+        this.keysPressed[event.key.toLowerCase()] = false;
+    }
+
+    private teleportDroneTo(lat: number, lon: number, height: number = 1000): void {
+        const latRad = lat * MathUtils.DEG2RAD;
+        const lonRad = lon * MathUtils.DEG2RAD;
+
+        this.mapViewer.reorient(latRad, lonRad, height);
+
+        this.drone.position.set(0, 0, 0);
+        this.drone.rotation.set(0, 0, 0);
+    }
+
+    private animate(): void {
+        this.rafId = requestAnimationFrame(this.animate);
+        const deltaTime = this.clock.getDelta();
+
+        // 1. Update Drone position
+        this.drone.update(deltaTime, this.keysPressed);
+
+        // 2. Update MapViewer (tiles)
+        this.mapViewer.update();
+        
+        // --- MODIFIED ---
+        
+       // 3–6. Follow the drone without fighting controls
+        this.tmp.copy(this.drone.position).sub(this.controls.target); // delta the drone moved
+        this.controls.target.add(this.tmp);
+        this.camera.position.add(this.tmp);
+
+        // 5. Let controls handle damping/zoom/orbit
+        this.controls.update();
+
+        // 7. Update Camera
+        this.camera.updateMatrixWorld();
+
+        // 8. Render
+        this.renderer.render(this.scene, this.camera);
+        
+        // 9. Update UI
+        const cameraCredits = this.mapViewer.getCredits(); 
+        const droneCoords = this.mapViewer.getLatLonHeightFromWorldPosition(this.drone.position);
+        
+        const droneLat = (droneCoords.lat * MathUtils.RAD2DEG).toFixed(5);
+        const droneLon = (droneCoords.lon * MathUtils.RAD2DEG).toFixed(5);
+        const droneHeight = droneCoords.height.toFixed(1);
+
+        const fullCredits = `${cameraCredits}\nDrone: ${droneLat}°, ${droneLon}° | Height: ${droneHeight}m`;
+        
+        this.setCreditsCallback(fullCredits);
+    }
+}
