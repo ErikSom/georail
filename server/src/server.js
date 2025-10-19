@@ -14,7 +14,7 @@ initializeSupabase();
 app.use(express.json());
 
 app.use((req, res, next) => {
-    const allowedOrigins = ['https://playcanvas.com', 'https://launch.playcanvas.com'];
+    const allowedOrigins = ['http://localhost:4321'];
     const origin = req.headers.origin;
 
     if (allowedOrigins.includes(origin)) {

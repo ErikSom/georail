@@ -9,6 +9,7 @@ import {
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { MapViewer } from './MapViewer';
 import { Drone } from './Drone';
+import { fetchRouteByName } from './Georail';
 
 export class World {
     private scene!: Scene;
@@ -25,7 +26,7 @@ export class World {
     private mountElement: HTMLDivElement;
     private setCreditsCallback: (credits: string) => void;
     private keysPressed: { [key: string]: boolean } = {};
-    
+
 
     constructor(mountElement: HTMLDivElement, setCreditsCallback: (credits: string) => void) {
         this.mountElement = mountElement;
@@ -49,9 +50,11 @@ export class World {
         this.camera = new PerspectiveCamera(60, this.mountElement.clientWidth / this.mountElement.clientHeight, 1, 1e7);
         this.camera.position.set(1e3, 1e3, 1e3).multiplyScalar(0.5);
 
+        this.mapViewer = new MapViewer();
+        this.mapViewer.init(this.scene, this.camera, this.renderer);
+
         this.drone = new Drone();
         this.scene.add(this.drone);
-        
 
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
         this.controls.minDistance = 100;
@@ -63,22 +66,19 @@ export class World {
         this.controls.enablePan = false;
         this.controls.target.copy(this.drone.position);
         this.controls.update();
-        
-        this.mapViewer = new MapViewer();
-        this.mapViewer.init(this.scene, this.camera, this.renderer);
-        
+
         window.addEventListener('resize', this.onWindowResize, false);
         window.addEventListener('keydown', this.onKeyDown, false);
         window.addEventListener('keyup', this.onKeyUp, false);
 
-        this.animate(); 
+        this.animate();
     }
 
     public cleanup(): void {
         if (this.rafId) {
             cancelAnimationFrame(this.rafId);
         }
-        
+
         window.removeEventListener('resize', this.onWindowResize);
         window.removeEventListener('keydown', this.onKeyDown);
         window.removeEventListener('keyup', this.onKeyUp);
@@ -87,7 +87,7 @@ export class World {
         this.drone.dispose();
         this.controls.dispose();
         this.renderer.dispose();
-        
+
         if (this.mountElement) {
             this.mountElement.removeChild(this.renderer.domElement);
         }
@@ -102,10 +102,12 @@ export class World {
         this.camera.updateProjectionMatrix();
         this.renderer.setPixelRatio(window.devicePixelRatio);
     }
-    
+
     private onKeyDown(event: KeyboardEvent): void {
         const key = event.key.toLowerCase();
         this.keysPressed[key] = true;
+
+        console.log('Key down:', key);
 
         switch (key) {
             case '1':
@@ -124,6 +126,65 @@ export class World {
                 // Grand Canyon
                 this.teleportDroneTo(36.2679, -112.3535);
                 break;
+
+            case ' ':
+                this.startPathFollowing();
+                break
+        }
+    }
+
+    private async startPathFollowing(): Promise<void> {
+        console.log('Fetching route from Amsterdam Centraal to Utrecht Centraal...');
+        try {
+            const routeData = await fetchRouteByName(
+                'Amsterdam Centraal', '4b',
+                'Utrecht Centraal', '19'
+            );
+
+            // More detailed logging to inspect the incoming data structure
+            console.log('--- Raw Route Data Received ---');
+            console.log(JSON.stringify(routeData, null, 2));
+            console.log('---------------------------------');
+
+
+            // Use the definitive 'node_coords' array from the new function
+            if (!routeData?.geometry?.route_geojson?.coordinates || routeData.geometry.route_geojson.coordinates.length < 2) {
+                console.warn("No valid path found. 'node_coords' is missing or has fewer than 2 points.");
+                return;
+            }
+
+            // The data is already a clean array of [lon, lat] pairs.
+            const pathCoordinates = routeData.geometry.route_geojson.coordinates;
+
+            console.log(`Processed into a single path with ${pathCoordinates.length} total coordinates.`);
+
+            // Teleport the world origin to the start of the path. This is crucial.
+            const [startLon, startLat] = pathCoordinates[0];
+            this.teleportDroneTo(startLat, startLon, 200);
+
+            // Now, convert all geographic coordinates to our new local world coordinates.
+            const pathPoints = pathCoordinates
+                .map(coord => {
+                    if (!coord || coord.length < 2) return null; // Safety check
+                    const [lon, lat] = coord;
+                    // Use the centralized function from MapViewer
+                    return this.mapViewer.latLonHeightToWorldPosition(lat, lon, 0);
+                })
+                .filter((p): p is Vector3 => p !== null); // Filter out any null results
+
+            console.log(`Successfully converted to ${pathPoints.length} world coordinate points.`);
+
+            if (pathPoints.length < 2) {
+                console.error('Could not convert enough coordinates to form a valid path.');
+                return;
+            }
+
+            // Tell the drone to start following the path.
+            this.drone.startFollowing(pathPoints, 50); // Fly 50m above the path.
+            this.controls.enabled = false; // Disable camera controls during autopilot.
+
+        } catch (error) {
+            console.error('Failed to start path following:', error);
         }
     }
 
@@ -132,10 +193,7 @@ export class World {
     }
 
     private teleportDroneTo(lat: number, lon: number, height: number = 1000): void {
-        const latRad = lat * MathUtils.DEG2RAD;
-        const lonRad = lon * MathUtils.DEG2RAD;
-
-        this.mapViewer.reorient(latRad, lonRad, height);
+        this.mapViewer.reorient(lat, lon, height);
 
         this.drone.position.set(0, 0, 0);
         this.drone.rotation.set(0, 0, 0);
@@ -150,10 +208,10 @@ export class World {
 
         // 2. Update MapViewer (tiles)
         this.mapViewer.update();
-        
+
         // --- MODIFIED ---
-        
-       // 3–6. Follow the drone without fighting controls
+
+        // 3–6. Follow the drone without fighting controls
         this.tmp.copy(this.drone.position).sub(this.controls.target); // delta the drone moved
         this.controls.target.add(this.tmp);
         this.camera.position.add(this.tmp);
@@ -166,17 +224,17 @@ export class World {
 
         // 8. Render
         this.renderer.render(this.scene, this.camera);
-        
+
         // 9. Update UI
-        const cameraCredits = this.mapViewer.getCredits(); 
+        const cameraCredits = this.mapViewer.getCredits();
         const droneCoords = this.mapViewer.getLatLonHeightFromWorldPosition(this.drone.position);
-        
-        const droneLat = (droneCoords.lat * MathUtils.RAD2DEG).toFixed(5);
-        const droneLon = (droneCoords.lon * MathUtils.RAD2DEG).toFixed(5);
-        const droneHeight = droneCoords.height.toFixed(1);
+
+        const droneLat = (droneCoords!.lat * MathUtils.RAD2DEG).toFixed(5);
+        const droneLon = (droneCoords!.lon * MathUtils.RAD2DEG).toFixed(5);
+        const droneHeight = droneCoords!.height.toFixed(1);
 
         const fullCredits = `${cameraCredits}\nDrone: ${droneLat}°, ${droneLon}° | Height: ${droneHeight}m`;
-        
+
         this.setCreditsCallback(fullCredits);
     }
 }
