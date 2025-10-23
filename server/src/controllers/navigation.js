@@ -1,46 +1,39 @@
 import { supabase } from '../supabase.js';
 
 export const findRouteByName = async (req, res) => {
-    const { from_station, from_track, to_station, to_track } = req.query;
+    const { from_station, from_track, to_station, to_track, editor } = req.query;
 
     if (!from_station || !to_station) {
         return res.status(400).json({ error: 'Missing from_station or to_station query parameter.' });
     }
 
     // === STEP 1: Find the stations in the 'stations' table ===
-
-    // Build the query for the START station
     let startQuery = supabase
         .from('stations')
-        .select('geom, name, ref') // Select geom, name, and ref (track)
+        .select('geom, name, ref')
         .eq('name', from_station);
 
-    // Add the track number to the query if it was provided
     if (from_track) {
         startQuery = startQuery.eq('ref', from_track);
     }
 
-    // Build the query for the END station
     let endQuery = supabase
         .from('stations')
         .select('geom, name, ref')
         .eq('name', to_station);
 
-    // Add the track number to the query if it was provided
     if (to_track) {
         endQuery = endQuery.eq('ref', to_track);
     }
 
-    // --- Execute the queries ---
     const [
         { data: startStations, error: startError },
         { data: endStations, error: endError }
     ] = await Promise.all([
-        startQuery.limit(1), // Get the first match
-        endQuery.limit(1)    // Get the first match
+        startQuery.limit(1),
+        endQuery.limit(1)
     ]);
 
-    // --- Handle errors for station finding ---
     if (startError) return res.status(500).json({ error: `Start station query error: ${startError.message}` });
     if (endError) return res.status(500).json({ error: `End station query error: ${endError.message}` });
     if (!startStations || startStations.length === 0) {
@@ -50,29 +43,27 @@ export const findRouteByName = async (req, res) => {
         return res.status(404).json({ error: `Could not find end station: ${to_station} (Track: ${to_track || 'any'})` });
     }
 
-    // Get the first station that matched (and its coordinates)
     const startStation = startStations[0];
     const endStation = endStations[0];
-
     const startCoords = startStation.geom.coordinates;
     const endCoords = endStation.geom.coordinates;
 
-    // === STEP 2: Call the 'find_rail_route' function with the coordinates ===
+    const isEditorMode = (editor === 'true');
 
+    // === STEP 2: Call the 'find_rail_route' function with all parameters ===
     const { data: route, error: routeError } = await supabase.rpc('find_rail_route', {
         start_lon: startCoords[0],
         start_lat: startCoords[1],
         end_lon: endCoords[0],
-        end_lat: endCoords[1]
+        end_lat: endCoords[1],
+        editor: isEditorMode
     });
 
-    // --- Handle errors for pathfinding ---
     if (routeError) {
         return res.status(500).json({ error: `Route finding error: ${routeError.message}` });
     }
 
     if (!route) {
-        // This is important! If pgr_dijkstra finds no path, it returns NULL.
         return res.status(404).json({
             error: 'No path found between the selected stations.',
             from: startStation,
@@ -80,11 +71,10 @@ export const findRouteByName = async (req, res) => {
         });
     }
 
-    // === SUCCESS! Return the GeoJSON route ===
-
+    // === SUCCESS! Return the JSON ===
     res.json({
         type: "Feature",
-        geometry: route, // The route geometry (a LineString)
+        geometry: route,
         properties: {
             from_station: startStation.name,
             from_track: startStation.ref,
