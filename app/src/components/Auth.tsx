@@ -5,7 +5,6 @@ import { supabase } from '../lib/Supabase';
 
 import styles from './Auth.module.css';
 import utils from '../styles/utils.module.css';
-import { fetchAltitudeData } from '../lib/Georail';
 
 export default function Auth() {
     const [session, setSession] = useState<Session | null>(null);
@@ -28,13 +27,6 @@ export default function Auth() {
                 setMessage('');
                 setEmail('');
                 setPassword('');
-
-                fetchAltitudeData().then(settings => {
-                    console.log('Fetched settings after auth change:', settings);
-                }).catch(error => {
-                    console.error('Error fetching settings after auth change:', error);
-                });
-
             }
         );
 

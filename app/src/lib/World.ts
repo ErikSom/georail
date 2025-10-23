@@ -148,13 +148,13 @@ export class World {
 
 
             // Use the definitive 'node_coords' array from the new function
-            if (!routeData?.geometry?.route_geojson?.coordinates || routeData.geometry.route_geojson.coordinates.length < 2) {
-                console.warn("No valid path found. 'node_coords' is missing or has fewer than 2 points.");
+            if (!routeData?.geometry?.route || routeData.geometry.route.length < 2) {
+                console.warn("No valid path found. Check the route data structure.");
                 return;
             }
 
             // The data is already a clean array of [lon, lat] pairs.
-            const pathCoordinates = routeData.geometry.route_geojson.coordinates;
+            const pathCoordinates = routeData.geometry.route;
 
             console.log(`Processed into a single path with ${pathCoordinates.length} total coordinates.`);
 
@@ -164,13 +164,10 @@ export class World {
 
             // Now, convert all geographic coordinates to our new local world coordinates.
             const pathPoints = pathCoordinates
-                .map(coord => {
-                    if (!coord || coord.length < 2) return null; // Safety check
-                    const [lon, lat] = coord;
-                    // Use the centralized function from MapViewer
+                .map(([lon, lat]: [number, number]) => {
                     return this.mapViewer.latLonHeightToWorldPosition(lat, lon, 0);
                 })
-                .filter((p): p is Vector3 => p !== null); // Filter out any null results
+                .filter((p: Vector3 | null): p is Vector3 => p !== null); // Filter out any null results
 
             console.log(`Successfully converted to ${pathPoints.length} world coordinate points.`);
 

@@ -1,11 +1,13 @@
 import { supabase } from "../supabase.js";
 
-class AuthCache {
-	constructor(ttlSeconds = 3600) {
-		this.cache = new Map();
-		this.ttl = ttlSeconds * 1000;
+const DEFAULT_TTL_MS = 600 * 1000; // 10 minutes
+const DEFAULT_CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
-		const cleanupInterval = 3600000;
+class AuthCache {
+	constructor(ttl = DEFAULT_TTL_MS) {
+		this.cache = new Map();
+		this.ttl = ttl;
+		const cleanupInterval = DEFAULT_CLEANUP_INTERVAL_MS;
 		setInterval(() => this.cleanup(), cleanupInterval);
 	}
 
