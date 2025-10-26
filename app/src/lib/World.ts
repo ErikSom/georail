@@ -176,10 +176,7 @@ export class World {
                 return;
             }
 
-            // Tell the drone to start following the path.
-            this.drone.startFollowing(pathPoints, 50); // Fly 50m above the path.
-            this.controls.enabled = false; // Disable camera controls during autopilot.
-
+            this.drone.startFollowing(pathPoints, 50);
         } catch (error) {
             console.error('Failed to start path following:', error);
         }
