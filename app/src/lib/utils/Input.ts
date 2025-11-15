@@ -138,7 +138,11 @@ export class Input {
         if (e.code === 'AltLeft' || e.code === 'AltRight') this.isAlt = true;
         if (e.code === 'ControlLeft' || e.code === 'ControlRight') this.isControl = true;
 
-        if (['Space', 'AltLeft', 'AltRight', 'ControlLeft', 'ControlRight', 'ShiftLeft', 'ShiftRight'].includes(e.code)) {
+        // Don't prevent default if user is typing in an input field
+        const target = e.target as HTMLElement;
+        const isInputField = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT';
+
+        if (!isInputField && ['Space', 'AltLeft', 'AltRight', 'ControlLeft', 'ControlRight', 'ShiftLeft', 'ShiftRight'].includes(e.code)) {
             e.preventDefault();
         }
     }

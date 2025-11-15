@@ -1,0 +1,417 @@
+import { useState, useEffect } from 'preact/hooks';
+import type { PatchWithData, PatchDataInput } from '../lib/types/Patch';
+import { fetchPatchWithData, submitPatch } from '../lib/api/patches';
+
+import styles from './PatchEditor.module.css';
+
+interface PatchEditorProps {
+    patchId: number | null;
+    onClose: () => void;
+    onSaved: () => void;
+    initialData?: PatchDataInput[];
+}
+
+function PatchEditor({ patchId, onClose, onSaved, initialData }: PatchEditorProps) {
+    const [patch, setPatch] = useState<PatchWithData | null>(null);
+    const [patchData, setPatchData] = useState<PatchDataInput[]>(initialData || []);
+    const [loading, setLoading] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (patchId) {
+            loadPatch();
+        }
+    }, [patchId]);
+
+    const loadPatch = async () => {
+        if (!patchId) return;
+
+        try {
+            setLoading(true);
+            setError(null);
+            const data = await fetchPatchWithData(patchId);
+            if (data) {
+                setPatch(data);
+                // Convert PatchData to PatchDataInput
+                setPatchData(
+                    data.data.map((d) => ({
+                        segment_id: d.segment_id,
+                        index: d.point_index,
+                        height: d.height,
+                        lateral_offset: d.lateral_offset,
+                        keynode: d.keynode,
+                    }))
+                );
+            }
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to load patch');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSave = async () => {
+        if (patchData.length === 0) {
+            alert('Cannot save empty patch');
+            return;
+        }
+
+        try {
+            setSaving(true);
+            setError(null);
+            await submitPatch({
+                data: patchData,
+                patchId: patchId || undefined,
+            });
+            onSaved();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to save patch');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const formatDate = (dateString: string) => {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+    };
+
+    const getStatusColor = (status: string) => {
+        switch (status) {
+            case 'approved':
+                return '#22c55e';
+            case 'declined':
+                return '#ef4444';
+            case 'pending':
+            default:
+                return '#f59e0b';
+        }
+    };
+
+    const canEdit = !patch || patch.status === 'pending';
+
+    return (
+        <div style={styles.overlay}>
+            <div style={styles.modal}>
+                <div style={styles.header}>
+                    <h2 style={styles.title}>
+                        {patchId ? `Patch #${patchId}` : 'New Patch'}
+                    </h2>
+                    <button onClick={onClose} style={styles.closeButton}>
+                        ✕
+                    </button>
+                </div>
+
+                {loading ? (
+                    <div style={styles.loading}>Loading patch...</div>
+                ) : (
+                    <>
+                        {patch && (
+                            <div style={styles.patchInfo}>
+                                <div style={styles.infoGrid}>
+                                    <div style={styles.infoItem}>
+                                        <span style={styles.infoLabel}>Status:</span>
+                                        <span
+                                            style={{
+                                                ...styles.statusBadge,
+                                                backgroundColor: getStatusColor(patch.status),
+                                            }}
+                                        >
+                                            {patch.status.charAt(0).toUpperCase() + patch.status.slice(1)}
+                                        </span>
+                                    </div>
+                                    <div style={styles.infoItem}>
+                                        <span style={styles.infoLabel}>Created:</span>
+                                        <span style={styles.infoValue}>{formatDate(patch.created_at)}</span>
+                                    </div>
+                                    {patch.reviewed_at && (
+                                        <div style={styles.infoItem}>
+                                            <span style={styles.infoLabel}>Reviewed:</span>
+                                            <span style={styles.infoValue}>{formatDate(patch.reviewed_at)}</span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {patch.status === 'declined' && (
+                                    <div style={styles.declinedNotice}>
+                                        <strong>Patch Declined</strong>
+                                        <p>This patch was not approved. You cannot edit declined patches.</p>
+                                    </div>
+                                )}
+
+                                {patch.status === 'approved' && (
+                                    <div style={styles.approvedNotice}>
+                                        <strong>Patch Approved</strong>
+                                        <p>This patch has been approved and applied. You cannot edit approved patches.</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        <div style={styles.content}>
+                            <div style={styles.dataHeader}>
+                                <h3 style={styles.dataTitle}>
+                                    Patch Data ({patchData.length} points)
+                                </h3>
+                                {!canEdit && (
+                                    <span style={styles.readOnlyBadge}>Read Only</span>
+                                )}
+                            </div>
+
+                            <div style={styles.dataTable}>
+                                <table style={styles.table}>
+                                    <thead>
+                                        <tr style={styles.tableHeaderRow}>
+                                            <th style={styles.tableHeader}>Segment ID</th>
+                                            <th style={styles.tableHeader}>Point Index</th>
+                                            <th style={styles.tableHeader}>Height (m)</th>
+                                            <th style={styles.tableHeader}>Lateral Offset (m)</th>
+                                            <th style={styles.tableHeader}>Keynode</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {patchData.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={5} style={styles.emptyCell}>
+                                                    No data points yet
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            patchData.map((item, index) => (
+                                                <tr key={index} style={styles.tableRow}>
+                                                    <td style={styles.tableCell}>{item.segment_id}</td>
+                                                    <td style={styles.tableCell}>{item.index}</td>
+                                                    <td style={styles.tableCell}>{item.height.toFixed(2)}</td>
+                                                    <td style={styles.tableCell}>{item.lateral_offset.toFixed(2)}</td>
+                                                    <td style={styles.tableCell}>
+                                                        {item.keynode ? '✓' : '—'}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {error && <div style={styles.error}>{error}</div>}
+
+                        <div style={styles.footer}>
+                            <button onClick={onClose} style={styles.cancelButton}>
+                                {canEdit ? 'Cancel' : 'Close'}
+                            </button>
+                            {canEdit && (
+                                <button
+                                    onClick={handleSave}
+                                    disabled={saving || patchData.length === 0}
+                                    style={styles.saveButton}
+                                >
+                                    {saving ? 'Saving...' : patchId ? 'Update Patch' : 'Create Patch'}
+                                </button>
+                            )}
+                        </div>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+}
+
+const styles: Record<string, any> = {
+    overlay: {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: '20px',
+    },
+    modal: {
+        backgroundColor: '#1a1a1a',
+        borderRadius: '12px',
+        width: '100%',
+        maxWidth: '900px',
+        maxHeight: '90vh',
+        display: 'flex',
+        flexDirection: 'column',
+        border: '1px solid #3a3a3a',
+    },
+    header: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '20px 24px',
+        borderBottom: '1px solid #3a3a3a',
+    },
+    title: {
+        margin: 0,
+        fontSize: '20px',
+        fontWeight: '600',
+        color: '#ffffff',
+    },
+    closeButton: {
+        background: 'none',
+        border: 'none',
+        color: '#888',
+        fontSize: '24px',
+        cursor: 'pointer',
+        padding: '0',
+        width: '32px',
+        height: '32px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    patchInfo: {
+        padding: '16px 24px',
+        backgroundColor: '#2a2a2a',
+        borderBottom: '1px solid #3a3a3a',
+    },
+    infoGrid: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '12px',
+        marginBottom: '12px',
+    },
+    infoItem: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+    },
+    infoLabel: {
+        color: '#888',
+        fontSize: '14px',
+    },
+    infoValue: {
+        color: '#ffffff',
+        fontSize: '14px',
+    },
+    statusBadge: {
+        padding: '4px 12px',
+        borderRadius: '12px',
+        fontSize: '12px',
+        fontWeight: '500',
+        color: '#ffffff',
+    },
+    declinedNotice: {
+        padding: '12px',
+        backgroundColor: '#7f1d1d',
+        borderRadius: '6px',
+        border: '1px solid #ef4444',
+        color: '#ffffff',
+    },
+    approvedNotice: {
+        padding: '12px',
+        backgroundColor: '#14532d',
+        borderRadius: '6px',
+        border: '1px solid #22c55e',
+        color: '#ffffff',
+    },
+    content: {
+        flex: 1,
+        overflow: 'auto',
+        padding: '24px',
+    },
+    dataHeader: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '16px',
+    },
+    dataTitle: {
+        margin: 0,
+        fontSize: '16px',
+        fontWeight: '500',
+        color: '#ffffff',
+    },
+    readOnlyBadge: {
+        padding: '4px 12px',
+        backgroundColor: '#374151',
+        borderRadius: '12px',
+        fontSize: '12px',
+        color: '#9ca3af',
+    },
+    dataTable: {
+        overflowX: 'auto',
+    },
+    table: {
+        width: '100%',
+        borderCollapse: 'collapse',
+        fontSize: '14px',
+    },
+    tableHeaderRow: {
+        backgroundColor: '#2a2a2a',
+    },
+    tableHeader: {
+        padding: '12px',
+        textAlign: 'left',
+        color: '#ffffff',
+        fontWeight: '500',
+        borderBottom: '1px solid #3a3a3a',
+    },
+    tableRow: {
+        borderBottom: '1px solid #2a2a2a',
+    },
+    tableCell: {
+        padding: '12px',
+        color: '#cccccc',
+    },
+    emptyCell: {
+        padding: '40px',
+        textAlign: 'center',
+        color: '#888',
+    },
+    loading: {
+        padding: '60px',
+        textAlign: 'center',
+        color: '#888',
+    },
+    error: {
+        margin: '0 24px 16px',
+        padding: '12px',
+        backgroundColor: '#7f1d1d',
+        border: '1px solid #ef4444',
+        borderRadius: '6px',
+        color: '#ffffff',
+    },
+    footer: {
+        display: 'flex',
+        justifyContent: 'flex-end',
+        gap: '12px',
+        padding: '16px 24px',
+        borderTop: '1px solid #3a3a3a',
+    },
+    cancelButton: {
+        padding: '10px 20px',
+        backgroundColor: '#374151',
+        color: '#ffffff',
+        border: 'none',
+        borderRadius: '6px',
+        fontSize: '14px',
+        cursor: 'pointer',
+    },
+    saveButton: {
+        padding: '10px 20px',
+        backgroundColor: '#3b82f6',
+        color: '#ffffff',
+        border: 'none',
+        borderRadius: '6px',
+        fontSize: '14px',
+        fontWeight: '500',
+        cursor: 'pointer',
+    },
+};
+
+export default PatchEditor;

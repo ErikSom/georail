@@ -1,5 +1,26 @@
 import { supabase } from '../lib/Supabase';
 
+export interface EditorPoint {
+    segment_id: number;
+    index: number;
+    is_reversed: boolean;
+}
+
+export interface RouteData {
+    geometry: {
+        start_node: number;
+        end_node: number;
+        route: number[][]; // [lon, lat, height, lateral_offset]
+        editor?: EditorPoint[];
+    };
+    properties: {
+        from_station: string;
+        from_track: string | null;
+        to_station: string;
+        to_track: string | null;
+    }
+}
+
 export const fetchRouteByName = async (
     fromStation: string,
     fromTrack: string | null,
@@ -45,7 +66,7 @@ export const fetchRouteByName = async (
             throw new Error(errorData.error || `Server error: ${response.status}`);
         }
 
-        return await response.json();
+        return await response.json() as RouteData;
 
     } catch (error) {
         console.error('Failed to fetch route:', error);

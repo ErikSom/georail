@@ -10,6 +10,9 @@ import {
 import { MapViewer } from '../MapViewer';
 import { FlightControls } from '../utils/FlightControls';
 import { Input } from '../utils/Input';
+import { RouteEditor } from './RouteEditor';
+import { fetchRouteByName, type RouteData } from '../Georail';
+import type { RouteInfo } from '../types/Patch';
 
 export class Editor {
     private scene!: Scene;
@@ -19,11 +22,16 @@ export class Editor {
 
     private flightControls!: FlightControls;
     private mapViewer!: MapViewer;
+    private routeEditor: RouteEditor | null = null;
     private raycaster = new Raycaster();
 
     private rafId: number | null = null;
     private mountElement: HTMLDivElement;
     private setCreditsCallback: (credits: string) => void;
+
+    // Callbacks for patch editing
+    public onNodeSelected: ((nodeData: any) => void) | null = null;
+    public onNodesModified: ((count: number) => void) | null = null;
 
     constructor(mountElement: HTMLDivElement, setCreditsCallback: (credits: string) => void) {
         this.mountElement = mountElement;
@@ -64,6 +72,16 @@ export class Editor {
 
             // 1. Update the raycaster
             this.raycaster.setFromCamera(Input.mouse, this.camera);
+
+            // If route editor is active, check for node selection first
+            if (this.routeEditor) {
+                const nodeKey = this.routeEditor.raycastNodes(this.raycaster);
+                if (nodeKey) {
+                    this.routeEditor.selectNode(nodeKey);
+                    return; // Don't process 3D tiles if we clicked a node
+                }
+            }
+
             const intersects = this.raycaster.intersectObject(this.scene, true);
 
             console.log(intersects);
@@ -101,6 +119,84 @@ export class Editor {
     }
 
 
+    public async loadPatchRoute(routeInfo: RouteInfo): Promise<void> {
+        try {
+            // Fetch route data with editor=true to get all points
+            const routeData = await fetchRouteByName(
+                routeInfo.fromStation,
+                routeInfo.fromTrack || null,
+                routeInfo.toStation,
+                routeInfo.toTrack || null,
+                true // editor mode
+            );
+
+            // Relocate camera to the start of the route before loading nodes
+            if (routeData.geometry.route && routeData.geometry.route.length > 0) {
+                const [lon, lat, height] = routeData.geometry.route[0];
+                this.relocateToPosition(lat, lon, height + 100); // 100m above the start point
+            }
+
+            // Create route editor if not exists
+            if (!this.routeEditor) {
+                this.routeEditor = new RouteEditor(this.scene, this.camera, this.renderer.domElement, this.mapViewer);
+
+                // Wire up callbacks
+                this.routeEditor.onNodeSelected = (nodeData) => {
+                    if (this.onNodeSelected) {
+                        this.onNodeSelected(nodeData);
+                    }
+                };
+
+                this.routeEditor.onNodesModified = (nodes) => {
+                    if (this.onNodesModified) {
+                        this.onNodesModified(nodes.length);
+                    }
+                };
+            }
+
+            // Load the route
+            this.routeEditor.loadRoute(routeData);
+
+            console.log('Route loaded for editing');
+        } catch (error) {
+            console.error('Failed to load route for editing:', error);
+            throw error;
+        }
+    }
+
+    public clearPatchRoute(): void {
+        if (this.routeEditor) {
+            this.routeEditor.cleanup();
+            this.routeEditor = null;
+        }
+    }
+
+    public getRouteEditor(): RouteEditor | null {
+        return this.routeEditor;
+    }
+
+    public relocateToPosition(lat: number, lon: number, height: number): void {
+        // Reorient the map to the new location
+        this.mapViewer.reorient(lat, lon, height);
+
+        // Convert geographic coordinates to world position for camera placement
+        const worldPos = this.mapViewer.latLonHeightToWorldPosition(lat, lon, height);
+
+        if (worldPos) {
+            // Position camera at the location
+            this.camera.position.copy(worldPos);
+
+            // Look down at the route (point camera down)
+            const lookAtPos = this.mapViewer.latLonHeightToWorldPosition(lat, lon, height - 50);
+            if (lookAtPos) {
+                this.camera.lookAt(lookAtPos);
+            }
+
+            this.camera.updateMatrixWorld();
+            console.log(`Camera relocated to Lat: ${lat}, Lon: ${lon}, Height: ${height}m`);
+        }
+    }
+
     public cleanup(): void {
         if (this.rafId) {
             cancelAnimationFrame(this.rafId);
@@ -110,6 +206,7 @@ export class Editor {
 
         this.flightControls.cleanup();
         this.mapViewer.cleanup();
+        this.clearPatchRoute();
         Input.cleanup();
 
         this.renderer.dispose();

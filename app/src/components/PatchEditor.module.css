@@ -1,0 +1,264 @@
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.modal {
+    background-color: #1a1a1a;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 900px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #3a3a3a;
+    overflow: hidden;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid #3a3a3a;
+    flex-shrink: 0;
+}
+
+.title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.closeButton {
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.closeButton:hover {
+    color: #ffffff;
+}
+
+.patchInfo {
+    padding: 16px 24px;
+    background-color: #2a2a2a;
+    border-bottom: 1px solid #3a3a3a;
+    flex-shrink: 0;
+}
+
+.infoGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.infoItem {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.infoLabel {
+    color: #888;
+    font-size: 14px;
+}
+
+.infoValue {
+    color: #ffffff;
+    font-size: 14px;
+}
+
+.statusBadge {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #ffffff;
+}
+
+.declinedNotice {
+    padding: 12px;
+    background-color: #7f1d1d;
+    border-radius: 6px;
+    border: 1px solid #ef4444;
+    color: #ffffff;
+}
+
+.declinedNotice strong {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.declinedNotice p {
+    margin: 0;
+    font-size: 14px;
+}
+
+.approvedNotice {
+    padding: 12px;
+    background-color: #14532d;
+    border-radius: 6px;
+    border: 1px solid #22c55e;
+    color: #ffffff;
+}
+
+.approvedNotice strong {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.approvedNotice p {
+    margin: 0;
+    font-size: 14px;
+}
+
+.content {
+    flex: 1;
+    overflow: auto;
+    padding: 24px;
+    min-height: 0;
+}
+
+.dataHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.dataTitle {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 500;
+    color: #ffffff;
+}
+
+.readOnlyBadge {
+    padding: 4px 12px;
+    background-color: #374151;
+    border-radius: 12px;
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+.dataTable {
+    overflow-x: auto;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.tableHeaderRow {
+    background-color: #2a2a2a;
+}
+
+.tableHeader {
+    padding: 12px;
+    text-align: left;
+    color: #ffffff;
+    font-weight: 500;
+    border-bottom: 1px solid #3a3a3a;
+}
+
+.tableRow {
+    border-bottom: 1px solid #2a2a2a;
+}
+
+.tableRow:hover {
+    background-color: #252525;
+}
+
+.tableCell {
+    padding: 12px;
+    color: #cccccc;
+}
+
+.emptyCell {
+    padding: 40px;
+    text-align: center;
+    color: #888;
+}
+
+.loading {
+    padding: 60px;
+    text-align: center;
+    color: #888;
+}
+
+.error {
+    margin: 0 24px 16px;
+    padding: 12px;
+    background-color: #7f1d1d;
+    border: 1px solid #ef4444;
+    border-radius: 6px;
+    color: #ffffff;
+}
+
+.footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 24px;
+    border-top: 1px solid #3a3a3a;
+    flex-shrink: 0;
+}
+
+.cancelButton {
+    padding: 10px 20px;
+    background-color: #374151;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.cancelButton:hover {
+    background-color: #4b5563;
+}
+
+.saveButton {
+    padding: 10px 20px;
+    background-color: #3b82f6;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.saveButton:hover {
+    background-color: #2563eb;
+}
+
+.saveButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
