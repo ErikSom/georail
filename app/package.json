@@ -11,7 +11,7 @@
   "dependencies": {
     "@astrojs/preact": "^4.1.1",
     "@supabase/supabase-js": "^2.75.1",
-    "3d-tiles-renderer": "^0.4.17",
+    "3d-tiles-renderer": "^0.4.18",
     "astro": "^5.14.6",
     "preact": "^10.27.2"
   },
