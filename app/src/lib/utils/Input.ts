@@ -106,6 +106,8 @@ export class Input {
         this.mouseButtonsDown[e.button] = true;
         this.mouseButtonsPressed[e.button] = true;
 
+        this.onMouseMove(e);
+
         if (e.button === 2) {
             e.preventDefault();
             this.onRightMouseDown?.();

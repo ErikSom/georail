@@ -43,7 +43,6 @@ function EditorViewer() {
         setActivePatchId(patchId);
         setShowPatchManagement(false);
 
-        // Load route in the 3D viewer
         if (editorRef.current) {
             try {
                 await editorRef.current.loadPatchRoute(routeInfo);

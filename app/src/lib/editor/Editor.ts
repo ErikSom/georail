@@ -73,13 +73,22 @@ export class Editor {
             // 1. Update the raycaster
             this.raycaster.setFromCamera(Input.mouse, this.camera);
 
-            // If route editor is active, check for node selection first
             if (this.routeEditor) {
                 const nodeKey = this.routeEditor.raycastNodes(this.raycaster);
                 if (nodeKey) {
                     this.routeEditor.selectNode(nodeKey);
-                    return; // Don't process 3D tiles if we clicked a node
+                    return;
                 }
+
+                // Check if we clicked on transform controls
+                if (this.routeEditor.isTransformControlClicked(this.raycaster)) {
+                    console.log('Clicked on transform controls');
+                    return; // Don't deselect if clicking on transform controls
+                }
+
+                // If we didn't click a node or transform controls, deselect
+                this.routeEditor.selectNode(null);
+                return;
             }
 
             const intersects = this.raycaster.intersectObject(this.scene, true);

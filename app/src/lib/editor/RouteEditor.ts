@@ -8,7 +8,7 @@ import {
     Vector3,
     Raycaster,
 } from 'three';
-import { TransformControls } from 'three/addons/controls/TransformControls.js';
+import { TransformControls, TransformControlsPlane } from 'three/addons/controls/TransformControls.js';
 import type { RouteData, EditorPoint } from '../Georail';
 import type { MapViewer } from '../MapViewer';
 
@@ -118,9 +118,21 @@ export class RouteEditor {
 
             this.nodeMeshes.set(nodeKey, mesh);
             this.routeGroup.add(mesh);
+
+            // Debug first and last node positions
+            if (idx === 0) {
+                console.log('First node position (world):', position);
+                console.log('First node geo coords:', { lat, lon, height });
+            }
+            if (idx === routeData.geometry.route.length - 1) {
+                console.log('Last node position (world):', position);
+                console.log('Last node geo coords:', { lat, lon, height });
+            }
         });
 
         console.log(`Loaded ${this.nodes.size} nodes for route editing`);
+        console.log('Route group position:', this.routeGroup.position);
+        console.log('Route group world matrix:', this.routeGroup.matrixWorld);
     }
 
     public selectNode(nodeKey: string | null): void {
@@ -188,7 +200,11 @@ export class RouteEditor {
     }
 
     public raycastNodes(raycaster: Raycaster): string | null {
-        const intersects = raycaster.intersectObjects(Array.from(this.nodeMeshes.values()));
+        const meshArray = Array.from(this.nodeMeshes.values());
+
+        const intersects = raycaster.intersectObjects(meshArray, true);
+
+        console.log('Raycast intersects:', intersects);
 
         if (intersects.length > 0) {
             const mesh = intersects[0].object as Mesh;
@@ -196,6 +212,18 @@ export class RouteEditor {
         }
 
         return null;
+    }
+
+    public isTransformControlClicked(raycaster: Raycaster): boolean {
+        // Raycast against the transform controls to see if they were clicked
+        const helper = this.transformControls.getHelper();
+        let intersects = raycaster.intersectObject(helper, true);
+
+        intersects = intersects.filter(intersect => ((intersect.object as any).isMesh && !(intersect.object as any).isTransformControlsPlane));
+
+        console.log('Transform control intersects:', intersects);
+
+        return intersects.length > 0;
     }
 
     public getModifiedNodes(): NodeData[] {
@@ -246,7 +274,7 @@ export class RouteEditor {
     public cleanup(): void {
         this.clear();
         this.scene.remove(this.routeGroup);
-        this.scene.remove(this.transformControls);
+        this.scene.remove(this.transformControls.getHelper());
         this.transformControls.dispose();
     }
 }
