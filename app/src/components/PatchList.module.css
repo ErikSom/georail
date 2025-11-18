@@ -88,7 +88,6 @@
     background-color: #2a2a2a;
     border-radius: 8px;
     padding: 16px;
-    cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s;
     border: 1px solid #3a3a3a;
 }

@@ -5,13 +5,12 @@ import { fetchPatches, deletePatch } from '../lib/api/patches';
 import styles from './PatchList.module.css';
 
 interface PatchListProps {
-    onSelectPatch: (patchId: number) => void;
     onCreateNew: () => void;
     onEditPatch?: (patchId: number, patch: Patch) => void;
     activePatchId?: number | null;
 }
 
-function PatchList({ onSelectPatch, onCreateNew, onEditPatch, activePatchId }: PatchListProps) {
+function PatchList({ onCreateNew, onEditPatch, activePatchId }: PatchListProps) {
     const [patches, setPatches] = useState<Patch[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -127,7 +126,6 @@ function PatchList({ onSelectPatch, onCreateNew, onEditPatch, activePatchId }: P
                         <div
                             key={patch.id}
                             className={styles.patchCard}
-                            onClick={() => onSelectPatch(patch.id)}
                         >
                             <div className={styles.patchHeader}>
                                 <div className={styles.patchTitleContainer}>
