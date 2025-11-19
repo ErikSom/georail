@@ -118,7 +118,11 @@ export class Input {
         this.mouseButtonsDown[e.button] = false;
         this.mouseButtonsReleased[e.button] = true;
 
+        this.onMouseMove(e);
+
         if (e.button === 2) {
+            console.log('Right mouse button released');
+            e.preventDefault();
             this.onRightMouseUp?.();
         }
     }
@@ -159,6 +163,7 @@ export class Input {
     }
 
     private static onBlur(): void {
+        console.log('Window lost focus, resetting input state');
         this.reset();
         this.onRightMouseUp?.();
     }

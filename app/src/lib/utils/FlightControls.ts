@@ -5,7 +5,7 @@ import { Input } from './Input';
 export class FlightControls {
     public controls: PointerLockControls;
     private camera: PerspectiveCamera;
-    private domElement: HTMLElement; 
+    private domElement: HTMLElement;
 
     private baseSpeed = 200;
     private fastMul = 5;
@@ -23,8 +23,13 @@ export class FlightControls {
     }
 
     public init(): void {
-        Input.onRightMouseDown = this.controls.lock.bind(this.controls);
-        Input.onRightMouseUp = this.controls.unlock.bind(this.controls);
+        Input.onRightMouseDown = this.controls.lock;
+        Input.onRightMouseUp = this.unlock.bind(this);
+    }
+
+    private unlock(): void {
+        this.controls.isLocked = false;
+        this.controls.unlock();
     }
 
     public cleanup(): void {
@@ -34,7 +39,7 @@ export class FlightControls {
         if (Input.onRightMouseDown === this.controls.lock) {
             Input.onRightMouseDown = null;
         }
-        if (Input.onRightMouseUp === this.controls.unlock) {
+        if (Input.onRightMouseUp === this.unlock) {
             Input.onRightMouseUp = null;
         }
     }
@@ -54,14 +59,14 @@ export class FlightControls {
         this.right.crossVectors(this.forward, this.camera.up).normalize();
 
         this.velocity.set(0, 0, 0);
-        
+
         if (Input.isDown('KeyW') || Input.isDown('ArrowUp')) this.velocity.addScaledVector(this.forward, step);
         if (Input.isDown('KeyS') || Input.isDown('ArrowDown')) this.velocity.addScaledVector(this.forward, -step);
         if (Input.isDown('KeyA') || Input.isDown('ArrowLeft')) this.velocity.addScaledVector(this.right, -step);
         if (Input.isDown('KeyD') || Input.isDown('ArrowRight')) this.velocity.addScaledVector(this.right, step);
         if (Input.isDown('KeyQ')) this.velocity.addScaledVector(this.up, step);
         if (Input.isDown('KeyZ')) this.velocity.addScaledVector(this.up, -step);
-        
+
         this.camera.position.add(this.velocity);
     }
 }

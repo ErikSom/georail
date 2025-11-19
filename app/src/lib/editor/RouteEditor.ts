@@ -8,7 +8,7 @@ import {
     Vector3,
     Raycaster,
 } from 'three';
-import { TransformControls, TransformControlsPlane } from 'three/addons/controls/TransformControls.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import type { RouteData, EditorPoint } from '../Georail';
 import type { MapViewer } from '../MapViewer';
 
@@ -51,6 +51,13 @@ export class RouteEditor {
 
         // Setup TransformControls
         this.transformControls = new TransformControls(camera, domElement);
+
+        // Set to 'local' space so controls align with mesh rotation
+        this.transformControls.setSpace('local');
+
+        // Lock Z-axis - only allow X and Y translation (local Z now follows mesh orientation)
+        this.transformControls.showZ = false;
+
         this.transformControls.addEventListener('dragging-changed', (event) => {
             // Disable camera controls while dragging
             this.domElement.dispatchEvent(new CustomEvent('transform-dragging', { detail: event.value }));
@@ -71,9 +78,19 @@ export class RouteEditor {
             return;
         }
 
-        const pyramidGeometry = new ConeGeometry(2, 4, 4); // Larger: 2m radius, 4m height
+        // Create base geometry - cone pointing up along +Y
+        const baseConeGeometry = new ConeGeometry(2, 4, 4);
+
+        // Rotate geometry so cone points down (-Y) but local Z points forward (+Z)
+        // This way the mesh's local coordinate system has Z pointing in the "forward" direction
+        baseConeGeometry.rotateX(Math.PI); // Flip to point down
+        baseConeGeometry.rotateY(Math.PI / 4); // Rotate to align with forward direction
+
         const normalMaterial = new MeshBasicMaterial({ color: 0x00ff00, wireframe: false });
         const keyNodeMaterial = new MeshBasicMaterial({ color: 0xff0000, wireframe: false });
+
+        // Store meshes in order for orientation calculation
+        const orderedMeshes: Mesh[] = [];
 
         // Process each point using both route and editor arrays
         routeData.geometry.route.forEach((routePoint: number[], idx: number) => {
@@ -109,15 +126,15 @@ export class RouteEditor {
 
             this.nodes.set(nodeKey, nodeData);
 
-            // Create pyramid mesh (upside down)
-            const mesh = new Mesh(pyramidGeometry, normalMaterial);
+            // Create pyramid mesh - geometry is already rotated to point down
+            const mesh = new Mesh(baseConeGeometry, normalMaterial);
             mesh.position.copy(position);
-            mesh.rotation.x = Math.PI; // Flip upside down
             mesh.name = nodeKey;
             mesh.userData.nodeKey = nodeKey;
 
             this.nodeMeshes.set(nodeKey, mesh);
             this.routeGroup.add(mesh);
+            orderedMeshes.push(mesh);
 
             // Debug first and last node positions
             if (idx === 0) {
@@ -129,6 +146,47 @@ export class RouteEditor {
                 console.log('Last node geo coords:', { lat, lon, height });
             }
         });
+
+        // Orient each mesh so local Z-axis points towards the next node
+        // The cone geometry itself is already pointing down, we just rotate the mesh
+        const MIN_DISTANCE_THRESHOLD = 0.1; // Minimum distance (in meters) to calculate orientation
+
+        for (let i = 0; i < orderedMeshes.length; i++) {
+            const mesh = orderedMeshes[i];
+
+            if (i < orderedMeshes.length - 1) {
+                const nextMesh = orderedMeshes[i + 1];
+                const distance = mesh.position.distanceTo(nextMesh.position);
+
+                // If nodes are too close together, copy rotation from previous node
+                if (distance < MIN_DISTANCE_THRESHOLD && i > 0) {
+                    mesh.rotation.copy(orderedMeshes[i - 1].rotation);
+                } else if (distance >= MIN_DISTANCE_THRESHOLD) {
+                    // Calculate direction to next node
+                    const direction = new Vector3()
+                        .subVectors(nextMesh.position, mesh.position)
+                        .normalize();
+
+                    // We want local Z-axis to point in 'direction'
+                    // Use lookAt to align the mesh, but we need to be careful:
+                    // lookAt aligns -Z by default, but we want +Z
+                    // So we look at the opposite direction
+                    const targetPoint = new Vector3()
+                        .copy(mesh.position)
+                        .sub(direction); // Look at opposite direction so +Z points toward next
+
+                    mesh.lookAt(targetPoint);
+                } else {
+                    // First node and too close to next - keep default orientation (pointing down)
+                    // No rotation needed as geometry is already oriented correctly
+                }
+            } else {
+                // Last node: copy rotation from previous node
+                if (i > 0) {
+                    mesh.rotation.copy(orderedMeshes[i - 1].rotation);
+                }
+            }
+        }
 
         console.log(`Loaded ${this.nodes.size} nodes for route editing`);
         console.log('Route group position:', this.routeGroup.position);
