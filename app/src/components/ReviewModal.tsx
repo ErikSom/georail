@@ -69,8 +69,9 @@ function ReviewModal({ patchId, routeEditor, onClose, onSave }: ReviewModalProps
                                     <tr>
                                         <th>Segment ID</th>
                                         <th>Point Index</th>
-                                        <th>Height (m)</th>
-                                        <th>Lateral Offset (m)</th>
+                                        <th>Offset X (m)</th>
+                                        <th>Offset Y (m)</th>
+                                        <th>Offset Z (m)</th>
                                         <th>Keynode</th>
                                     </tr>
                                 </thead>
@@ -82,8 +83,9 @@ function ReviewModal({ patchId, routeEditor, onClose, onSave }: ReviewModalProps
                                         >
                                             <td>{node.segment_id}</td>
                                             <td>{node.index}</td>
-                                            <td>{node.height.toFixed(2)}</td>
-                                            <td>{node.lateral_offset.toFixed(2)}</td>
+                                            <td>{node.world_offset.x.toFixed(2)}</td>
+                                            <td>{node.world_offset.y.toFixed(2)}</td>
+                                            <td>{node.world_offset.z.toFixed(2)}</td>
                                             <td>
                                                 {node.isKeyNode ? (
                                                     <span className={styles.keyNodeBadge}>Yes</span>

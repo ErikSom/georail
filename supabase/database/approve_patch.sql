@@ -15,38 +15,36 @@ BEGIN
   END IF;
 
   v_reviewer_id := auth.uid();
-  
+
   SELECT user_id INTO v_editor_id
   FROM public.rail_patches
   WHERE id = approved_patch_id;
 
   INSERT INTO public.rail_point_overrides (
-    segment_id, point_index, height, lateral_offset, editor_id, reviewer_id, keynode -- Added 'keynode'
+    segment_id, point_index, world_offset, editor_id, reviewer_id, keynode
   )
   SELECT
     segment_id,
     point_index,
-    height,
-    lateral_offset,
+    world_offset,
     v_editor_id,   -- The patch creator
     v_reviewer_id,  -- The moderator approving
-    keynode        -- Added 'keynode'
+    keynode
   FROM public.rail_patch_data
   WHERE patch_id = approved_patch_id
   ON CONFLICT (segment_id, point_index)
   DO UPDATE SET
-    height = EXCLUDED.height,
-    lateral_offset = EXCLUDED.lateral_offset,
+    world_offset = EXCLUDED.world_offset,
     editor_id = EXCLUDED.editor_id,
     reviewer_id = EXCLUDED.reviewer_id,
-    keynode = EXCLUDED.keynode; -- Added 'keynode'
-    
+    keynode = EXCLUDED.keynode;
+
   UPDATE public.rail_patches
   SET status = 'approved',
       reviewed_at = now(),
       reviewed_by = v_reviewer_id
   WHERE id = approved_patch_id;
-  
+
   RETURN json_build_object('success', true, 'patch_id', approved_patch_id, 'action', 'approved');
 END;
 $$;

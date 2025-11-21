@@ -3,14 +3,13 @@ import { supabase } from '../lib/Supabase';
 export interface EditorPoint {
     segment_id: number;
     index: number;
-    is_reversed: boolean;
 }
 
 export interface RouteData {
     geometry: {
         start_node: number;
         end_node: number;
-        route: number[][]; // [lon, lat, height, lateral_offset]
+        route: number[][]; // [lon, lat, world_offset_x, world_offset_y, world_offset_z]
         editor?: EditorPoint[];
     };
     properties: {

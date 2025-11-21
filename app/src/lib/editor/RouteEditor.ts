@@ -15,9 +15,7 @@ import type { MapViewer } from '../MapViewer';
 export interface NodeData {
     segment_id: number;
     index: number;
-    height: number;
-    lateral_offset: number;
-    is_reversed: boolean;
+    world_offset: Vector3; // [x, y, z] offset in world space
     isKeyNode: boolean;
     position: Vector3;
     originalPosition: Vector3;
@@ -96,28 +94,31 @@ export class RouteEditor {
         routeData.geometry.route.forEach((routePoint: number[], idx: number) => {
             const editorPoint = routeData.geometry.editor![idx];
 
-            // routePoint is [lon, lat, height, lateral_offset]
-            const [lon, lat, height, lateral_offset] = routePoint;
-            const { segment_id, index, is_reversed } = editorPoint;
+            // routePoint is [lon, lat, world_offset_x, world_offset_y, world_offset_z]
+            const [lon, lat, world_offset_x, world_offset_y, world_offset_z] = routePoint;
+            const { segment_id, index } = editorPoint;
 
             // Create unique key
             const nodeKey = `${segment_id}-${index}`;
 
             // Convert geographic coordinates to 3D world position
-            const position = this.mapViewer.latLonHeightToWorldPosition(lat, lon, height);
+            // world_offset_y contains the height
+            const position = this.mapViewer.latLonHeightToWorldPosition(lat, lon, world_offset_y);
 
             if (!position) {
                 console.warn(`Failed to convert coordinates for node ${nodeKey}`);
                 return;
             }
 
+            // Apply X and Z offsets in world space
+            // TODO: Apply these offsets properly based on the coordinate system
+            // For now, we'll store them and apply when saving
+
             // Create node data
             const nodeData: NodeData = {
                 segment_id,
                 index,
-                height,
-                lateral_offset,
-                is_reversed,
+                world_offset: new Vector3(world_offset_x, world_offset_y, world_offset_z),
                 isKeyNode: false, // TODO: Load from patch data
                 position: position.clone(),
                 originalPosition: position.clone(),
@@ -139,11 +140,11 @@ export class RouteEditor {
             // Debug first and last node positions
             if (idx === 0) {
                 console.log('First node position (world):', position);
-                console.log('First node geo coords:', { lat, lon, height });
+                console.log('First node geo coords:', { lat, lon, world_offset: [world_offset_x, world_offset_y, world_offset_z] });
             }
             if (idx === routeData.geometry.route.length - 1) {
                 console.log('Last node position (world):', position);
-                console.log('Last node geo coords:', { lat, lon, height });
+                console.log('Last node geo coords:', { lat, lon, world_offset: [world_offset_x, world_offset_y, world_offset_z] });
             }
         });
 
@@ -302,10 +303,18 @@ export class RouteEditor {
             // Update node data with new position
             nodeData.position.copy(mesh.position);
 
-            // Convert world position back to geographic coordinates
+            // Convert world position back to geographic coordinates to update world_offset
             const geoCoords = this.mapViewer.getLatLonHeightFromWorldPosition(mesh.position);
             if (geoCoords) {
-                nodeData.height = geoCoords.height;
+                // Calculate the offset from original position
+                const origGeoCoords = this.mapViewer.getLatLonHeightFromWorldPosition(nodeData.originalPosition);
+                if (origGeoCoords) {
+                    // Update world_offset based on the difference
+                    // For now, we update Y (height) directly
+                    nodeData.world_offset.y = geoCoords.height;
+                    // X and Z offsets would need more sophisticated calculation
+                    // based on the local coordinate system
+                }
             }
 
             nodeData.isDirty = true;

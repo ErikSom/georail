@@ -58,14 +58,17 @@ BEGIN
 
   -- Insert all the new patch data from the JSON
   INSERT INTO public.rail_patch_data (
-    patch_id, segment_id, point_index, height, lateral_offset, keynode
+    patch_id, segment_id, point_index, world_offset, keynode
   )
   SELECT
     new_patch_id,
     (d.value ->> 'segment_id')::bigint,
     (d.value ->> 'index')::integer,
-    (d.value ->> 'height')::double precision,
-    (d.value ->> 'lateral_offset')::double precision,
+    ARRAY[
+      (d.value ->> 'world_offset_x')::double precision,
+      (d.value ->> 'world_offset_y')::double precision,
+      (d.value ->> 'world_offset_z')::double precision
+    ]::double precision[],
     COALESCE((d.value ->> 'keynode')::boolean, false)
   FROM jsonb_array_elements(patch_data) AS d;
 

@@ -19,8 +19,7 @@ export interface PatchData {
     patch_id: number;
     segment_id: number;
     point_index: number;
-    height: number;
-    lateral_offset: number;
+    world_offset: [number, number, number]; // [x, y, z]
     keynode: boolean;
 }
 
@@ -31,8 +30,9 @@ export interface PatchWithData extends Patch {
 export interface PatchDataInput {
     segment_id: number;
     index: number;
-    height: number;
-    lateral_offset: number;
+    world_offset_x: number;
+    world_offset_y: number;
+    world_offset_z: number;
     keynode?: boolean;
 }
 

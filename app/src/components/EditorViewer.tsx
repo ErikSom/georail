@@ -78,8 +78,9 @@ function EditorViewer() {
             const patchData = allNodes.map((node) => ({
                 segment_id: node.segment_id,
                 index: node.index,
-                height: node.height,
-                lateral_offset: node.lateral_offset,
+                world_offset_x: node.world_offset.x,
+                world_offset_y: node.world_offset.y,
+                world_offset_z: node.world_offset.z,
                 keynode: node.isKeyNode,
             }));
 
@@ -149,8 +150,9 @@ function EditorViewer() {
                                     <div className={styles.nodeDetails}>
                                         <div>Segment: {selectedNodeData.segment_id}</div>
                                         <div>Index: {selectedNodeData.index}</div>
-                                        <div>Height: {selectedNodeData.height.toFixed(2)}m</div>
-                                        <div>Offset: {selectedNodeData.lateral_offset.toFixed(2)}m</div>
+                                        <div>Offset X: {selectedNodeData.world_offset.x.toFixed(2)}m</div>
+                                        <div>Offset Y: {selectedNodeData.world_offset.y.toFixed(2)}m</div>
+                                        <div>Offset Z: {selectedNodeData.world_offset.z.toFixed(2)}m</div>
                                         <div>
                                             <label>
                                                 <input

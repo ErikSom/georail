@@ -1,4 +1,14 @@
-
+CREATE OR REPLACE FUNCTION find_rail_route(
+  start_lon float,
+  start_lat float,
+  end_lon float,
+  end_lat float,
+  editor boolean DEFAULT false
+)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
 DECLARE
   start_node bigint;
   end_node   bigint;
@@ -61,46 +71,70 @@ BEGIN
       b.original_point_index,
       b.segment_id,
       b.is_reversed,
-      
+
       -- Get 2D point for GeoJSON
       ST_MakePoint(
         ST_X(b.original_point_geom),
         ST_Y(b.original_point_geom)
       ) AS point_geom_2d,
-      
-      -- Get Z (height) and M (offset) values
-      COALESCE(ovr.height, ST_Z(b.original_point_geom), 0.0) AS height,
-      COALESCE(ovr.lateral_offset, 0.0) AS lateral_offset
-      
+
+      -- Get world_offset array [x, y, z]
+      COALESCE(
+        ovr.world_offset,
+        ARRAY[0.0, COALESCE(ST_Z(b.original_point_geom), 0.0), 0.0]::double precision[]
+      ) AS world_offset
+
     FROM route_points_base b
     LEFT JOIN rail_point_overrides ovr
       ON ovr.segment_id = b.segment_id
       AND ovr.point_index = b.original_point_index
   )
-  -- 4. Build the final JSON
-  SELECT json_build_object(
-           'start_node', start_node,
-           'end_node',   end_node,
-           
-           'all_route_points',
-             (
-                SELECT json_agg(
-                  json_build_object(
-                    'geom', ST_AsGeoJSON(fp.point_geom_2d)::json, -- The XY geom
-                    'data', json_build_object( -- The other data
-                      'segment_id', fp.segment_id,
-                      'index', fp.original_point_index,
-                      'is_reversed', fp.is_reversed,
-                      'height', fp.height,
-                      'lateral_offset', fp.lateral_offset
-                    )
-                  )
-                  ORDER BY fp.path_seq, fp.point_index_in_route
-                )
-                FROM final_points_data AS fp
-             )
-         )
-  INTO out_json;
+  -- 4. Build route/editor arrays
+  , route_array AS (
+    SELECT json_agg(
+      json_build_array(
+        ST_X(fp.point_geom_2d),
+        ST_Y(fp.point_geom_2d),
+        fp.world_offset[1],  -- x
+        fp.world_offset[2],  -- y (height)
+        fp.world_offset[3]   -- z
+      )
+      ORDER BY fp.path_seq, fp.point_index_in_route
+    ) AS arr
+    FROM final_points_data AS fp
+  )
+  , editor_array AS (
+    SELECT json_agg(
+      json_build_object(
+        'segment_id', fp.segment_id,
+        'index', fp.original_point_index
+      )
+      ORDER BY fp.path_seq, fp.point_index_in_route
+    ) AS arr
+    FROM final_points_data AS fp
+  )
+  -- 5. Build final JSON using CASE
+  SELECT
+    CASE
+      WHEN editor = true THEN
+        -- "Editor Mode"
+        json_build_object(
+          'start_node', start_node,
+          'end_node',   end_node,
+          'route',      r.arr,
+          'editor',     e.arr
+        )
+      ELSE
+        -- "User Mode"
+        json_build_object(
+          'start_node', start_node,
+          'end_node',   end_node,
+          'route',      r.arr
+        )
+    END
+  INTO out_json
+  FROM route_array r, editor_array e;
 
   RETURN out_json;
 END;
+$$;
