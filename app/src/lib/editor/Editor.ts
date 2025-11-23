@@ -12,6 +12,7 @@ import { FlightControls } from '../utils/FlightControls';
 import { Input } from '../utils/Input';
 import { RouteEditor } from './RouteEditor';
 import { fetchRouteByName, type RouteData } from '../Georail';
+import { fetchPatchWithData } from '../api/patches';
 import type { RouteInfo } from '../types/Patch';
 
 export class Editor {
@@ -128,7 +129,7 @@ export class Editor {
     }
 
 
-    public async loadPatchRoute(routeInfo: RouteInfo): Promise<void> {
+    public async loadPatchRoute(routeInfo: RouteInfo, patchId: number): Promise<void> {
         try {
             // Fetch route data with editor=true to get all points
             const routeData = await fetchRouteByName(
@@ -138,6 +139,9 @@ export class Editor {
                 routeInfo.toTrack || null,
                 true // editor mode
             );
+
+            // Fetch existing patch data to apply saved offsets
+            const patchWithData = await fetchPatchWithData(patchId);
 
             // Relocate camera to the start of the route before loading nodes
             if (routeData.geometry.route && routeData.geometry.route.length > 0) {
@@ -165,6 +169,11 @@ export class Editor {
 
             // Load the route
             this.routeEditor.loadRoute(routeData);
+
+            // Apply saved patch offsets if they exist
+            if (patchWithData && patchWithData.data && patchWithData.data.length > 0) {
+                this.routeEditor.applyPatchData(patchWithData.data);
+            }
 
             console.log('Route loaded for editing');
         } catch (error) {

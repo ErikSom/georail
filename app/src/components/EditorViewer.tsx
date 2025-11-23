@@ -45,7 +45,7 @@ function EditorViewer() {
 
         if (editorRef.current) {
             try {
-                await editorRef.current.loadPatchRoute(routeInfo);
+                await editorRef.current.loadPatchRoute(routeInfo, patchId);
             } catch (error) {
                 console.error('Failed to load route:', error);
                 alert('Failed to load route for editing. Please try again.');
@@ -71,11 +71,11 @@ function EditorViewer() {
         const routeEditor = editorRef.current.getRouteEditor();
         if (!routeEditor) return;
 
-        const allNodes = routeEditor.getAllNodes();
+        const modifiedNodes = routeEditor.getModifiedNodes();
 
         try {
-            // Convert NodeData to PatchDataInput format
-            const patchData = allNodes.map((node) => ({
+            // Convert NodeData to PatchDataInput format - only save modified nodes
+            const patchData = modifiedNodes.map((node) => ({
                 segment_id: node.segment_id,
                 index: node.index,
                 world_offset_x: node.world_offset.x,
@@ -91,8 +91,14 @@ function EditorViewer() {
                 patchId: activePatchId,
             });
 
+            // Reset isDirty flags on all nodes after successful save
+            const allNodes = routeEditor.getAllNodes();
+            allNodes.forEach(node => {
+                node.isDirty = false;
+            });
+            setModifiedNodesCount(0);
+
             alert('Patch saved successfully!');
-            handleClosePatchEditor();
         } catch (error) {
             console.error('Failed to save patch:', error);
             alert('Failed to save patch. Please try again.');
@@ -150,9 +156,9 @@ function EditorViewer() {
                                     <div className={styles.nodeDetails}>
                                         <div>Segment: {selectedNodeData.segment_id}</div>
                                         <div>Index: {selectedNodeData.index}</div>
-                                        <div>Offset X: {selectedNodeData.world_offset.x.toFixed(2)}m</div>
-                                        <div>Offset Y: {selectedNodeData.world_offset.y.toFixed(2)}m</div>
-                                        <div>Offset Z: {selectedNodeData.world_offset.z.toFixed(2)}m</div>
+                                        <div>East: {selectedNodeData.world_offset.x.toFixed(2)}m</div>
+                                        <div>Up: {selectedNodeData.world_offset.y.toFixed(2)}m</div>
+                                        <div>North: {selectedNodeData.world_offset.z.toFixed(2)}m</div>
                                         <div>
                                             <label>
                                                 <input

@@ -90,6 +90,9 @@
     padding: 16px;
     transition: transform 0.2s, box-shadow 0.2s;
     border: 1px solid #3a3a3a;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
 }
 
 .patchCard:hover {
@@ -161,7 +164,7 @@
 .actions {
     display: flex;
     gap: 8px;
-    margin-top: 12px;
+    margin-top: auto;
     padding-top: 12px;
     border-top: 1px solid #3a3a3a;
 }
@@ -199,4 +202,36 @@
 
 .editButton:hover {
     background-color: #2563eb;
+}
+
+.cancelButton {
+    padding: 6px 12px;
+    margin: 0 0 0 auto;
+    background-color: #f59e0b;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.cancelButton:hover {
+    background-color: #d97706;
+}
+
+.submitButton {
+    padding: 6px 12px;
+    margin: 0 0 0 auto;
+    background-color: #22c55e;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.submitButton:hover {
+    background-color: #16a34a;
 }

@@ -14,7 +14,7 @@ function ReviewModal({ patchId, routeEditor, onClose, onSave }: ReviewModalProps
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
-        const nodes = routeEditor.getAllNodes();
+        const nodes = routeEditor.getModifiedNodes();
         setAllNodes(nodes);
     }, [routeEditor]);
 
@@ -29,8 +29,6 @@ function ReviewModal({ patchId, routeEditor, onClose, onSave }: ReviewModalProps
         }
     };
 
-    const modifiedNodes = allNodes.filter(node => node.isDirty);
-
     return (
         <div className={styles.overlay} onClick={onClose}>
             <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
@@ -44,12 +42,8 @@ function ReviewModal({ patchId, routeEditor, onClose, onSave }: ReviewModalProps
                 <div className={styles.content}>
                     <div className={styles.summary}>
                         <div className={styles.summaryItem}>
-                            <span className={styles.summaryLabel}>Total Nodes:</span>
-                            <span className={styles.summaryValue}>{allNodes.length}</span>
-                        </div>
-                        <div className={styles.summaryItem}>
                             <span className={styles.summaryLabel}>Modified Nodes:</span>
-                            <span className={styles.summaryValue}>{modifiedNodes.length}</span>
+                            <span className={styles.summaryValue}>{allNodes.length}</span>
                         </div>
                         <div className={styles.summaryItem}>
                             <span className={styles.summaryLabel}>Key Nodes:</span>
@@ -60,9 +54,9 @@ function ReviewModal({ patchId, routeEditor, onClose, onSave }: ReviewModalProps
                     </div>
 
                     <div className={styles.tableContainer}>
-                        <h3 className={styles.sectionTitle}>Patch Data ({allNodes.length} points)</h3>
+                        <h3 className={styles.sectionTitle}>Modified Nodes ({allNodes.length} points)</h3>
                         {allNodes.length === 0 ? (
-                            <div className={styles.emptyState}>No data points yet</div>
+                            <div className={styles.emptyState}>No modifications made</div>
                         ) : (
                             <table className={styles.table}>
                                 <thead>
@@ -76,10 +70,10 @@ function ReviewModal({ patchId, routeEditor, onClose, onSave }: ReviewModalProps
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {allNodes.map((node, idx) => (
+                                    {allNodes.map((node) => (
                                         <tr
                                             key={`${node.segment_id}-${node.index}`}
-                                            className={node.isDirty ? styles.modifiedRow : ''}
+                                            className={styles.modifiedRow}
                                         >
                                             <td>{node.segment_id}</td>
                                             <td>{node.index}</td>

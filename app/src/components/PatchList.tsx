@@ -6,11 +6,13 @@ import styles from './PatchList.module.css';
 
 interface PatchListProps {
     onCreateNew: () => void;
-    onEditPatch?: (patchId: number, patch: Patch) => void;
+    onEditPatch: (patchId: number, patch: Patch) => void;
+    onCancelPatch: (patchId: number) => void;
+    onSubmitPatch: (patchId: number) => void;
     activePatchId?: number | null;
 }
 
-function PatchList({ onCreateNew, onEditPatch, activePatchId }: PatchListProps) {
+function PatchList({ onCreateNew, onEditPatch, onCancelPatch, onSubmitPatch, activePatchId }: PatchListProps) {
     const [patches, setPatches] = useState<Patch[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -58,8 +60,10 @@ function PatchList({ onCreateNew, onEditPatch, activePatchId }: PatchListProps) 
             case 'declined':
                 return '#ef4444';
             case 'pending':
-            default:
                 return '#f59e0b';
+            case 'editing':
+            default:
+                return '#6b7280';
         }
     };
 
@@ -164,9 +168,9 @@ function PatchList({ onCreateNew, onEditPatch, activePatchId }: PatchListProps) 
                                 )}
                             </div>
 
-                            {patch.status === 'pending' && (
+                            {patch.status === 'editing' && (
                                 <div className={styles.actions}>
-                                    {onEditPatch && activePatchId !== patch.id && (
+                                    {activePatchId !== patch.id && (
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
@@ -183,6 +187,29 @@ function PatchList({ onCreateNew, onEditPatch, activePatchId }: PatchListProps) 
                                         className={styles.deleteButton}
                                     >
                                         {deletingId === patch.id ? 'Deleting...' : 'Delete'}
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onSubmitPatch(patch.id);
+                                        }}
+                                        className={styles.submitButton}
+                                    >
+                                        Submit
+                                    </button>
+                                </div>
+                            )}
+
+                            {patch.status === 'pending' && (
+                                <div className={styles.actions}>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onCancelPatch(patch.id);
+                                        }}
+                                        className={styles.cancelButton}
+                                    >
+                                        Cancel
                                     </button>
                                 </div>
                             )}

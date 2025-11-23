@@ -11,6 +11,7 @@ import {
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import type { RouteData, EditorPoint } from '../Georail';
 import type { MapViewer } from '../MapViewer';
+import type { PatchData } from '../types/Patch';
 
 export interface NodeData {
     segment_id: number;
@@ -293,6 +294,51 @@ export class RouteEditor {
         return Array.from(this.nodes.values());
     }
 
+    public applyPatchData(patchData: PatchData[]): void {
+        for (const patch of patchData) {
+            const nodeKey = `${patch.segment_id}-${patch.point_index}`;
+            const nodeData = this.nodes.get(nodeKey);
+            const mesh = this.nodeMeshes.get(nodeKey);
+
+            if (nodeData && mesh) {
+                const [offsetX, offsetY, offsetZ] = patch.world_offset;
+
+                // Apply the saved world offsets
+                nodeData.world_offset.set(offsetX, offsetY, offsetZ);
+                nodeData.isKeyNode = patch.keynode;
+
+                // Convert the offset back to world position
+                // The original position is the base, we need to apply ENU offsets
+                const origGeoCoords = this.mapViewer.getLatLonHeightFromWorldPosition(nodeData.originalPosition);
+
+                if (origGeoCoords) {
+                    // Convert ENU offsets back to lat/lon/height
+                    const latRad = origGeoCoords.lat * Math.PI / 180;
+                    const metersPerDegreeLat = 111320;
+                    const metersPerDegreeLon = 111320 * Math.cos(latRad);
+
+                    const newLat = origGeoCoords.lat + (offsetZ / metersPerDegreeLat);
+                    const newLon = origGeoCoords.lon + (offsetX / metersPerDegreeLon);
+                    const newHeight = origGeoCoords.height + offsetY;
+
+                    const newPosition = this.mapViewer.latLonHeightToWorldPosition(newLat, newLon, newHeight);
+
+                    if (newPosition) {
+                        nodeData.position.copy(newPosition);
+                        mesh.position.copy(newPosition);
+
+                        // Update material if it's a key node
+                        if (nodeData.isKeyNode) {
+                            mesh.material = new MeshBasicMaterial({ color: 0xff0000, wireframe: false });
+                        }
+                    }
+                }
+            }
+        }
+
+        console.log(`Applied ${patchData.length} patch offsets`);
+    }
+
     private handleNodeTransform(): void {
         if (!this.selectedNode) return;
 
@@ -305,19 +351,47 @@ export class RouteEditor {
 
             // Convert world position back to geographic coordinates to update world_offset
             const geoCoords = this.mapViewer.getLatLonHeightFromWorldPosition(mesh.position);
-            if (geoCoords) {
-                // Calculate the offset from original position
-                const origGeoCoords = this.mapViewer.getLatLonHeightFromWorldPosition(nodeData.originalPosition);
-                if (origGeoCoords) {
-                    // Update world_offset based on the difference
-                    // For now, we update Y (height) directly
-                    nodeData.world_offset.y = geoCoords.height;
-                    // X and Z offsets would need more sophisticated calculation
-                    // based on the local coordinate system
-                }
+            const origGeoCoords = this.mapViewer.getLatLonHeightFromWorldPosition(nodeData.originalPosition);
+
+            if (geoCoords && origGeoCoords) {
+                // Calculate ENU (East-North-Up) offsets in meters
+                // These are local tangent plane offsets relative to the original position
+
+                // Convert lat/lon differences to meters using approximate conversion
+                // 1 degree latitude ≈ 111,320 meters
+                // 1 degree longitude ≈ 111,320 * cos(latitude) meters
+                const latRad = origGeoCoords.lat * Math.PI / 180;
+                const metersPerDegreeLat = 111320;
+                const metersPerDegreeLon = 111320 * Math.cos(latRad);
+
+                // East offset (positive = east)
+                const eastOffset = (geoCoords.lon - origGeoCoords.lon) * metersPerDegreeLon;
+
+                // North offset (positive = north)
+                const northOffset = (geoCoords.lat - origGeoCoords.lat) * metersPerDegreeLat;
+
+                // Up offset (height difference)
+                const upOffset = geoCoords.height - origGeoCoords.height;
+
+                // Store as [East, Up, North] to match typical coordinate conventions
+                // where Y is up in 3D space
+                nodeData.world_offset.x = eastOffset;
+                nodeData.world_offset.y = upOffset;
+                nodeData.world_offset.z = northOffset;
             }
 
             nodeData.isDirty = true;
+
+            // Update UI in real-time by calling onNodeSelected
+            // Create a shallow copy to trigger React state update (new reference)
+            if (this.onNodeSelected) {
+                this.onNodeSelected({
+                    ...nodeData,
+                    world_offset: nodeData.world_offset.clone(),
+                    position: nodeData.position.clone(),
+                    originalPosition: nodeData.originalPosition.clone(),
+                });
+            }
 
             this.notifyModification();
         }

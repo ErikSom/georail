@@ -1,4 +1,4 @@
-export type PatchStatus = 'pending' | 'approved' | 'declined';
+export type PatchStatus = 'editing' | 'pending' | 'approved' | 'declined';
 
 export interface Patch {
     id: number;

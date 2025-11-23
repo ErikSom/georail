@@ -154,6 +154,84 @@ export async function deletePatch(patchId: number): Promise<void> {
 }
 
 /**
+ * Submit an editing patch (change status to 'pending')
+ */
+export async function submitPatchForReview(patchId: number): Promise<void> {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+    if (sessionError || !session) {
+        throw new Error('User is not authenticated');
+    }
+
+    // First check if the patch is editing
+    const { data: patch, error: fetchError } = await supabase
+        .from('rail_patches')
+        .select('status')
+        .eq('id', patchId)
+        .eq('user_id', session.user.id)
+        .single();
+
+    if (fetchError || !patch) {
+        throw new Error('Patch not found');
+    }
+
+    if (patch.status !== 'editing') {
+        throw new Error('Can only submit editing patches');
+    }
+
+    // Update status to pending
+    const { error: updateError } = await supabase
+        .from('rail_patches')
+        .update({ status: 'pending' })
+        .eq('id', patchId)
+        .eq('user_id', session.user.id);
+
+    if (updateError) {
+        console.error('Error submitting patch:', updateError);
+        throw new Error('Failed to submit patch');
+    }
+}
+
+/**
+ * Cancel a pending patch (change status back to 'editing')
+ */
+export async function cancelPatch(patchId: number): Promise<void> {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+    if (sessionError || !session) {
+        throw new Error('User is not authenticated');
+    }
+
+    // First check if the patch is pending
+    const { data: patch, error: fetchError } = await supabase
+        .from('rail_patches')
+        .select('status')
+        .eq('id', patchId)
+        .eq('user_id', session.user.id)
+        .single();
+
+    if (fetchError || !patch) {
+        throw new Error('Patch not found');
+    }
+
+    if (patch.status !== 'pending') {
+        throw new Error('Can only cancel pending patches');
+    }
+
+    // Update status to editing
+    const { error: updateError } = await supabase
+        .from('rail_patches')
+        .update({ status: 'editing' })
+        .eq('id', patchId)
+        .eq('user_id', session.user.id);
+
+    if (updateError) {
+        console.error('Error canceling patch:', updateError);
+        throw new Error('Failed to cancel patch');
+    }
+}
+
+/**
  * Get patch count by status for the current user
  */
 export async function getPatchStats(): Promise<{ pending: number; approved: number; declined: number }> {

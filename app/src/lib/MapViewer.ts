@@ -69,7 +69,7 @@ export class MapViewer {
         }));
         this.tiles.registerPlugin(new TileCompressionPlugin());
         this.tiles.registerPlugin(new TilesFadePlugin());
-        this.tiles.registerPlugin(new DebugTilesPlugin({ displayBoxBounds: true }));
+        // this.tiles.registerPlugin(new DebugTilesPlugin({ displayBoxBounds: true }));
         this.tiles.registerPlugin(new GLTFExtensionsPlugin({
             dracoLoader: new DRACOLoader().setDecoderPath(getDracoDecoderPath())
         }));
