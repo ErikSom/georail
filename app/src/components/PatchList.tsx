@@ -1,28 +1,42 @@
 import { useState, useEffect } from 'preact/hooks';
 import type { Patch } from '../lib/types/Patch';
-import { fetchPatches, deletePatch } from '../lib/api/patches';
+import { fetchPatches, fetchAllPatches, deletePatch, approvePatch, declinePatch, type PatchWithProfile } from '../lib/api/patches';
 
 import styles from './PatchList.module.css';
 
+type StatusFilter = Patch['status'] | 'all';
+
 interface PatchListProps {
     onCreateNew: () => void;
-    onEditPatch: (patchId: number, patch: Patch) => void;
+    onEditPatch?: (patchId: number, patch: Patch) => void;
     onCancelPatch: (patchId: number) => void;
     onSubmitPatch: (patchId: number) => void;
     activePatchId?: number | null;
+    moderatorMode?: boolean;
 }
 
-function PatchList({ onCreateNew, onEditPatch, onCancelPatch, onSubmitPatch, activePatchId }: PatchListProps) {
-    const [patches, setPatches] = useState<Patch[]>([]);
+function PatchList({ onCreateNew, onEditPatch, onCancelPatch, onSubmitPatch, activePatchId, moderatorMode = false }: PatchListProps) {
+    const [patches, setPatches] = useState<(Patch | PatchWithProfile)[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [deletingId, setDeletingId] = useState<number | null>(null);
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>(moderatorMode ? 'pending' : 'all');
+
+    const getUsername = (patch: Patch | PatchWithProfile): string => {
+        if ('profiles' in patch && patch.profiles?.username) {
+            return patch.profiles.username;
+        }
+        return patch.user_id.slice(0, 8) + '...';
+    };
 
     const loadPatches = async () => {
         try {
             setLoading(true);
             setError(null);
-            const data = await fetchPatches();
+            const filter = statusFilter === 'all' ? undefined : statusFilter;
+            const data = moderatorMode
+                ? await fetchAllPatches(filter)
+                : await fetchPatches(filter);
             setPatches(data);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to load patches');
@@ -33,7 +47,27 @@ function PatchList({ onCreateNew, onEditPatch, onCancelPatch, onSubmitPatch, act
 
     useEffect(() => {
         loadPatches();
-    }, []);
+    }, [statusFilter, moderatorMode]);
+
+    const handleApprove = async (patchId: number, e: Event) => {
+        e.stopPropagation();
+        try {
+            await approvePatch(patchId);
+            await loadPatches();
+        } catch (err) {
+            alert(err instanceof Error ? err.message : 'Failed to approve patch');
+        }
+    };
+
+    const handleDecline = async (patchId: number, e: Event) => {
+        e.stopPropagation();
+        try {
+            await declinePatch(patchId);
+            await loadPatches();
+        } catch (err) {
+            alert(err instanceof Error ? err.message : 'Failed to decline patch');
+        }
+    };
 
     const handleDelete = async (patchId: number, e: Event) => {
         e.stopPropagation();
@@ -113,10 +147,36 @@ function PatchList({ onCreateNew, onEditPatch, onCancelPatch, onSubmitPatch, act
     return (
         <div className={styles.container}>
             <div className={styles.header}>
-                <h2 className={styles.title}>My Patches</h2>
-                <button onClick={onCreateNew} className={styles.createButton}>
-                    + Create New Patch
-                </button>
+                <h2 className={styles.title}>{moderatorMode ? 'All Patches' : 'My Patches'}</h2>
+                <div className={styles.headerActions}>
+                    <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter((e.target as HTMLSelectElement).value as StatusFilter)}
+                        className={styles.filterSelect}
+                    >
+                        {moderatorMode ? (
+                            <>
+                                <option value="pending">Pending</option>
+                                <option value="approved">Approved</option>
+                                <option value="declined">Declined</option>
+                                <option value="all">All Statuses</option>
+                            </>
+                        ) : (
+                            <>
+                                <option value="all">All Statuses</option>
+                                <option value="editing">Editing</option>
+                                <option value="pending">Pending</option>
+                                <option value="approved">Approved</option>
+                                <option value="declined">Declined</option>
+                            </>
+                        )}
+                    </select>
+                    {!moderatorMode && (
+                        <button onClick={onCreateNew} className={styles.createButton}>
+                            + Create New Patch
+                        </button>
+                    )}
+                </div>
             </div>
 
             {patches.length === 0 ? (
@@ -151,6 +211,14 @@ function PatchList({ onCreateNew, onEditPatch, onCancelPatch, onSubmitPatch, act
                             )}
 
                             <div className={styles.patchInfo}>
+                                {moderatorMode && (
+                                    <div className={styles.infoRow}>
+                                        <span className={styles.infoLabel}>Created by:</span>
+                                        <span className={styles.infoValue}>
+                                            {getUsername(patch)}
+                                        </span>
+                                    </div>
+                                )}
                                 <div className={styles.infoRow}>
                                     <span className={styles.infoLabel}>Created:</span>
                                     <span className={styles.infoValue}>
@@ -170,7 +238,7 @@ function PatchList({ onCreateNew, onEditPatch, onCancelPatch, onSubmitPatch, act
 
                             {patch.status === 'editing' && (
                                 <div className={styles.actions}>
-                                    {activePatchId !== patch.id && (
+                                    {activePatchId !== patch.id && onEditPatch && (
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
@@ -200,7 +268,7 @@ function PatchList({ onCreateNew, onEditPatch, onCancelPatch, onSubmitPatch, act
                                 </div>
                             )}
 
-                            {patch.status === 'pending' && (
+                            {patch.status === 'pending' && !moderatorMode && (
                                 <div className={styles.actions}>
                                     <button
                                         onClick={(e) => {
@@ -210,6 +278,23 @@ function PatchList({ onCreateNew, onEditPatch, onCancelPatch, onSubmitPatch, act
                                         className={styles.cancelButton}
                                     >
                                         Cancel
+                                    </button>
+                                </div>
+                            )}
+
+                            {patch.status === 'pending' && moderatorMode && (
+                                <div className={styles.actions}>
+                                    <button
+                                        onClick={(e) => handleApprove(patch.id, e)}
+                                        className={styles.approveButton}
+                                    >
+                                        Approve
+                                    </button>
+                                    <button
+                                        onClick={(e) => handleDecline(patch.id, e)}
+                                        className={styles.declineButton}
+                                    >
+                                        Decline
                                     </button>
                                 </div>
                             )}

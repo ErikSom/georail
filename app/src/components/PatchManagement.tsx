@@ -1,8 +1,9 @@
-import { useState } from 'preact/hooks';
+import { useState, useEffect } from 'preact/hooks';
 import PatchList from './PatchList';
 import PatchCreator from './PatchCreator';
 import type { RouteInfo, Patch } from '../lib/types/Patch';
 import { cancelPatch, submitPatchForReview } from '../lib/api/patches';
+import { fetchUserRole, type UserRole } from '../lib/api/profile';
 
 import styles from './PatchManagement.module.css';
 
@@ -15,6 +16,12 @@ interface PatchManagementProps {
 function PatchManagement({ onClose, onStartEditing, activePatchId }: PatchManagementProps) {
     const [showCreator, setShowCreator] = useState(false);
     const [patchListKey, setPatchListKey] = useState(0);
+    const [moderatorMode, setModeratorMode] = useState(false);
+    const [userRole, setUserRole] = useState<UserRole>('editor');
+
+    useEffect(() => {
+        fetchUserRole().then(setUserRole).catch(console.error);
+    }, []);
 
     const handleCreateNew = () => {
         setShowCreator(true);
@@ -67,19 +74,38 @@ function PatchManagement({ onClose, onStartEditing, activePatchId }: PatchManage
 
     return (
         <div className={styles.container}>
-            {onClose && (
-                <button onClick={onClose} className={styles.closeButton}>
-                    ✕ Close
-                </button>
-            )}
+            <div className={styles.topBar}>
+                {onClose && (
+                    <button onClick={onClose} className={styles.closeButton}>
+                        ✕ Close
+                    </button>
+                )}
+                {userRole === 'moderator' && (
+                    <div className={styles.viewSwitcher}>
+                        <button
+                            onClick={() => setModeratorMode(false)}
+                            className={`${styles.viewButton} ${!moderatorMode ? styles.viewButtonActive : ''}`}
+                        >
+                            My Patches
+                        </button>
+                        <button
+                            onClick={() => setModeratorMode(true)}
+                            className={`${styles.viewButton} ${moderatorMode ? styles.viewButtonActive : ''}`}
+                        >
+                            All Patches
+                        </button>
+                    </div>
+                )}
+            </div>
 
             <PatchList
-                key={patchListKey}
+                key={`${patchListKey}-${moderatorMode}`}
                 onCreateNew={handleCreateNew}
                 onEditPatch={onStartEditing ? handleEditPatch : undefined}
                 onCancelPatch={handleCancelPatch}
                 onSubmitPatch={handleSubmitPatch}
                 activePatchId={activePatchId}
+                moderatorMode={moderatorMode}
             />
 
             {showCreator && (

@@ -4,7 +4,7 @@ import type { Patch, PatchWithData, PatchData, SubmitPatchInput } from '../types
 /**
  * Fetch all patches for the current user
  */
-export async function fetchPatches(): Promise<Patch[]> {
+export async function fetchPatches(statusFilter?: Patch['status']): Promise<Patch[]> {
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
     if (sessionError) {
@@ -16,11 +16,16 @@ export async function fetchPatches(): Promise<Patch[]> {
         throw new Error('User is not authenticated');
     }
 
-    const { data, error } = await supabase
+    let query = supabase
         .from('rail_patches')
         .select('*')
-        .eq('user_id', session.user.id)
-        .order('created_at', { ascending: false });
+        .eq('user_id', session.user.id);
+
+    if (statusFilter) {
+        query = query.eq('status', statusFilter);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
         console.error('Error fetching patches:', error);
@@ -28,6 +33,101 @@ export async function fetchPatches(): Promise<Patch[]> {
     }
 
     return data as Patch[];
+}
+
+export interface PatchWithProfile extends Patch {
+    profiles?: {
+        username?: string;
+    } | null;
+}
+
+/**
+ * Fetch all patches (for moderators) - excludes editing patches
+ */
+export async function fetchAllPatches(statusFilter?: Patch['status']): Promise<PatchWithProfile[]> {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+    if (sessionError) {
+        console.error('Error getting session:', sessionError.message);
+        throw new Error('Could not retrieve user session');
+    }
+
+    if (!session) {
+        throw new Error('User is not authenticated');
+    }
+
+    let query = supabase
+        .from('rail_patches')
+        .select(`
+            *,
+            profiles (username)
+        `)
+        .neq('status', 'editing'); // Never show editing patches in moderator mode
+
+    if (statusFilter) {
+        query = query.eq('status', statusFilter);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching all patches:', error);
+        throw new Error('Failed to fetch patches');
+    }
+
+    return data as PatchWithProfile[];
+}
+
+/**
+ * Approve a patch (moderator only)
+ */
+export async function approvePatch(patchId: number): Promise<void> {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+    if (sessionError || !session) {
+        throw new Error('User is not authenticated');
+    }
+
+    const { error: updateError } = await supabase
+        .from('rail_patches')
+        .update({
+            status: 'approved',
+            reviewed_at: new Date().toISOString(),
+            reviewed_by: session.user.id
+        })
+        .eq('id', patchId)
+        .eq('status', 'pending');
+
+    if (updateError) {
+        console.error('Error approving patch:', updateError);
+        throw new Error('Failed to approve patch');
+    }
+}
+
+/**
+ * Decline a patch (moderator only)
+ */
+export async function declinePatch(patchId: number): Promise<void> {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+    if (sessionError || !session) {
+        throw new Error('User is not authenticated');
+    }
+
+    const { error: updateError } = await supabase
+        .from('rail_patches')
+        .update({
+            status: 'declined',
+            reviewed_at: new Date().toISOString(),
+            reviewed_by: session.user.id
+        })
+        .eq('id', patchId)
+        .eq('status', 'pending');
+
+    if (updateError) {
+        console.error('Error declining patch:', updateError);
+        throw new Error('Failed to decline patch');
+    }
 }
 
 /**
