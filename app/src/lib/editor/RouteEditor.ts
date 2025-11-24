@@ -7,11 +7,25 @@ import {
     Group,
     Vector3,
     Raycaster,
+    GreaterDepth,
 } from 'three';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import type { RouteData, EditorPoint } from '../Georail';
 import type { MapViewer } from '../MapViewer';
 import type { PatchData } from '../types/Patch';
+import { Input } from '../utils/Input';
+import { DEG2RAD } from 'three/src/math/MathUtils.js';
+
+const METERS_PER_DEGREE_LAT = 111320;
+
+interface NodeSnapshot {
+    position: Vector3;
+    world_offset: Vector3;
+    isKeyNode: boolean;
+    isDirty: boolean;
+}
+
+type UndoState = Map<string, NodeSnapshot>;
 
 export interface NodeData {
     segment_id: number;
@@ -33,6 +47,11 @@ export class RouteEditor {
     private nodeMeshes: Map<string, Mesh> = new Map();
     private transformControls: TransformControls;
     private selectedNode: string | null = null;
+
+    // Undo system
+    private undoStack: UndoState[] = [];
+    private maxUndoStates = 50;
+    private isDragging = false;
 
     // Callbacks
     public onNodeSelected: ((nodeData: NodeData | null) => void) | null = null;
@@ -60,6 +79,14 @@ export class RouteEditor {
         this.transformControls.addEventListener('dragging-changed', (event) => {
             // Disable camera controls while dragging
             this.domElement.dispatchEvent(new CustomEvent('transform-dragging', { detail: event.value }));
+
+            // Capture state at start of drag for undo
+            if (event.value && !this.isDragging) {
+                this.isDragging = true;
+                this.pushUndoState();
+            } else if (!event.value) {
+                this.isDragging = false;
+            }
         });
 
         this.transformControls.addEventListener('objectChange', () => {
@@ -87,6 +114,15 @@ export class RouteEditor {
 
         const normalMaterial = new MeshBasicMaterial({ color: 0x00ff00, wireframe: false });
         const keyNodeMaterial = new MeshBasicMaterial({ color: 0xff0000, wireframe: false });
+
+        // Material for x-ray overlay - pink, 50% transparent, only renders when behind geometry
+        const xrayMaterial = new MeshBasicMaterial({
+            color: 0xff69b4,
+            transparent: true,
+            opacity: 0.8,
+            depthFunc: GreaterDepth,
+            depthWrite: false,
+        });
 
         // Store meshes in order for orientation calculation
         const orderedMeshes: Mesh[] = [];
@@ -133,6 +169,11 @@ export class RouteEditor {
             mesh.position.copy(position);
             mesh.name = nodeKey;
             mesh.userData.nodeKey = nodeKey;
+
+            // Add x-ray overlay mesh as child (renders through geometry)
+            const xrayMesh = new Mesh(baseConeGeometry, xrayMaterial);
+            xrayMesh.renderOrder = -1; // Render before main mesh
+            mesh.add(xrayMesh);
 
             this.nodeMeshes.set(nodeKey, mesh);
             this.routeGroup.add(mesh);
@@ -308,20 +349,10 @@ export class RouteEditor {
                 nodeData.isKeyNode = patch.keynode;
 
                 // Convert the offset back to world position
-                // The original position is the base, we need to apply ENU offsets
                 const origGeoCoords = this.mapViewer.getLatLonHeightFromWorldPosition(nodeData.originalPosition);
 
                 if (origGeoCoords) {
-                    // Convert ENU offsets back to lat/lon/height
-                    const latRad = origGeoCoords.lat * Math.PI / 180;
-                    const metersPerDegreeLat = 111320;
-                    const metersPerDegreeLon = 111320 * Math.cos(latRad);
-
-                    const newLat = origGeoCoords.lat + (offsetZ / metersPerDegreeLat);
-                    const newLon = origGeoCoords.lon + (offsetX / metersPerDegreeLon);
-                    const newHeight = origGeoCoords.height + offsetY;
-
-                    const newPosition = this.mapViewer.latLonHeightToWorldPosition(newLat, newLon, newHeight);
+                    const newPosition = this.applyENUOffset(origGeoCoords, nodeData.world_offset);
 
                     if (newPosition) {
                         nodeData.position.copy(newPosition);
@@ -350,37 +381,19 @@ export class RouteEditor {
             nodeData.position.copy(mesh.position);
 
             // Convert world position back to geographic coordinates to update world_offset
-            const geoCoords = this.mapViewer.getLatLonHeightFromWorldPosition(mesh.position);
-            const origGeoCoords = this.mapViewer.getLatLonHeightFromWorldPosition(nodeData.originalPosition);
-
-            if (geoCoords && origGeoCoords) {
-                // Calculate ENU (East-North-Up) offsets in meters
-                // These are local tangent plane offsets relative to the original position
-
-                // Convert lat/lon differences to meters using approximate conversion
-                // 1 degree latitude ≈ 111,320 meters
-                // 1 degree longitude ≈ 111,320 * cos(latitude) meters
-                const latRad = origGeoCoords.lat * Math.PI / 180;
-                const metersPerDegreeLat = 111320;
-                const metersPerDegreeLon = 111320 * Math.cos(latRad);
-
-                // East offset (positive = east)
-                const eastOffset = (geoCoords.lon - origGeoCoords.lon) * metersPerDegreeLon;
-
-                // North offset (positive = north)
-                const northOffset = (geoCoords.lat - origGeoCoords.lat) * metersPerDegreeLat;
-
-                // Up offset (height difference)
-                const upOffset = geoCoords.height - origGeoCoords.height;
-
-                // Store as [East, Up, North] to match typical coordinate conventions
-                // where Y is up in 3D space
-                nodeData.world_offset.x = eastOffset;
-                nodeData.world_offset.y = upOffset;
-                nodeData.world_offset.z = northOffset;
-            }
+            this.updateNodeWorldOffset(nodeData, mesh.position);
 
             nodeData.isDirty = true;
+
+            // Auto-mark as key node when manually moved
+            if (!nodeData.isKeyNode) {
+                nodeData.isKeyNode = true;
+                // Update material to red (key node color)
+                mesh.material = new MeshBasicMaterial({ color: 0xffff00, wireframe: false }); // Yellow for selected
+            }
+
+            // Interpolate nodes between key nodes
+            this.interpolateBetweenKeyNodes(this.selectedNode);
 
             // Update UI in real-time by calling onNodeSelected
             // Create a shallow copy to trigger React state update (new reference)
@@ -397,10 +410,199 @@ export class RouteEditor {
         }
     }
 
+    private updateNodeWorldOffset(nodeData: NodeData, position: Vector3): void {
+        const geoCoords = this.mapViewer.getLatLonHeightFromWorldPosition(position);
+        const origGeoCoords = this.mapViewer.getLatLonHeightFromWorldPosition(nodeData.originalPosition);
+
+        if (geoCoords && origGeoCoords) {
+            const offset = this.geoToENU(geoCoords, origGeoCoords);
+            nodeData.world_offset.copy(offset);
+        }
+    }
+
+    private geoToENU(geoCoords: { lat: number; lon: number; height: number }, origGeoCoords: { lat: number; lon: number; height: number }): Vector3 {
+        const metersPerDegreeLon = METERS_PER_DEGREE_LAT * Math.cos(origGeoCoords.lat * DEG2RAD);
+
+        const east = (geoCoords.lon - origGeoCoords.lon) * metersPerDegreeLon;
+        const north = (geoCoords.lat - origGeoCoords.lat) * METERS_PER_DEGREE_LAT;
+        const up = geoCoords.height - origGeoCoords.height;
+
+        return new Vector3(east, up, north);
+    }
+
+    private applyENUOffset(origGeoCoords: { lat: number; lon: number; height: number }, offset: Vector3): Vector3 | null {
+        const metersPerDegreeLon = METERS_PER_DEGREE_LAT * Math.cos(origGeoCoords.lat * DEG2RAD);
+
+        const newLat = origGeoCoords.lat + (offset.z / METERS_PER_DEGREE_LAT);
+        const newLon = origGeoCoords.lon + (offset.x / metersPerDegreeLon);
+        const newHeight = origGeoCoords.height + offset.y;
+
+        return this.mapViewer.latLonHeightToWorldPosition(newLat, newLon, newHeight);
+    }
+
+    private interpolateBetweenKeyNodes(changedNodeKey: string): void {
+        // Get ordered list of node keys
+        const nodeKeys = Array.from(this.nodes.keys());
+        const changedIndex = nodeKeys.indexOf(changedNodeKey);
+
+        if (changedIndex === -1) return;
+
+        // Find previous key node
+        let prevKeyIndex = -1;
+        for (let i = changedIndex - 1; i >= 0; i--) {
+            const node = this.nodes.get(nodeKeys[i]);
+            if (node?.isKeyNode) {
+                prevKeyIndex = i;
+                break;
+            }
+        }
+
+        // Find next key node
+        let nextKeyIndex = -1;
+        for (let i = changedIndex + 1; i < nodeKeys.length; i++) {
+            const node = this.nodes.get(nodeKeys[i]);
+            if (node?.isKeyNode) {
+                nextKeyIndex = i;
+                break;
+            }
+        }
+
+        // Interpolate nodes between previous key node and this one
+        if (prevKeyIndex !== -1 && prevKeyIndex < changedIndex - 1) {
+            this.lerpNodesBetween(prevKeyIndex, changedIndex, nodeKeys);
+        }
+
+        // Interpolate nodes between this one and next key node
+        if (nextKeyIndex !== -1 && nextKeyIndex > changedIndex + 1) {
+            this.lerpNodesBetween(changedIndex, nextKeyIndex, nodeKeys);
+        }
+    }
+
+    private lerpNodesBetween(startIndex: number, endIndex: number, nodeKeys: string[]): void {
+        const startNode = this.nodes.get(nodeKeys[startIndex]);
+        const endNode = this.nodes.get(nodeKeys[endIndex]);
+
+        if (!startNode || !endNode) return;
+
+        // Calculate cumulative distances from start node using original positions
+        const distances: number[] = [0];
+        let totalDistance = 0;
+
+        for (let i = startIndex + 1; i <= endIndex; i++) {
+            const prevNode = this.nodes.get(nodeKeys[i - 1]);
+            const currNode = this.nodes.get(nodeKeys[i]);
+            if (prevNode && currNode) {
+                const dist = prevNode.originalPosition.distanceTo(currNode.originalPosition);
+                totalDistance += dist;
+                distances.push(totalDistance);
+            }
+        }
+
+        // Interpolate each node based on its distance ratio
+        for (let i = startIndex + 1; i < endIndex; i++) {
+            const nodeKey = nodeKeys[i];
+            const nodeData = this.nodes.get(nodeKey);
+            const mesh = this.nodeMeshes.get(nodeKey);
+
+            if (!nodeData || !mesh) continue;
+
+            // Calculate t based on distance ratio
+            const distanceIndex = i - startIndex;
+            const t = totalDistance > 0 ? distances[distanceIndex] / totalDistance : 0;
+
+            // Lerp the world_offset values
+            const newOffset = new Vector3().lerpVectors(startNode.world_offset, endNode.world_offset, t);
+            nodeData.world_offset.copy(newOffset);
+
+            // Apply the interpolated offset to get the new position
+            const origGeoCoords = this.mapViewer.getLatLonHeightFromWorldPosition(nodeData.originalPosition);
+
+            if (origGeoCoords) {
+                const newPosition = this.applyENUOffset(origGeoCoords, newOffset);
+                if (newPosition) {
+                    mesh.position.copy(newPosition);
+                    nodeData.position.copy(newPosition);
+                }
+            }
+
+            nodeData.isDirty = true;
+        }
+    }
+
     private notifyModification(): void {
         if (this.onNodesModified) {
             const modifiedNodes = this.getModifiedNodes();
             this.onNodesModified(modifiedNodes);
+        }
+    }
+
+    private pushUndoState(): void {
+        const state: UndoState = new Map();
+
+        for (const [key, nodeData] of this.nodes) {
+            state.set(key, {
+                position: nodeData.position.clone(),
+                world_offset: nodeData.world_offset.clone(),
+                isKeyNode: nodeData.isKeyNode,
+                isDirty: nodeData.isDirty,
+            });
+        }
+
+        this.undoStack.push(state);
+
+        // Limit stack size
+        if (this.undoStack.length > this.maxUndoStates) {
+            this.undoStack.shift();
+        }
+    }
+
+    public undo(): boolean {
+        if (this.undoStack.length === 0) return false;
+
+        const state = this.undoStack.pop()!;
+
+        for (const [key, snapshot] of state) {
+            const nodeData = this.nodes.get(key);
+            const mesh = this.nodeMeshes.get(key);
+
+            if (nodeData && mesh) {
+                nodeData.position.copy(snapshot.position);
+                nodeData.world_offset.copy(snapshot.world_offset);
+                nodeData.isKeyNode = snapshot.isKeyNode;
+                nodeData.isDirty = snapshot.isDirty;
+
+                mesh.position.copy(snapshot.position);
+
+                const isSelected = key === this.selectedNode;
+                if (isSelected) {
+                    mesh.material = new MeshBasicMaterial({ color: 0xffff00, wireframe: false });
+                } else if (nodeData.isKeyNode) {
+                    mesh.material = new MeshBasicMaterial({ color: 0xff0000, wireframe: false });
+                } else {
+                    mesh.material = new MeshBasicMaterial({ color: 0x00ff00, wireframe: false });
+                }
+            }
+        }
+
+        if (this.selectedNode && this.onNodeSelected) {
+            const nodeData = this.nodes.get(this.selectedNode);
+            if (nodeData) {
+                this.onNodeSelected({
+                    ...nodeData,
+                    world_offset: nodeData.world_offset.clone(),
+                    position: nodeData.position.clone(),
+                    originalPosition: nodeData.originalPosition.clone(),
+                });
+            }
+        }
+
+        this.notifyModification();
+        return true;
+    }
+
+    public update(): void {
+        if (Input.isPressed('KeyZ') && Input.isControl) {
+            this.undo();
         }
     }
 

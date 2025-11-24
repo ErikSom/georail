@@ -148,7 +148,20 @@ export class Input {
         const target = e.target as HTMLElement;
         const isInputField = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT';
 
-        if (!isInputField && ['Space', 'AltLeft', 'AltRight', 'ControlLeft', 'ControlRight', 'ShiftLeft', 'ShiftRight'].includes(e.code)) {
+        if (isInputField) return;
+
+        const blockedKeys = [
+            'Space',
+            'AltLeft', 'AltRight',
+            'ControlLeft', 'ControlRight',
+            'ShiftLeft', 'ShiftRight',
+            'MetaLeft', 'MetaRight',
+            'Tab'
+        ];
+
+        const isModifierShortcut = e.metaKey || e.ctrlKey || e.altKey;
+
+        if (blockedKeys.includes(e.code) || isModifierShortcut) {
             e.preventDefault();
         }
     }

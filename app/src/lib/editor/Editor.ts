@@ -251,6 +251,8 @@ export class Editor {
         this.flightControls.update(dt);
         this.camera.updateMatrixWorld();
         this.mapViewer.update();
+        this.routeEditor?.update();
+
         this.renderer.render(this.scene, this.camera);
 
         this.handleRaycasting();
