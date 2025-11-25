@@ -73,11 +73,11 @@ TileRenderer.prototype.initialize = function () {
     this.selectedNode = null;
 };
 
-TileRenderer.prototype.postInitialize = function(){
+TileRenderer.prototype.postInitialize = function () {
     this.setAccessToken();
 }
 
-TileRenderer.prototype.setAccessToken = async function(){
+TileRenderer.prototype.setAccessToken = async function () {
     const session = await pc.supabase.api.auth.getSession();
     this.accessToken = session?.data?.session?.access_token;
 }
@@ -151,7 +151,7 @@ TileRenderer.prototype.start = function (apiKey, editMode = false) {
 
     this.tileManager = new earthatile.TileManager(apiKey, this.apiUrl, { load, unload, show, hide });
 
-    if(!editMode){
+    if (!editMode) {
         this.tileManager.isInView = (node) => {
             const [cx, cy, cz, xx, xy, xz, yx, yy, yz, zx, zy, zz] = node.boundingVolume.box;
             const camera = this.camera.camera;
@@ -191,8 +191,6 @@ TileRenderer.prototype.start = function (apiKey, editMode = false) {
             for (const meshInstance of results) {
                 this.selectedNode = meshInstanceToNode.get(meshInstance);
             }
-
-            console.log("******* Selected node:", this.selectedNode);
         }
     });
 };
@@ -262,9 +260,9 @@ TileRenderer.prototype.update = function (dt) {
 
         // if no nodes start to lode after X ticks, fire tilesLoaded
         const nodesLoadingIdleTick = 10;
-        if(this.tileManager.nodesLoaded !== 0 && this.tileManager.nodesLoading === 0){
+        if (this.tileManager.nodesLoaded !== 0 && this.tileManager.nodesLoading === 0) {
             this.nodesLoadedTicks++
-            if(this.nodesLoadedTicks === nodesLoadingIdleTick) this.fire('tilesLoaded');
+            if (this.nodesLoadedTicks === nodesLoadingIdleTick) this.fire('tilesLoaded');
         } else {
             this.nodesLoadedTicks = 0;
         }

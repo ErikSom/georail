@@ -10,7 +10,7 @@ import {
     GreaterDepth,
 } from 'three';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
-import type { RouteData, EditorPoint } from '../Georail';
+import type { RouteData } from '../Georail';
 import type { MapViewer } from '../MapViewer';
 import type { PatchData } from '../types/Patch';
 import { Input } from '../utils/Input';
@@ -138,27 +138,38 @@ export class RouteEditor {
             // Create unique key
             const nodeKey = `${segment_id}-${index}`;
 
-            // Convert geographic coordinates to 3D world position
-            // world_offset_y contains the height
-            const position = this.mapViewer.latLonHeightToWorldPosition(lat, lon, world_offset_y);
+            // Store original position at altitude 0
+            const originalPosition = this.mapViewer.latLonHeightToWorldPosition(lat, lon, 0);
 
-            if (!position) {
+            if (!originalPosition) {
                 console.warn(`Failed to convert coordinates for node ${nodeKey}`);
                 return;
             }
 
-            // Apply X and Z offsets in world space
-            // TODO: Apply these offsets properly based on the coordinate system
-            // For now, we'll store them and apply when saving
+            // Store world offset
+            const worldOffset = new Vector3(world_offset_x, world_offset_y, world_offset_z);
+
+            // Apply world offset to get actual position
+            const origGeoCoords = this.mapViewer.getLatLonHeightFromWorldPosition(originalPosition);
+            if (!origGeoCoords) {
+                console.warn(`Failed to get geo coords for node ${nodeKey}`);
+                return;
+            }
+
+            const position = this.applyENUOffset(origGeoCoords, worldOffset);
+            if (!position) {
+                console.warn(`Failed to apply offset for node ${nodeKey}`);
+                return;
+            }
 
             // Create node data
             const nodeData: NodeData = {
                 segment_id,
                 index,
-                world_offset: new Vector3(world_offset_x, world_offset_y, world_offset_z),
-                isKeyNode: false, // TODO: Load from patch data
+                world_offset: worldOffset,
+                isKeyNode: false, // Will be set by applyPatchData
                 position: position.clone(),
-                originalPosition: position.clone(),
+                originalPosition: originalPosition.clone(),
                 isDirty: false,
             };
 

@@ -83,7 +83,6 @@ export class Editor {
 
                 // Check if we clicked on transform controls
                 if (this.routeEditor.isTransformControlClicked(this.raycaster)) {
-                    console.log('Clicked on transform controls');
                     return; // Don't deselect if clicking on transform controls
                 }
 
@@ -93,8 +92,6 @@ export class Editor {
             }
 
             const intersects = this.raycaster.intersectObject(this.scene, true);
-
-            console.log(intersects);
 
             if (intersects.length) {
 
@@ -211,7 +208,6 @@ export class Editor {
             }
 
             this.camera.updateMatrixWorld();
-            console.log(`Camera relocated to Lat: ${lat}, Lon: ${lon}, Height: ${height}m`);
         }
     }
 
@@ -256,19 +252,6 @@ export class Editor {
         this.renderer.render(this.scene, this.camera);
 
         this.handleRaycasting();
-
-        if (Input.isPressed('KeyT')) {
-            // log long lat alt and camera matrix
-            const camera = this.camera;
-            const wPos = new Vector3();
-            const wQuat = new Quaternion();
-            camera.getWorldPosition(wPos);
-            camera.getWorldQuaternion(wQuat);
-
-            console.log('worldPos', wPos.toArray());
-            console.log('worldQuat', [wQuat.x, wQuat.y, wQuat.z, wQuat.w].join(','));
-            console.log('order', camera.rotation.order); // e.g. XYZ
-        }
 
         this.setCreditsCallback(this.mapViewer.getCredits());
 
