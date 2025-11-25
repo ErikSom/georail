@@ -79,7 +79,7 @@ export async function fetchAllPatches(statusFilter?: Patch['status']): Promise<P
 }
 
 /**
- * Approve a patch (moderator only)
+ * Approve a patch (moderator only) - calls the approve_patch database function
  */
 export async function approvePatch(patchId: number): Promise<void> {
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -88,18 +88,16 @@ export async function approvePatch(patchId: number): Promise<void> {
         throw new Error('User is not authenticated');
     }
 
-    const { error: updateError } = await supabase
-        .from('rail_patches')
-        .update({
-            status: 'approved',
-            reviewed_at: new Date().toISOString(),
-            reviewed_by: session.user.id
-        })
-        .eq('id', patchId)
-        .eq('status', 'pending');
+    const { data, error } = await supabase.rpc('approve_patch', {
+        approved_patch_id: patchId
+    });
 
-    if (updateError) {
-        console.error('Error approving patch:', updateError);
+    if (error) {
+        console.error('Error approving patch:', error);
+        throw new Error(error.message || 'Failed to approve patch');
+    }
+
+    if (!data?.success) {
         throw new Error('Failed to approve patch');
     }
 }
@@ -225,8 +223,8 @@ export async function deletePatch(patchId: number): Promise<void> {
         throw new Error('Patch not found');
     }
 
-    if (patch.status !== 'pending') {
-        throw new Error('Can only delete pending patches');
+    if (patch.status !== 'editing') {
+        throw new Error('Can only delete editing patches');
     }
 
     // Delete patch data first (foreign key constraint)

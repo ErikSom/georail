@@ -219,3 +219,24 @@
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+.comparison {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.oldValue {
+    color: #888;
+    text-decoration: line-through;
+}
+
+.arrow {
+    color: #666;
+}
+
+.newValue {
+    color: #22c55e;
+    font-weight: 600;
+}

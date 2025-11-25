@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
-import type { RouteEditor, NodeData } from '../lib/editor/RouteEditor';
+import type { RouteEditor, NodeComparison } from '../lib/editor/RouteEditor';
 import styles from './ReviewModal.module.css';
 
 interface ReviewModalProps {
@@ -10,12 +10,12 @@ interface ReviewModalProps {
 }
 
 function ReviewModal({ patchId, routeEditor, onClose, onSave }: ReviewModalProps) {
-    const [allNodes, setAllNodes] = useState<NodeData[]>([]);
+    const [comparisons, setComparisons] = useState<NodeComparison[]>([]);
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
-        const nodes = routeEditor.getModifiedNodes();
-        setAllNodes(nodes);
+        const nodeComparisons = routeEditor.getNodeComparisons();
+        setComparisons(nodeComparisons);
     }, [routeEditor]);
 
     const handleSave = async () => {
@@ -43,45 +43,63 @@ function ReviewModal({ patchId, routeEditor, onClose, onSave }: ReviewModalProps
                     <div className={styles.summary}>
                         <div className={styles.summaryItem}>
                             <span className={styles.summaryLabel}>Modified Nodes:</span>
-                            <span className={styles.summaryValue}>{allNodes.length}</span>
+                            <span className={styles.summaryValue}>{comparisons.length}</span>
                         </div>
                         <div className={styles.summaryItem}>
                             <span className={styles.summaryLabel}>Key Nodes:</span>
                             <span className={styles.summaryValue}>
-                                {allNodes.filter(n => n.isKeyNode).length}
+                                {comparisons.filter(c => c.node.isKeyNode).length}
                             </span>
                         </div>
                     </div>
 
                     <div className={styles.tableContainer}>
-                        <h3 className={styles.sectionTitle}>Modified Nodes ({allNodes.length} points)</h3>
-                        {allNodes.length === 0 ? (
+                        <h3 className={styles.sectionTitle}>Modified Nodes ({comparisons.length} points)</h3>
+                        {comparisons.length === 0 ? (
                             <div className={styles.emptyState}>No modifications made</div>
                         ) : (
                             <table className={styles.table}>
                                 <thead>
                                     <tr>
-                                        <th>Segment ID</th>
-                                        <th>Point Index</th>
-                                        <th>Offset X (m)</th>
-                                        <th>Offset Y (m)</th>
-                                        <th>Offset Z (m)</th>
-                                        <th>Keynode</th>
+                                        <th>Segment</th>
+                                        <th>Index</th>
+                                        <th>East (m)</th>
+                                        <th>North (m)</th>
+                                        <th>Up (m)</th>
+                                        <th>Key</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {allNodes.map((node) => (
+                                    {comparisons.map((comp) => (
                                         <tr
-                                            key={`${node.segment_id}-${node.index}`}
+                                            key={`${comp.node.segment_id}-${comp.node.index}`}
                                             className={styles.modifiedRow}
                                         >
-                                            <td>{node.segment_id}</td>
-                                            <td>{node.index}</td>
-                                            <td>{node.world_offset.x.toFixed(2)}</td>
-                                            <td>{node.world_offset.y.toFixed(2)}</td>
-                                            <td>{node.world_offset.z.toFixed(2)}</td>
+                                            <td>{comp.node.segment_id}</td>
+                                            <td>{comp.node.index}</td>
                                             <td>
-                                                {node.isKeyNode ? (
+                                                <div className={styles.comparison}>
+                                                    <span className={styles.oldValue}>{comp.original.east.toFixed(2)}</span>
+                                                    <span className={styles.arrow}>→</span>
+                                                    <span className={styles.newValue}>{comp.current.east.toFixed(2)}</span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div className={styles.comparison}>
+                                                    <span className={styles.oldValue}>{comp.original.north.toFixed(2)}</span>
+                                                    <span className={styles.arrow}>→</span>
+                                                    <span className={styles.newValue}>{comp.current.north.toFixed(2)}</span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div className={styles.comparison}>
+                                                    <span className={styles.oldValue}>{comp.original.up.toFixed(2)}</span>
+                                                    <span className={styles.arrow}>→</span>
+                                                    <span className={styles.newValue}>{comp.current.up.toFixed(2)}</span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                {comp.node.isKeyNode ? (
                                                     <span className={styles.keyNodeBadge}>Yes</span>
                                                 ) : (
                                                     <span className={styles.normalNodeBadge}>No</span>

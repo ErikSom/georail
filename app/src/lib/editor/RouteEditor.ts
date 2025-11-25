@@ -22,7 +22,6 @@ interface NodeSnapshot {
     position: Vector3;
     world_offset: Vector3;
     isKeyNode: boolean;
-    isDirty: boolean;
 }
 
 type UndoState = Map<string, NodeSnapshot>;
@@ -30,11 +29,25 @@ type UndoState = Map<string, NodeSnapshot>;
 export interface NodeData {
     segment_id: number;
     index: number;
-    world_offset: Vector3; // [x, y, z] offset in world space
+    world_offset: Vector3; // [x, y, z] offset in world space (East, Up, North)
+    originalWorldOffset: Vector3; // Original offset from route data (East, Up, North)
     isKeyNode: boolean;
     position: Vector3;
     originalPosition: Vector3;
-    isDirty: boolean;
+}
+
+export interface NodeComparison {
+    node: NodeData;
+    original: {
+        east: number;
+        north: number;
+        up: number;
+    };
+    current: {
+        east: number;
+        north: number;
+        up: number;
+    };
 }
 
 export class RouteEditor {
@@ -166,11 +179,11 @@ export class RouteEditor {
             const nodeData: NodeData = {
                 segment_id,
                 index,
-                world_offset: worldOffset,
+                world_offset: worldOffset.clone(),
+                originalWorldOffset: worldOffset.clone(),
                 isKeyNode: false, // Will be set by applyPatchData
                 position: position.clone(),
                 originalPosition: originalPosition.clone(),
-                isDirty: false,
             };
 
             this.nodes.set(nodeKey, nodeData);
@@ -294,7 +307,6 @@ export class RouteEditor {
 
         if (nodeData && mesh) {
             nodeData.isKeyNode = !nodeData.isKeyNode;
-            nodeData.isDirty = true;
 
             // Update material
             const mat = nodeData.isKeyNode
@@ -339,7 +351,34 @@ export class RouteEditor {
     }
 
     public getModifiedNodes(): NodeData[] {
-        return Array.from(this.nodes.values()).filter(node => node.isDirty);
+        return Array.from(this.nodes.values()).filter(node => {
+            // Compare current world_offset with original
+            return !node.world_offset.equals(node.originalWorldOffset);
+        });
+    }
+
+    public getNodeComparisons(): NodeComparison[] {
+        const comparisons: NodeComparison[] = [];
+
+        for (const node of this.nodes.values()) {
+            if (!node.world_offset.equals(node.originalWorldOffset)) {
+                comparisons.push({
+                    node,
+                    original: {
+                        east: node.originalWorldOffset.x,
+                        north: node.originalWorldOffset.z,
+                        up: node.originalWorldOffset.y,
+                    },
+                    current: {
+                        east: node.world_offset.x,
+                        north: node.world_offset.z,
+                        up: node.world_offset.y,
+                    },
+                });
+            }
+        }
+
+        return comparisons;
     }
 
     public getAllNodes(): NodeData[] {
@@ -393,8 +432,6 @@ export class RouteEditor {
 
             // Convert world position back to geographic coordinates to update world_offset
             this.updateNodeWorldOffset(nodeData, mesh.position);
-
-            nodeData.isDirty = true;
 
             // Auto-mark as key node when manually moved
             if (!nodeData.isKeyNode) {
@@ -535,8 +572,6 @@ export class RouteEditor {
                     nodeData.position.copy(newPosition);
                 }
             }
-
-            nodeData.isDirty = true;
         }
     }
 
@@ -555,7 +590,6 @@ export class RouteEditor {
                 position: nodeData.position.clone(),
                 world_offset: nodeData.world_offset.clone(),
                 isKeyNode: nodeData.isKeyNode,
-                isDirty: nodeData.isDirty,
             });
         }
 
@@ -580,7 +614,6 @@ export class RouteEditor {
                 nodeData.position.copy(snapshot.position);
                 nodeData.world_offset.copy(snapshot.world_offset);
                 nodeData.isKeyNode = snapshot.isKeyNode;
-                nodeData.isDirty = snapshot.isDirty;
 
                 mesh.position.copy(snapshot.position);
 
