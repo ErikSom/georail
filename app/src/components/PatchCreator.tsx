@@ -62,7 +62,7 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
                 description: description || undefined,
             });
 
-            const patchId = result.patch_id;
+            const patchId = result.patchId;
 
             onSubmit(patchId, {
                 fromStation,
