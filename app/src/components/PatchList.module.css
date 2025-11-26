@@ -154,6 +154,21 @@
     line-height: 1.4;
 }
 
+.declineReason {
+    margin-bottom: 12px;
+    padding: 12px;
+    font-size: 13px;
+    color: #fca5a5;
+    background-color: rgba(239, 68, 68, 0.1);
+    border-left: 3px solid #ef4444;
+    border-radius: 4px;
+    line-height: 1.4;
+}
+
+.declineReason strong {
+    color: #ef4444;
+}
+
 .statusBadge {
     padding: 4px 12px;
     border-radius: 12px;

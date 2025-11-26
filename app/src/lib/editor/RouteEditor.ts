@@ -8,6 +8,10 @@ import {
     Vector3,
     Raycaster,
     GreaterDepth,
+    CylinderGeometry,
+    LineBasicMaterial,
+    BufferGeometry,
+    Line,
 } from 'three';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import type { RouteData } from '../Georail';
@@ -60,6 +64,8 @@ export class RouteEditor {
     private nodeMeshes: Map<string, Mesh> = new Map();
     private transformControls: TransformControls;
     private selectedNode: string | null = null;
+    private reviewMode: boolean = false;
+    private offsetIndicators: Map<string, Mesh> = new Map();
 
     // Undo system
     private undoStack: UndoState[] = [];
@@ -70,18 +76,20 @@ export class RouteEditor {
     public onNodeSelected: ((nodeData: NodeData | null) => void) | null = null;
     public onNodesModified: ((nodes: NodeData[]) => void) | null = null;
 
-    constructor(scene: Scene, camera: Camera, domElement: HTMLElement, mapViewer: MapViewer) {
+    constructor(scene: Scene, camera: Camera, domElement: HTMLElement, mapViewer: MapViewer, reviewMode: boolean = false) {
         this.scene = scene;
         this.camera = camera;
         this.domElement = domElement;
         this.mapViewer = mapViewer;
+        this.reviewMode = reviewMode;
 
         this.routeGroup = new Group();
         this.routeGroup.name = 'RouteEditorGroup';
         this.scene.add(this.routeGroup);
 
-        // Setup TransformControls
+        // Setup TransformControls (disabled in review mode)
         this.transformControls = new TransformControls(camera, domElement);
+        this.transformControls.enabled = !reviewMode;
 
         // Set to 'local' space so controls align with mesh rotation
         this.transformControls.setSpace('local');
@@ -203,6 +211,11 @@ export class RouteEditor {
             this.routeGroup.add(mesh);
             orderedMeshes.push(mesh);
 
+            // In review mode, add grey vertical line at original position
+            if (this.reviewMode) {
+                this.createOffsetIndicator(nodeKey, nodeData);
+            }
+
             // Debug first and last node positions
             if (idx === 0) {
                 console.log('First node position (world):', position);
@@ -258,6 +271,21 @@ export class RouteEditor {
         console.log(`Loaded ${this.nodes.size} nodes for route editing`);
         console.log('Route group position:', this.routeGroup.position);
         console.log('Route group world matrix:', this.routeGroup.matrixWorld);
+    }
+
+    private createOffsetIndicator(nodeKey: string, nodeData: NodeData): void {
+        // Create a vertical line from original position pointing 100m up
+        const points = [];
+        points.push(nodeData.originalPosition.clone());
+        points.push(nodeData.originalPosition.clone().add(new Vector3(0, 200, 0)));
+
+        const geometry = new BufferGeometry().setFromPoints(points);
+        const material = new LineBasicMaterial({ color: 0xBABABA });
+        const line = new Line(geometry, material);
+        line.name = `offset-indicator-${nodeKey}`;
+
+        this.offsetIndicators.set(nodeKey, line as any); // Line can be stored as Mesh for simplicity
+        this.routeGroup.add(line);
     }
 
     public selectNode(nodeKey: string | null): void {
@@ -653,6 +681,7 @@ export class RouteEditor {
     public clear(): void {
         this.nodes.clear();
         this.nodeMeshes.clear();
+        this.offsetIndicators.clear();
         this.routeGroup.clear();
         this.transformControls.detach();
         this.selectedNode = null;

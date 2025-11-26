@@ -9,7 +9,7 @@ import styles from './PatchManagement.module.css';
 
 interface PatchManagementProps {
     onClose?: () => void;
-    onStartEditing?: (patchId: number, routeInfo: RouteInfo) => void;
+    onStartEditing?: (patchId: number, routeInfo: RouteInfo, reviewMode?: boolean, declineReason?: string) => void;
     activePatchId?: number | null;
 }
 
@@ -48,7 +48,20 @@ function PatchManagement({ onClose, onStartEditing, activePatchId }: PatchManage
                 toTrack: patch.to_track || '',
                 description: patch.description,
             };
-            onStartEditing(patchId, routeInfo);
+            onStartEditing(patchId, routeInfo, false);
+        }
+    };
+
+    const handleReviewPatch = (patchId: number, patch: Patch) => {
+        if (onStartEditing) {
+            const routeInfo: RouteInfo = {
+                fromStation: patch.from_station || '',
+                fromTrack: patch.from_track || '',
+                toStation: patch.to_station || '',
+                toTrack: patch.to_track || '',
+                description: patch.description,
+            };
+            onStartEditing(patchId, routeInfo, true, patch.decline_reason);
         }
     };
 
@@ -69,6 +82,17 @@ function PatchManagement({ onClose, onStartEditing, activePatchId }: PatchManage
             setPatchListKey(k => k + 1);
         } catch (err) {
             alert(err instanceof Error ? err.message : 'Failed to submit patch');
+        }
+    };
+
+    const handleReopenPatch = async (patchId: number) => {
+        try {
+            const { reopenPatch } = await import('../lib/api/patches');
+            await reopenPatch(patchId);
+            // Force PatchList to reload by changing its key
+            setPatchListKey(k => k + 1);
+        } catch (err) {
+            alert(err instanceof Error ? err.message : 'Failed to reopen patch');
         }
     };
 
@@ -102,6 +126,8 @@ function PatchManagement({ onClose, onStartEditing, activePatchId }: PatchManage
                 key={`${patchListKey}-${moderatorMode}`}
                 onCreateNew={handleCreateNew}
                 onEditPatch={onStartEditing ? handleEditPatch : undefined}
+                onReviewPatch={onStartEditing ? handleReviewPatch : undefined}
+                onReopenPatch={handleReopenPatch}
                 onCancelPatch={handleCancelPatch}
                 onSubmitPatch={handleSubmitPatch}
                 activePatchId={activePatchId}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'preact/hooks';
 import type { Patch } from '../lib/types/Patch';
-import { fetchPatches, fetchAllPatches, deletePatch, approvePatch, declinePatch, type PatchWithProfile } from '../lib/api/patches';
+import { fetchPatches, fetchAllPatches, deletePatch, type PatchWithProfile } from '../lib/api/patches';
 
 import styles from './PatchList.module.css';
 
@@ -9,13 +9,15 @@ type StatusFilter = Patch['status'] | 'all';
 interface PatchListProps {
     onCreateNew: () => void;
     onEditPatch?: (patchId: number, patch: Patch) => void;
+    onReviewPatch?: (patchId: number, patch: Patch) => void;
+    onReopenPatch?: (patchId: number) => void;
     onCancelPatch: (patchId: number) => void;
     onSubmitPatch: (patchId: number) => void;
     activePatchId?: number | null;
     moderatorMode?: boolean;
 }
 
-function PatchList({ onCreateNew, onEditPatch, onCancelPatch, onSubmitPatch, activePatchId, moderatorMode = false }: PatchListProps) {
+function PatchList({ onCreateNew, onEditPatch, onReviewPatch, onReopenPatch, onCancelPatch, onSubmitPatch, activePatchId, moderatorMode = false }: PatchListProps) {
     const [patches, setPatches] = useState<(Patch | PatchWithProfile)[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -48,26 +50,6 @@ function PatchList({ onCreateNew, onEditPatch, onCancelPatch, onSubmitPatch, act
     useEffect(() => {
         loadPatches();
     }, [statusFilter, moderatorMode]);
-
-    const handleApprove = async (patchId: number, e: Event) => {
-        e.stopPropagation();
-        try {
-            await approvePatch(patchId);
-            await loadPatches();
-        } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to approve patch');
-        }
-    };
-
-    const handleDecline = async (patchId: number, e: Event) => {
-        e.stopPropagation();
-        try {
-            await declinePatch(patchId);
-            await loadPatches();
-        } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to decline patch');
-        }
-    };
 
     const handleDelete = async (patchId: number, e: Event) => {
         e.stopPropagation();
@@ -210,6 +192,12 @@ function PatchList({ onCreateNew, onEditPatch, onCancelPatch, onSubmitPatch, act
                                 </div>
                             )}
 
+                            {patch.decline_reason && (patch.status === 'declined' || (patch.status === 'pending' && moderatorMode)) && (
+                                <div className={styles.declineReason}>
+                                    <strong>Previous Decline Reason:</strong> {patch.decline_reason}
+                                </div>
+                            )}
+
                             <div className={styles.patchInfo}>
                                 {moderatorMode && (
                                     <div className={styles.infoRow}>
@@ -284,18 +272,27 @@ function PatchList({ onCreateNew, onEditPatch, onCancelPatch, onSubmitPatch, act
 
                             {patch.status === 'pending' && moderatorMode && (
                                 <div className={styles.actions}>
-                                    <button
-                                        onClick={(e) => handleApprove(patch.id, e)}
-                                        className={styles.approveButton}
-                                    >
-                                        Approve
-                                    </button>
-                                    <button
-                                        onClick={(e) => handleDecline(patch.id, e)}
-                                        className={styles.declineButton}
-                                    >
-                                        Decline
-                                    </button>
+                                    {onReviewPatch && (
+                                        <button
+                                            onClick={() => onReviewPatch(patch.id, patch)}
+                                            className={styles.approveButton}
+                                        >
+                                            Review
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+
+                            {patch.status === 'declined' && !moderatorMode && (
+                                <div className={styles.actions}>
+                                    {onReopenPatch && (
+                                        <button
+                                            onClick={() => onReopenPatch(patch.id)}
+                                            className={styles.editButton}
+                                        >
+                                            Edit
+                                        </button>
+                                    )}
                                 </div>
                             )}
                         </div>

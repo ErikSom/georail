@@ -6,19 +6,33 @@ interface ReviewModalProps {
     patchId: number;
     routeEditor: RouteEditor;
     onClose: () => void;
-    onSave: () => Promise<void>;
+    onSave?: () => Promise<void>;
+    onApprove?: () => Promise<void>;
+    onDecline?: (feedback: string) => Promise<void>;
+    reviewMode?: boolean;
+    previousDeclineReason?: string;
 }
 
-function ReviewModal({ patchId, routeEditor, onClose, onSave }: ReviewModalProps) {
+function ReviewModal({ patchId, routeEditor, onClose, onSave, onApprove, onDecline, reviewMode = false, previousDeclineReason }: ReviewModalProps) {
     const [comparisons, setComparisons] = useState<NodeComparison[]>([]);
     const [saving, setSaving] = useState(false);
+    const [showDeclineInput, setShowDeclineInput] = useState(false);
+    const [declineFeedback, setDeclineFeedback] = useState('');
 
     useEffect(() => {
         const nodeComparisons = routeEditor.getNodeComparisons();
         setComparisons(nodeComparisons);
     }, [routeEditor]);
 
+    // Prefill decline feedback with previous decline reason
+    useEffect(() => {
+        if (previousDeclineReason) {
+            setDeclineFeedback(previousDeclineReason);
+        }
+    }, [previousDeclineReason]);
+
     const handleSave = async () => {
+        if (!onSave) return;
         try {
             setSaving(true);
             await onSave();
@@ -29,11 +43,45 @@ function ReviewModal({ patchId, routeEditor, onClose, onSave }: ReviewModalProps
         }
     };
 
+    const handleApprove = async () => {
+        if (!onApprove) return;
+        if (!confirm('Are you sure you want to approve this patch?')) return;
+
+        try {
+            setSaving(true);
+            await onApprove();
+        } catch (error) {
+            console.error('Failed to approve:', error);
+            alert('Failed to approve patch. Please try again.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleDecline = async () => {
+        if (!onDecline) return;
+        if (!confirm('Are you sure you want to decline this patch?')) return;
+
+        try {
+            setSaving(true);
+            await onDecline(declineFeedback);
+        } catch (error) {
+            console.error('Failed to decline:', error);
+            alert('Failed to decline patch. Please try again.');
+        } finally {
+            setSaving(false);
+            setShowDeclineInput(false);
+            setDeclineFeedback('');
+        }
+    };
+
     return (
         <div className={styles.overlay} onClick={onClose}>
             <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
                 <div className={styles.header}>
-                    <h2 className={styles.title}>Review & Save Patch #{patchId}</h2>
+                    <h2 className={styles.title}>
+                        {reviewMode ? `Review Patch #${patchId}` : `Review & Save Patch #${patchId}`}
+                    </h2>
                     <button onClick={onClose} className={styles.closeButton}>
                         ✕
                     </button>
@@ -114,16 +162,74 @@ function ReviewModal({ patchId, routeEditor, onClose, onSave }: ReviewModalProps
                 </div>
 
                 <div className={styles.footer}>
-                    <button onClick={onClose} className={styles.cancelButton}>
-                        Cancel
-                    </button>
-                    <button
-                        onClick={handleSave}
-                        disabled={saving}
-                        className={styles.saveButton}
-                    >
-                        {saving ? 'Saving...' : 'Save Patch'}
-                    </button>
+                    {reviewMode ? (
+                        <>
+                            {showDeclineInput && (
+                                <textarea
+                                    value={declineFeedback}
+                                    onInput={(e) => setDeclineFeedback((e.target as HTMLTextAreaElement).value)}
+                                    placeholder="Reason for declining (optional)"
+                                    className={styles.feedbackInput}
+                                    rows={3}
+                                />
+                            )}
+                            <div className={styles.reviewActions}>
+                                <button onClick={onClose} className={styles.cancelButton}>
+                                    Close
+                                </button>
+                                {showDeclineInput ? (
+                                    <>
+                                        <button
+                                            onClick={() => {
+                                                setShowDeclineInput(false);
+                                                setDeclineFeedback('');
+                                            }}
+                                            className={styles.cancelButton}
+                                        >
+                                            Cancel Decline
+                                        </button>
+                                        <button
+                                            onClick={handleDecline}
+                                            disabled={saving}
+                                            className={styles.declineButton}
+                                        >
+                                            {saving ? 'Declining...' : 'Confirm Decline'}
+                                        </button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <button
+                                            onClick={() => setShowDeclineInput(true)}
+                                            disabled={saving}
+                                            className={styles.declineButton}
+                                        >
+                                            Decline
+                                        </button>
+                                        <button
+                                            onClick={handleApprove}
+                                            disabled={saving}
+                                            className={styles.approveButton}
+                                        >
+                                            {saving ? 'Approving...' : 'Approve'}
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <button onClick={onClose} className={styles.cancelButton}>
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSave}
+                                disabled={saving}
+                                className={styles.saveButton}
+                            >
+                                {saving ? 'Saving...' : 'Save Patch'}
+                            </button>
+                        </>
+                    )}
                 </div>
             </div>
         </div>

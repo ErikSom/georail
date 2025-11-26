@@ -7,6 +7,7 @@ export interface Patch {
     created_at: string;
     reviewed_at?: string;
     reviewed_by?: string;
+    decline_reason?: string;
     // Route information
     from_station?: string;
     from_track?: string;

@@ -126,7 +126,7 @@ export class Editor {
     }
 
 
-    public async loadPatchRoute(routeInfo: RouteInfo, patchId: number): Promise<void> {
+    public async loadPatchRoute(routeInfo: RouteInfo, patchId: number, reviewMode: boolean = false): Promise<void> {
         try {
             // Fetch route data with editor=true to get all points
             const routeData = await fetchRouteByName(
@@ -138,7 +138,8 @@ export class Editor {
             );
 
             // Fetch existing patch data to apply saved offsets
-            const patchWithData = await fetchPatchWithData(patchId);
+            // In review mode, bypass owner check to allow moderators to view any patch
+            const patchWithData = await fetchPatchWithData(patchId, reviewMode);
 
             // Relocate camera to the start of the route before loading nodes
             if (routeData.geometry.route && routeData.geometry.route.length > 0) {
@@ -148,7 +149,7 @@ export class Editor {
 
             // Create route editor if not exists
             if (!this.routeEditor) {
-                this.routeEditor = new RouteEditor(this.scene, this.camera, this.renderer.domElement, this.mapViewer);
+                this.routeEditor = new RouteEditor(this.scene, this.camera, this.renderer.domElement, this.mapViewer, reviewMode);
 
                 // Wire up callbacks
                 this.routeEditor.onNodeSelected = (nodeData) => {

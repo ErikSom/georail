@@ -14,6 +14,8 @@ function EditorViewer() {
     const [activePatchId, setActivePatchId] = useState<number | null>(null);
     const [selectedNodeData, setSelectedNodeData] = useState<any>(null);
     const [modifiedNodesCount, setModifiedNodesCount] = useState(0);
+    const [reviewMode, setReviewMode] = useState(false);
+    const [currentPatchDeclineReason, setCurrentPatchDeclineReason] = useState<string | undefined>(undefined);
 
     useEffect(() => {
         if (mountRef.current && !editorRef.current) {
@@ -39,25 +41,31 @@ function EditorViewer() {
 
     }, []);
 
-    const handleStartEditingPatch = async (patchId: number, routeInfo: RouteInfo) => {
+    const handleStartEditingPatch = async (patchId: number, routeInfo: RouteInfo, isReviewMode: boolean = false, declineReason?: string) => {
         setActivePatchId(patchId);
+        setReviewMode(isReviewMode);
+        setCurrentPatchDeclineReason(declineReason);
         setShowPatchManagement(false);
 
         if (editorRef.current) {
             try {
-                await editorRef.current.loadPatchRoute(routeInfo, patchId);
+                await editorRef.current.loadPatchRoute(routeInfo, patchId, isReviewMode);
             } catch (error) {
                 console.error('Failed to load route:', error);
                 alert('Failed to load route for editing. Please try again.');
                 setActivePatchId(null);
+                setReviewMode(false);
+                setCurrentPatchDeclineReason(undefined);
             }
         }
     };
 
     const handleClosePatchEditor = () => {
         setActivePatchId(null);
+        setReviewMode(false);
         setSelectedNodeData(null);
         setModifiedNodesCount(0);
+        setCurrentPatchDeclineReason(undefined);
 
         // Clear the route from 3D viewer
         if (editorRef.current) {
@@ -91,11 +99,6 @@ function EditorViewer() {
                 patchId: activePatchId,
             });
 
-            // Reset isDirty flags on all nodes after successful save
-            const allNodes = routeEditor.getAllNodes();
-            allNodes.forEach(node => {
-                node.isDirty = false;
-            });
             setModifiedNodesCount(0);
 
             alert('Patch saved successfully!');
@@ -116,6 +119,38 @@ function EditorViewer() {
     };
 
     const [showReviewModal, setShowReviewModal] = useState(false);
+
+    const handleApprovePatch = async () => {
+        if (!activePatchId) return;
+
+        try {
+            const { approvePatch } = await import('../lib/api/patches');
+            await approvePatch(activePatchId);
+            alert('Patch approved successfully!');
+            setShowReviewModal(false);
+            handleClosePatchEditor();
+            setShowPatchManagement(true);
+        } catch (error) {
+            console.error('Failed to approve patch:', error);
+            throw error;
+        }
+    };
+
+    const handleDeclinePatch = async (feedback: string) => {
+        if (!activePatchId) return;
+
+        try {
+            const { declinePatch } = await import('../lib/api/patches');
+            await declinePatch(activePatchId, feedback);
+            alert('Patch declined successfully!');
+            setShowReviewModal(false);
+            handleClosePatchEditor();
+            setShowPatchManagement(true);
+        } catch (error) {
+            console.error('Failed to decline patch:', error);
+            throw error;
+        }
+    };
 
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -144,13 +179,13 @@ function EditorViewer() {
                     {activePatchId && (
                         <div className={styles.editorPanel}>
                             <div className={styles.editorHeader}>
-                                <h3>Editing Patch #{activePatchId}</h3>
+                                <h3>{reviewMode ? `Reviewing Patch #${activePatchId}` : `Editing Patch #${activePatchId}`}</h3>
                                 <button onClick={handleClosePatchEditor} className={styles.closeBtn}>
                                     ✕
                                 </button>
                             </div>
 
-                            {selectedNodeData && (
+                            {!reviewMode && selectedNodeData && (
                                 <div className={styles.nodeInfo}>
                                     <h4>Selected Node</h4>
                                     <div className={styles.nodeDetails}>
@@ -175,15 +210,19 @@ function EditorViewer() {
 
                             <div className={styles.editorActions}>
                                 <div className={styles.modificationInfo}>
-                                    {modifiedNodesCount > 0
-                                        ? `${modifiedNodesCount} node(s) modified`
-                                        : 'No modifications yet'}
+                                    {reviewMode
+                                        ? modifiedNodesCount > 0
+                                            ? `${modifiedNodesCount} node(s) modified in this patch`
+                                            : 'No modifications in this patch'
+                                        : modifiedNodesCount > 0
+                                            ? `${modifiedNodesCount} node(s) modified`
+                                            : 'No modifications yet'}
                                 </div>
                                 <button
                                     onClick={() => setShowReviewModal(true)}
                                     className={styles.saveButton}
                                 >
-                                    Save & Review
+                                    {reviewMode ? 'Review' : 'Save & Review'}
                                 </button>
                             </div>
                         </div>
@@ -193,11 +232,15 @@ function EditorViewer() {
                         <ReviewModal
                             patchId={activePatchId}
                             routeEditor={editorRef.current.getRouteEditor()!}
+                            reviewMode={reviewMode}
+                            previousDeclineReason={currentPatchDeclineReason}
                             onClose={() => setShowReviewModal(false)}
-                            onSave={async () => {
+                            onSave={reviewMode ? undefined : async () => {
                                 await handleSavePatch();
                                 setShowReviewModal(false);
                             }}
+                            onApprove={reviewMode ? handleApprovePatch : undefined}
+                            onDecline={reviewMode ? handleDeclinePatch : undefined}
                         />
                     )}
                 </>

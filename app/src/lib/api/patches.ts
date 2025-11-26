@@ -105,7 +105,7 @@ export async function approvePatch(patchId: number): Promise<void> {
 /**
  * Decline a patch (moderator only)
  */
-export async function declinePatch(patchId: number): Promise<void> {
+export async function declinePatch(patchId: number, reason?: string): Promise<void> {
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
     if (sessionError || !session) {
@@ -117,7 +117,8 @@ export async function declinePatch(patchId: number): Promise<void> {
         .update({
             status: 'declined',
             reviewed_at: new Date().toISOString(),
-            reviewed_by: session.user.id
+            reviewed_by: session.user.id,
+            decline_reason: reason || null
         })
         .eq('id', patchId)
         .eq('status', 'pending');
@@ -130,8 +131,10 @@ export async function declinePatch(patchId: number): Promise<void> {
 
 /**
  * Fetch a single patch by ID with its data
+ * @param patchId - The ID of the patch to fetch
+ * @param bypassOwnerCheck - If true, allows fetching patches regardless of ownership (for moderators)
  */
-export async function fetchPatchWithData(patchId: number): Promise<PatchWithData | null> {
+export async function fetchPatchWithData(patchId: number, bypassOwnerCheck: boolean = false): Promise<PatchWithData | null> {
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
     if (sessionError || !session) {
@@ -139,12 +142,17 @@ export async function fetchPatchWithData(patchId: number): Promise<PatchWithData
     }
 
     // Fetch the patch
-    const { data: patchData, error: patchError } = await supabase
+    let query = supabase
         .from('rail_patches')
         .select('*')
-        .eq('id', patchId)
-        .eq('user_id', session.user.id)
-        .single();
+        .eq('id', patchId);
+
+    // Only filter by user_id if not bypassing owner check
+    if (!bypassOwnerCheck) {
+        query = query.eq('user_id', session.user.id);
+    }
+
+    const { data: patchData, error: patchError } = await query.single();
 
     if (patchError) {
         console.error('Error fetching patch:', patchError);
@@ -326,6 +334,47 @@ export async function cancelPatch(patchId: number): Promise<void> {
     if (updateError) {
         console.error('Error canceling patch:', updateError);
         throw new Error('Failed to cancel patch');
+    }
+}
+
+/**
+ * Reopen a declined patch (change status back to editing)
+ */
+export async function reopenPatch(patchId: number): Promise<void> {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+    if (sessionError || !session) {
+        throw new Error('User is not authenticated');
+    }
+
+    // First check if the patch is declined and belongs to user
+    const { data: patch, error: fetchError } = await supabase
+        .from('rail_patches')
+        .select('status')
+        .eq('id', patchId)
+        .eq('user_id', session.user.id)
+        .single();
+
+    if (fetchError || !patch) {
+        throw new Error('Patch not found');
+    }
+
+    if (patch.status !== 'declined') {
+        throw new Error('Can only reopen declined patches');
+    }
+
+    // Update status to editing (keep review fields for moderator reference)
+    const { error: updateError } = await supabase
+        .from('rail_patches')
+        .update({
+            status: 'editing',
+        })
+        .eq('id', patchId)
+        .eq('user_id', session.user.id);
+
+    if (updateError) {
+        console.error('Error reopening patch:', updateError);
+        throw new Error('Failed to reopen patch');
     }
 }
 
