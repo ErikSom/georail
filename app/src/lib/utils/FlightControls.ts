@@ -7,7 +7,7 @@ export class FlightControls {
     private camera: PerspectiveCamera;
     private domElement: HTMLElement;
 
-    private baseSpeed = 200;
+    private baseSpeed = 100;
     private fastMul = 5;
     private slowMul = 0.25;
 

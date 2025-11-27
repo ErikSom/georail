@@ -20,7 +20,9 @@ import type { PatchData } from '../types/Patch';
 import { Input } from '../utils/Input';
 import { DEG2RAD } from 'three/src/math/MathUtils.js';
 
-const METERS_PER_DEGREE_LAT = 111320;
+// WGS84 ellipsoid constants for more accurate conversion
+// These provide better precision than simple approximations
+const METERS_PER_DEGREE_LAT = 111319.49079327358; // More precise value at equator
 
 interface NodeSnapshot {
     position: Vector3;
@@ -38,6 +40,7 @@ export interface NodeData {
     isKeyNode: boolean;
     position: Vector3;
     originalPosition: Vector3;
+    originalGeoCoords?: { lat: number; lon: number; height: number }; // Cache to avoid repeated conversions
 }
 
 export interface NodeComparison {
@@ -183,7 +186,7 @@ export class RouteEditor {
                 return;
             }
 
-            // Create node data
+            // Create node data with cached geo coordinates
             const nodeData: NodeData = {
                 segment_id,
                 index,
@@ -192,6 +195,7 @@ export class RouteEditor {
                 isKeyNode: false, // Will be set by applyPatchData
                 position: position.clone(),
                 originalPosition: originalPosition.clone(),
+                originalGeoCoords: origGeoCoords, // Cache to avoid repeated conversions
             };
 
             this.nodes.set(nodeKey, nodeData);
@@ -426,20 +430,16 @@ export class RouteEditor {
                 nodeData.world_offset.set(offsetX, offsetY, offsetZ);
                 nodeData.isKeyNode = patch.keynode;
 
-                // Convert the offset back to world position
-                const origGeoCoords = this.mapViewer.getLatLonHeightFromWorldPosition(nodeData.originalPosition);
+                // Use cached geo coordinates to avoid repeated conversions and precision loss
+                const newPosition = this.applyENUOffset(nodeData.originalGeoCoords!, nodeData.world_offset);
 
-                if (origGeoCoords) {
-                    const newPosition = this.applyENUOffset(origGeoCoords, nodeData.world_offset);
+                if (newPosition) {
+                    nodeData.position.copy(newPosition);
+                    mesh.position.copy(newPosition);
 
-                    if (newPosition) {
-                        nodeData.position.copy(newPosition);
-                        mesh.position.copy(newPosition);
-
-                        // Update material if it's a key node
-                        if (nodeData.isKeyNode) {
-                            mesh.material = new MeshBasicMaterial({ color: 0xff0000, wireframe: false });
-                        }
+                    // Update material if it's a key node
+                    if (nodeData.isKeyNode) {
+                        mesh.material = new MeshBasicMaterial({ color: 0xff0000, wireframe: false });
                     }
                 }
             }
@@ -488,10 +488,10 @@ export class RouteEditor {
 
     private updateNodeWorldOffset(nodeData: NodeData, position: Vector3): void {
         const geoCoords = this.mapViewer.getLatLonHeightFromWorldPosition(position);
-        const origGeoCoords = this.mapViewer.getLatLonHeightFromWorldPosition(nodeData.originalPosition);
 
-        if (geoCoords && origGeoCoords) {
-            const offset = this.geoToENU(geoCoords, origGeoCoords);
+        // Use cached original geo coords to avoid repeated conversions and precision loss
+        if (geoCoords && nodeData.originalGeoCoords) {
+            const offset = this.geoToENU(geoCoords, nodeData.originalGeoCoords);
             nodeData.world_offset.copy(offset);
         }
     }
@@ -590,11 +590,9 @@ export class RouteEditor {
             const newOffset = new Vector3().lerpVectors(startNode.world_offset, endNode.world_offset, t);
             nodeData.world_offset.copy(newOffset);
 
-            // Apply the interpolated offset to get the new position
-            const origGeoCoords = this.mapViewer.getLatLonHeightFromWorldPosition(nodeData.originalPosition);
-
-            if (origGeoCoords) {
-                const newPosition = this.applyENUOffset(origGeoCoords, newOffset);
+            // Apply the interpolated offset using cached geo coords to avoid precision loss
+            if (nodeData.originalGeoCoords) {
+                const newPosition = this.applyENUOffset(nodeData.originalGeoCoords, newOffset);
                 if (newPosition) {
                     mesh.position.copy(newPosition);
                     nodeData.position.copy(newPosition);
