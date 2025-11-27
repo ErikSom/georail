@@ -738,6 +738,11 @@ export class RouteEditor {
         if (Input.isPressed('KeyZ') && Input.isControl) {
             this.undo();
         }
+
+        // Press F to frame/focus the selected node (like Unity)
+        if (Input.isPressed('KeyF') && this.selectedNode) {
+            this.bringNodeIntoView(this.selectedNode);
+        }
     }
 
     public clear(): void {

@@ -159,7 +159,6 @@ export async function fetchPatchWithData(patchId: number, bypassOwnerCheck: bool
         return null;
     }
 
-    // Fetch the patch data
     const { data: dataPoints, error: dataError } = await supabase
         .from('rail_patch_data')
         .select('*')
