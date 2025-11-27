@@ -33,6 +33,7 @@ export class Editor {
     // Callbacks for patch editing
     public onNodeSelected: ((nodeData: any) => void) | null = null;
     public onNodesModified: ((count: number) => void) | null = null;
+    public onNodeIndexChanged: ((currentIndex: number, totalNodes: number) => void) | null = null;
 
     constructor(mountElement: HTMLDivElement, setCreditsCallback: (credits: string) => void) {
         this.mountElement = mountElement;
@@ -163,6 +164,12 @@ export class Editor {
                         this.onNodesModified(nodes.length);
                     }
                 };
+
+                this.routeEditor.onNodeIndexChanged = (currentIndex, totalNodes) => {
+                    if (this.onNodeIndexChanged) {
+                        this.onNodeIndexChanged(currentIndex, totalNodes);
+                    }
+                };
             }
 
             // Load the route
@@ -209,6 +216,22 @@ export class Editor {
             }
 
             this.camera.updateMatrixWorld();
+        }
+    }
+
+    public selectNodeByIndex(index: number): void {
+        if (this.routeEditor) {
+            this.routeEditor.selectNodeByIndex(index);
+        }
+    }
+
+    public bringCurrentNodeIntoView(): void {
+        if (this.routeEditor) {
+            const nodeKeys = Array.from(this.routeEditor['nodes'].keys());
+            const currentIndex = this.routeEditor.getCurrentNodeIndex();
+            if (currentIndex >= 0 && currentIndex < nodeKeys.length) {
+                this.routeEditor.bringNodeIntoView(nodeKeys[currentIndex]);
+            }
         }
     }
 

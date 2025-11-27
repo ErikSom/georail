@@ -16,6 +16,8 @@ function EditorViewer() {
     const [modifiedNodesCount, setModifiedNodesCount] = useState(0);
     const [reviewMode, setReviewMode] = useState(false);
     const [currentPatchDeclineReason, setCurrentPatchDeclineReason] = useState<string | undefined>(undefined);
+    const [currentNodeIndex, setCurrentNodeIndex] = useState(-1);
+    const [totalNodes, setTotalNodes] = useState(0);
 
     useEffect(() => {
         if (mountRef.current && !editorRef.current) {
@@ -29,6 +31,11 @@ function EditorViewer() {
 
             editor.onNodesModified = (count) => {
                 setModifiedNodesCount(count);
+            };
+
+            editor.onNodeIndexChanged = (index, total) => {
+                setCurrentNodeIndex(index);
+                setTotalNodes(total);
             };
 
             editorRef.current = editor;
@@ -152,6 +159,13 @@ function EditorViewer() {
         }
     };
 
+    const handleSliderChange = (e: Event) => {
+        const target = e.target as HTMLInputElement;
+        const index = parseInt(target.value, 10);
+        editorRef.current?.selectNodeByIndex(index);
+        editorRef.current?.bringCurrentNodeIntoView();
+    };
+
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
             <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
@@ -205,6 +219,28 @@ function EditorViewer() {
                                             </label>
                                         </div>
                                     </div>
+                                </div>
+                            )}
+
+                            {activePatchId && (
+                                <div className={styles.nodeSliderContainer}>
+                                    <div className={styles.sliderInfo}>
+                                        <span>Node: {currentNodeIndex >= 0 ? currentNodeIndex + 1 : '-'} / {totalNodes}</span>
+                                        {currentNodeIndex >= 0 && totalNodes > 1 && (
+                                            <span className={styles.progressPercent}>
+                                                ({Math.round((currentNodeIndex / (totalNodes - 1)) * 100)}%)
+                                            </span>
+                                        )}
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max={Math.max(0, totalNodes - 1)}
+                                        value={currentNodeIndex >= 0 ? currentNodeIndex : 0}
+                                        onInput={handleSliderChange}
+                                        className={styles.nodeSlider}
+                                        disabled={totalNodes === 0}
+                                    />
                                 </div>
                             )}
 

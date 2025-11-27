@@ -78,6 +78,7 @@ export class RouteEditor {
     // Callbacks
     public onNodeSelected: ((nodeData: NodeData | null) => void) | null = null;
     public onNodesModified: ((nodes: NodeData[]) => void) | null = null;
+    public onNodeIndexChanged: ((currentIndex: number, totalNodes: number) => void) | null = null;
 
     constructor(scene: Scene, camera: Camera, domElement: HTMLElement, mapViewer: MapViewer, reviewMode: boolean = false) {
         this.scene = scene;
@@ -275,6 +276,11 @@ export class RouteEditor {
         console.log(`Loaded ${this.nodes.size} nodes for route editing`);
         console.log('Route group position:', this.routeGroup.position);
         console.log('Route group world matrix:', this.routeGroup.matrixWorld);
+
+        // Initialize slider with total node count (no selection yet)
+        if (this.onNodeIndexChanged) {
+            this.onNodeIndexChanged(-1, this.nodes.size);
+        }
     }
 
     private createOffsetIndicator(nodeKey: string, nodeData: NodeData): void {
@@ -324,11 +330,21 @@ export class RouteEditor {
                 if (this.onNodeSelected) {
                     this.onNodeSelected(nodeData);
                 }
+
+                // Notify node index changed
+                if (this.onNodeIndexChanged) {
+                    const nodeKeys = Array.from(this.nodes.keys());
+                    const currentIndex = nodeKeys.indexOf(nodeKey);
+                    this.onNodeIndexChanged(currentIndex, nodeKeys.length);
+                }
             }
         } else {
             this.transformControls.detach();
             if (this.onNodeSelected) {
                 this.onNodeSelected(null);
+            }
+            if (this.onNodeIndexChanged) {
+                this.onNodeIndexChanged(-1, this.nodes.size);
             }
         }
     }
@@ -415,6 +431,54 @@ export class RouteEditor {
 
     public getAllNodes(): NodeData[] {
         return Array.from(this.nodes.values());
+    }
+
+    public selectNodeByIndex(index: number): void {
+        const nodeKeys = Array.from(this.nodes.keys());
+        if (index >= 0 && index < nodeKeys.length) {
+            this.selectNode(nodeKeys[index]);
+        }
+    }
+
+    public getTotalNodeCount(): number {
+        return this.nodes.size;
+    }
+
+    public getCurrentNodeIndex(): number {
+        if (!this.selectedNode) return -1;
+        const nodeKeys = Array.from(this.nodes.keys());
+        return nodeKeys.indexOf(this.selectedNode);
+    }
+
+    public bringNodeIntoView(nodeKey: string): void {
+        const nodeData = this.nodes.get(nodeKey);
+        const mesh = this.nodeMeshes.get(nodeKey);
+
+        if (!nodeData || !mesh) return;
+
+        // Get the node's world position
+        const targetPosition = mesh.position.clone();
+
+        // Calculate an offset position for the camera (angled view like Unity's F key)
+        // Position camera at an angle: behind and above the node
+        const heightOffset = 30; // meters above the node
+        const backwardOffset = 40; // meters behind the node
+
+        // Create camera position offset
+        const cameraPosition = targetPosition.clone();
+        cameraPosition.y += heightOffset;
+        cameraPosition.z -= backwardOffset; // Move camera back (assuming Z is forward/backward)
+
+        // Smoothly move camera to the new position
+        this.camera.position.copy(cameraPosition);
+
+        // Look at the node (slightly above it for better view)
+        const lookAtTarget = targetPosition.clone();
+        lookAtTarget.y += 5; // Look at a point slightly above the node
+        this.camera.lookAt(lookAtTarget);
+
+        // Update camera matrix
+        this.camera.updateMatrixWorld();
     }
 
     public applyPatchData(patchData: PatchData[]): void {
