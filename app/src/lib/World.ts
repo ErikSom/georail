@@ -10,6 +10,8 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { MapViewer } from './MapViewer';
 import { Drone } from './Drone';
 import { fetchRouteByName } from './Georail';
+import { routePointToWorldPosition } from './utils/CoordinateHelpers';
+import { Sky } from './Sky';
 
 export class World {
     private scene!: Scene;
@@ -20,6 +22,7 @@ export class World {
     private controls!: OrbitControls;
     private drone!: Drone;
     private mapViewer!: MapViewer;
+    private sky!: Sky;
     private tmp = new Vector3();
 
     private rafId: number | null = null;
@@ -42,7 +45,6 @@ export class World {
         this.scene = new Scene();
         this.clock = new Clock();
         this.renderer = new WebGLRenderer({ antialias: true });
-        this.renderer.setClearColor(0x151c1f);
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.setSize(this.mountElement.clientWidth, this.mountElement.clientHeight);
         this.mountElement.appendChild(this.renderer.domElement);
@@ -52,6 +54,8 @@ export class World {
 
         this.mapViewer = new MapViewer();
         this.mapViewer.init(this.scene, this.camera, this.renderer);
+
+        this.sky = new Sky(this.scene);
 
         this.drone = new Drone();
         this.scene.add(this.drone);
@@ -83,6 +87,7 @@ export class World {
         window.removeEventListener('keydown', this.onKeyDown);
         window.removeEventListener('keyup', this.onKeyUp);
 
+        this.sky.cleanup();
         this.mapViewer.cleanup();
         this.drone.dispose();
         this.controls.dispose();
@@ -137,8 +142,8 @@ export class World {
         console.log('Fetching route from Amsterdam Centraal to Utrecht Centraal...');
         try {
             const routeData = await fetchRouteByName(
-                'Amsterdam Centraal', '4b',
-                'Utrecht Centraal', '19'
+                'Hoorn Kersenboogerd', '1',
+                'Amsterdam Centraal', '4b'
             );
 
             // More detailed logging to inspect the incoming data structure
@@ -153,19 +158,25 @@ export class World {
                 return;
             }
 
-            // The data is already a clean array of [lon, lat] pairs.
+            // Route data is: [lon, lat, world_offset_x, world_offset_y, world_offset_z]
             const pathCoordinates = routeData.geometry.route;
+
+            console.log(pathCoordinates)
 
             console.log(`Processed into a single path with ${pathCoordinates.length} total coordinates.`);
 
-            // Teleport the world origin to the start of the path. This is crucial.
-            const [startLon, startLat] = pathCoordinates[0];
-            this.teleportDroneTo(startLat, startLon, 200);
+            // Teleport the world origin to the start of the path
+            // Route point format: [lon, lat, world_offset_x, world_offset_y, world_offset_z]
+            // world_offset_y is the height/altitude offset
+            const [startLon, startLat, , world_offset_y] = pathCoordinates[0];
+            const droneHeight = world_offset_y || 200;
+            console.log('Starting drone at height:', droneHeight);
+            this.teleportDroneTo(startLat, startLon, droneHeight);
 
-            // Now, convert all geographic coordinates to our new local world coordinates.
+            // Now, convert all geographic coordinates with offsets applied to world positions
             const pathPoints = pathCoordinates
-                .map(([lon, lat]: [number, number]) => {
-                    return this.mapViewer.latLonHeightToWorldPosition(lat, lon, 0);
+                .map((routePoint: number[]) => {
+                    return routePointToWorldPosition(routePoint, this.mapViewer);
                 })
                 .filter((p: Vector3 | null): p is Vector3 => p !== null); // Filter out any null results
 
@@ -176,7 +187,7 @@ export class World {
                 return;
             }
 
-            this.drone.startFollowing(pathPoints, 50);
+            this.drone.startFollowing(pathPoints, 0);
         } catch (error) {
             console.error('Failed to start path following:', error);
         }
@@ -197,29 +208,32 @@ export class World {
         this.rafId = requestAnimationFrame(this.animate);
         const deltaTime = this.clock.getDelta();
 
-        // 1. Update Drone position
+        // 1. Update Sky
+        this.sky.update(deltaTime, this.camera);
+
+        // 2. Update Drone position
         this.drone.update(deltaTime, this.keysPressed);
 
-        // 2. Update MapViewer (tiles)
+        // 3. Update MapViewer (tiles)
         this.mapViewer.update();
 
         // --- MODIFIED ---
 
-        // 3–6. Follow the drone without fighting controls
+        // 4–6. Follow the drone without fighting controls
         this.tmp.copy(this.drone.position).sub(this.controls.target); // delta the drone moved
         this.controls.target.add(this.tmp);
         this.camera.position.add(this.tmp);
 
-        // 5. Let controls handle damping/zoom/orbit
+        // 7. Let controls handle damping/zoom/orbit
         this.controls.update();
 
-        // 7. Update Camera
+        // 8. Update Camera
         this.camera.updateMatrixWorld();
 
-        // 8. Render
+        // 9. Render
         this.renderer.render(this.scene, this.camera);
 
-        // 9. Update UI
+        // 10. Update UI
         const cameraCredits = this.mapViewer.getCredits();
         const droneCoords = this.mapViewer.getLatLonHeightFromWorldPosition(this.drone.position);
 

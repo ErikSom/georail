@@ -14,6 +14,7 @@ import { RouteEditor } from './RouteEditor';
 import { fetchRouteByName, type RouteData } from '../Georail';
 import { fetchPatchWithData } from '../api/patches';
 import type { RouteInfo } from '../types/Patch';
+import { Sky } from '../Sky';
 
 export class Editor {
     private scene!: Scene;
@@ -23,6 +24,7 @@ export class Editor {
 
     private flightControls!: FlightControls;
     private mapViewer!: MapViewer;
+    private sky!: Sky;
     private routeEditor: RouteEditor | null = null;
     private raycaster = new Raycaster();
 
@@ -47,7 +49,6 @@ export class Editor {
         this.scene = new Scene();
         this.clock = new Clock();
         this.renderer = new WebGLRenderer({ antialias: true });
-        this.renderer.setClearColor(0x151c1f);
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.setSize(this.mountElement.clientWidth, this.mountElement.clientHeight);
         this.mountElement.appendChild(this.renderer.domElement);
@@ -59,6 +60,8 @@ export class Editor {
 
         this.mapViewer = new MapViewer();
         this.mapViewer.init(this.scene, this.camera, this.renderer);
+
+        this.sky = new Sky(this.scene);
 
         this.flightControls = new FlightControls(this.camera, this.renderer.domElement);
         this.flightControls.init();
@@ -242,6 +245,7 @@ export class Editor {
 
         window.removeEventListener('resize', this.onWindowResize);
 
+        this.sky.cleanup();
         this.flightControls.cleanup();
         this.mapViewer.cleanup();
         this.clearPatchRoute();
@@ -268,6 +272,7 @@ export class Editor {
         this.rafId = requestAnimationFrame(this.animate);
         const dt = this.clock.getDelta();
 
+        this.sky.update(dt, this.camera);
         this.flightControls.update(dt);
         this.camera.updateMatrixWorld();
         this.mapViewer.update();

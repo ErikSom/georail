@@ -18,11 +18,7 @@ import type { RouteData } from '../Georail';
 import type { MapViewer } from '../MapViewer';
 import type { PatchData } from '../types/Patch';
 import { Input } from '../utils/Input';
-import { DEG2RAD } from 'three/src/math/MathUtils.js';
-
-// WGS84 ellipsoid constants for more accurate conversion
-// These provide better precision than simple approximations
-const METERS_PER_DEGREE_LAT = 111319.49079327358; // More precise value at equator
+import { geoToENU, applyENUOffset, type GeoCoords } from '../utils/CoordinateHelpers';
 
 interface NodeSnapshot {
     position: Vector3;
@@ -181,7 +177,7 @@ export class RouteEditor {
                 return;
             }
 
-            const position = this.applyENUOffset(origGeoCoords, worldOffset);
+            const position = applyENUOffset(origGeoCoords, worldOffset, this.mapViewer);
             if (!position) {
                 console.warn(`Failed to apply offset for node ${nodeKey}`);
                 return;
@@ -495,7 +491,7 @@ export class RouteEditor {
                 nodeData.isKeyNode = patch.keynode;
 
                 // Use cached geo coordinates to avoid repeated conversions and precision loss
-                const newPosition = this.applyENUOffset(nodeData.originalGeoCoords!, nodeData.world_offset);
+                const newPosition = applyENUOffset(nodeData.originalGeoCoords!, nodeData.world_offset, this.mapViewer);
 
                 if (newPosition) {
                     nodeData.position.copy(newPosition);
@@ -555,29 +551,9 @@ export class RouteEditor {
 
         // Use cached original geo coords to avoid repeated conversions and precision loss
         if (geoCoords && nodeData.originalGeoCoords) {
-            const offset = this.geoToENU(geoCoords, nodeData.originalGeoCoords);
+            const offset = geoToENU(geoCoords, nodeData.originalGeoCoords);
             nodeData.world_offset.copy(offset);
         }
-    }
-
-    private geoToENU(geoCoords: { lat: number; lon: number; height: number }, origGeoCoords: { lat: number; lon: number; height: number }): Vector3 {
-        const metersPerDegreeLon = METERS_PER_DEGREE_LAT * Math.cos(origGeoCoords.lat * DEG2RAD);
-
-        const east = (geoCoords.lon - origGeoCoords.lon) * metersPerDegreeLon;
-        const north = (geoCoords.lat - origGeoCoords.lat) * METERS_PER_DEGREE_LAT;
-        const up = geoCoords.height - origGeoCoords.height;
-
-        return new Vector3(east, up, north);
-    }
-
-    private applyENUOffset(origGeoCoords: { lat: number; lon: number; height: number }, offset: Vector3): Vector3 | null {
-        const metersPerDegreeLon = METERS_PER_DEGREE_LAT * Math.cos(origGeoCoords.lat * DEG2RAD);
-
-        const newLat = origGeoCoords.lat + (offset.z / METERS_PER_DEGREE_LAT);
-        const newLon = origGeoCoords.lon + (offset.x / metersPerDegreeLon);
-        const newHeight = origGeoCoords.height + offset.y;
-
-        return this.mapViewer.latLonHeightToWorldPosition(newLat, newLon, newHeight);
     }
 
     private interpolateBetweenKeyNodes(changedNodeKey: string): void {
@@ -656,7 +632,7 @@ export class RouteEditor {
 
             // Apply the interpolated offset using cached geo coords to avoid precision loss
             if (nodeData.originalGeoCoords) {
-                const newPosition = this.applyENUOffset(nodeData.originalGeoCoords, newOffset);
+                const newPosition = applyENUOffset(nodeData.originalGeoCoords, newOffset, this.mapViewer);
                 if (newPosition) {
                     mesh.position.copy(newPosition);
                     nodeData.position.copy(newPosition);

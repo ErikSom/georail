@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>GodotSky Exact Shader Port</title>
+        <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        canvas { display: block; }
+        #loading {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: white; font-family: sans-serif; pointer-events: none;
+            background: rgba(0,0,0,0.8); padding: 10px 20px; border-radius: 8px;
+        }
+    </style>
+    </head>
+    <body>
+        <div id="loading">Generating Seamless Perlin Noise...</div>
+
+        <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+        <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
+
+        // --- 1. UTILS ---
+        class Gradient {
+            constructor(stops) { this.stops = stops.sort((a, b) => a.t - b.t); }
+            sample(t) {
+                t = THREE.MathUtils.clamp(t, 0, 1);
+                let lower = this.stops[0], upper = this.stops[this.stops.length - 1];
+                for (let i = 0; i < this.stops.length - 1; i++) {
+                    if (t >= this.stops[i].t && t <= this.stops[i+1].t) {
+                        lower = this.stops[i]; upper = this.stops[i+1]; break;
+                    }
+                }
+                if (lower === upper) return new THREE.Color(lower.hex);
+                const localT = (t - lower.t) / (upper.t - lower.t);
+                return new THREE.Color(lower.hex).lerp(new THREE.Color(upper.hex), localT);
+            }
+        }
+
+        class Curve {
+            constructor(points) { this.points = points.sort((a, b) => a.t - b.t); }
+            sample(t) {
+                t = THREE.MathUtils.clamp(t, 0, 1);
+                let lower = this.points[0], upper = this.points[this.points.length - 1];
+                for (let i = 0; i < this.points.length - 1; i++) {
+                    if (t >= this.points[i].t && t <= this.points[i+1].t) {
+                        lower = this.points[i]; upper = this.points[i+1]; break;
+                    }
+                }
+                if (lower === upper) return lower.v;
+                return THREE.MathUtils.lerp(lower.v, upper.v, (t - lower.t) / (upper.t - lower.t));
+            }
+        }
+
+        // --- 2. GODOT PRESETS ---
+        const godotPreset = {
+            baseSkyColor: new Gradient([{t:0.3125,hex:'#040616'},{t:0.4142,hex:'#180b47'},{t:0.4692,hex:'#554d73'},{t:0.5744,hex:'#cac2ee'},{t:0.8031,hex:'#345790'}]),
+            baseCloudColor: new Gradient([{t:0.4191,hex:'#0f1533'},{t:0.5531,hex:'#61201a'},{t:0.6010,hex:'#a35519'},{t:0.6914,hex:'#ffffff'}]),
+            horizonFogColor: new Gradient([{t:0.1747,hex:'#04061a'},{t:0.4757,hex:'#2b376f'},{t:0.6601,hex:'#eab37a'},{t:0.8244,hex:'#aec2cb'},{t:1.0,hex:'#d3eafe'}]),
+            sunDiscColor: new Gradient([{t:0.3663,hex:'#000000'},{t:0.4956,hex:'#c6804f'},{t:0.9016,hex:'#bcB19a'}]),
+            sunGlowColor: new Gradient([{t:0.4431,hex:'#000000'},{t:0.5663,hex:'#f2e100'},{t:0.6601,hex:'#fff3d3'}]),
+            sunLightColor: new Gradient([{t:0.0258,hex:'#000000'},{t:0.3656,hex:'#000000'},{t:0.4627,hex:'#b63400'},{t:0.5436,hex:'#fabb63'},{t:0.9935,hex:'#fefeff'}]),
+            sunLightIntensity: new Curve([{t:0,v:0},{t:0.477,v:0},{t:0.589,v:1},{t:1,v:1}]),
+            moonLightColor: new Gradient([{t:0.1618,hex:'#323857'},{t:0.521,hex:'#7883b2'},{t:0.612,hex:'#000000'}]),
+            moonGlowColor: new Gradient([{t:0.4827,hex:'#8aa6ff'},{t:0.612,hex:'#ffffff'}]),
+            moonLightIntensity: new Curve([{t:0,v:0.04},{t:0.4775,v:0.06},{t:0.5608,v:0},{t:1,v:0}]),
+            
+            // Fixed Scalar Values
+            horizonSize: 3.0, horizonAlpha: 1.0,
+            cloudDensity: 4.25, cloudGlow: 0.92, cloudSpeed: 0.0003,
+            cloudDirection: new THREE.Vector2(1.0, 1.0),
+            cloudLightAbsorption: 5.0, cloudBrightness: 0.9, cloudUvCurvature: 0.5,
+            cloudEdge: 0.0, anisotropy: 0.69,
+            
+            // Reduced Sun Radius to fix "Giant Sun" issue
+            sunRadius: 0.0002, 
+            sunEdgeBlur: 3600.0, sunGlowIntensity: 0.45,
+            moonRadius: 0.0003, moonEdgeBlur: 10000.0, moonGlowIntensity: 0.8,
+            starBrightness: 0.5, twinkleSpeed: 0.025
+        };
+
+        // --- 3. SEAMLESS PERLIN NOISE GENERATOR ---
+        // This generates high-quality Gradient Noise (not Value noise) to prevent squares.
+        function createNoiseTexture() {
+            const size = 512;
+            const data = new Uint8Array(size * size * 4);
+            
+            // Permutation Table
+            const p = new Uint8Array(512);
+            const perm = new Uint8Array(512);
+            for(let i=0; i<256; i++) p[i] = i;
+            for(let i=255; i>0; i--) { 
+                const j = Math.floor(Math.random() * (i + 1));
+                [p[i], p[j]] = [p[j], p[i]]; 
+            }
+            for(let i=0; i<512; i++) perm[i] = p[i & 255];
+
+            function grad(hash, x, y, z) {
+                const h = hash & 15;
+                const u = h < 8 ? x : y;
+                const v = h < 4 ? y : h === 12 || h === 14 ? x : z;
+                return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+            }
+
+            function fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+            function lerp(t, a, b) { return a + t * (b - a); }
+
+            function noise(x, y, z) {
+                const X = Math.floor(x) & 255;
+                const Y = Math.floor(y) & 255;
+                const Z = Math.floor(z) & 255;
+                x -= Math.floor(x); y -= Math.floor(y); z -= Math.floor(z);
+                const u = fade(x), v = fade(y), w = fade(z);
+                const A = perm[X]+Y, AA = perm[A]+Z, AB = perm[A+1]+Z;
+                const B = perm[X+1]+Y, BA = perm[B]+Z, BB = perm[B+1]+Z;
+                return lerp(w, lerp(v, lerp(u, grad(perm[AA], x, y, z), grad(perm[BA], x-1, y, z)),
+                                       lerp(u, grad(perm[AB], x, y-1, z), grad(perm[BB], x-1, y-1, z))),
+                               lerp(v, lerp(u, grad(perm[AA+1], x, y, z-1), grad(perm[BA+1], x-1, y, z-1)),
+                                       lerp(u, grad(perm[AB+1], x, y-1, z-1), grad(perm[BB+1], x-1, y-1, z-1))));
+            }
+
+            // Fractal Brownian Motion
+            function fbmTileable(u, v, scale) {
+                let total = 0;
+                let amplitude = 0.5;
+                let freq = 1.0;
+                let maxVal = 0;
+                
+                for (let i = 0; i < 6; i++) {
+                    // Map 2D coordinates onto a torus in 3D space for seamless tiling
+                    const s = scale * freq;
+                    const nx = Math.cos(u * Math.PI * 2) * s / (Math.PI * 2);
+                    const ny = Math.sin(u * Math.PI * 2) * s / (Math.PI * 2);
+                    const nz = Math.cos(v * Math.PI * 2) * s / (Math.PI * 2);
+                    const nw = Math.sin(v * Math.PI * 2) * s / (Math.PI * 2);
+                    
+                    // Use 3D noise with combined coordinates (approximates 4D torus)
+                    total += noise(nx + nz, ny + nw, nx - nz) * amplitude;
+                    
+                    maxVal += amplitude;
+                    amplitude *= 0.5;
+                    freq *= 2.0;
+                }
+                return (total / maxVal) * 0.5 + 0.5;
+            }
+
+            const scale = 8.0; 
+            for (let y = 0; y < size; y++) {
+                for (let x = 0; x < size; x++) {
+                    const u = x / size;  // 0 to 1
+                    const v = y / size;  // 0 to 1
+                    
+                    let n = fbmTileable(u, v, 4.0);
+                    
+                    const val = Math.floor(THREE.MathUtils.clamp(n, 0, 1) * 255);
+                    const idx = (y * size + x) * 4;
+                    data[idx] = val;
+                    data[idx + 1] = val;
+                    data[idx + 2] = val;
+                    data[idx + 3] = 255;
+                }
+            }
+
+            const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            // High Quality Filtering to prevent "squares"
+            tex.minFilter = THREE.LinearMipMapLinearFilter; 
+            tex.magFilter = THREE.LinearFilter;
+            tex.generateMipmaps = true;
+            tex.needsUpdate = true;
+            return tex;
+        }
+
+        const cloudTex = createNoiseTexture();
+        document.getElementById('loading').style.display = 'none';
+
+
+        // --- 4. SHADER (Ported Exact Logic) ---
+        const vertexShader = `
+            varying vec3 vWorldPosition;
+            void main() {
+                vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                vWorldPosition = worldPosition.xyz;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `;
+
+        const fragmentShader = `
+            uniform float time;
+            uniform vec3 sunPosition;
+            uniform vec3 moonPosition;
+            
+            // Colors
+            uniform vec3 baseColor;
+            uniform vec3 baseCloudColor;
+            uniform vec3 horizonFogColor;
+            uniform vec3 sunDiscColor;
+            uniform vec3 sunGlowColor;
+            uniform vec3 moonGlowColor;
+            
+            // Params
+            uniform float horizonSize;
+            uniform float horizonAlpha;
+            uniform float cloudDensity;
+            uniform float mgSize;
+            uniform float cloudCoverage;
+            uniform float absorption;
+            uniform float henyeyGreensteinLevel;
+            uniform float cloudBrightness;
+            uniform float horizonUVCurve;
+            uniform float cloudEdge;
+            
+            uniform float sunRadius;
+            uniform float sunEdgeBlur;
+            uniform float sunGlowIntensity;
+            
+            uniform float moonRadius;
+            uniform float moonEdgeBlur;
+            uniform float moonGlowIntensity;
+            
+            uniform sampler2D cloudTexture;
+            uniform vec2 cloudDirection;
+            uniform float cloudSpeed;
+
+            varying vec3 vWorldPosition;
+
+            const float PI = 3.14159265359;
+
+            // Godot's exact HG Phase function
+            float henyey_greenstein(float cos_theta, float g) {
+                const float k = 0.0795774715459;
+                return k * (1.0 - g * g) / (pow(1.0 + g * g - 2.0 * g * cos_theta, 1.5));
+            }
+
+            // Godot's exact Sun Disc function
+            vec3 createSunMoonDisc(vec3 dir, vec3 sunDir, vec3 color, float r, float edgeBlur) {
+                float disc = 0.0;
+                float discSizeCheck = (1.0 - (r * 2.0));
+                if (dot(dir,sunDir) > discSizeCheck) {
+                    disc = pow((dot(dir,sunDir) - discSizeCheck) * edgeBlur, 5.0);
+                }
+                return clamp(vec3(disc) * color, 0.0, 1.0);
+            }
+
+            // Godot's exact Sun Glow function
+            vec3 createSunGlow(vec3 dir, vec3 sunDir, float r) {
+                float sunGlow = 0.0;
+                float glowSize = (1.0 - ((0.0003 * 800.0) * 2.0));
+                if (dot(dir,sunDir) > glowSize) {
+                    sunGlow = mix(0.0,(dot(dir,sunDir) - glowSize * 1.05) * (1.0 - dir.y), sunGlowIntensity);
+                }
+                return clamp((pow(sunGlow - 0.1, 1.0) * sunGlowColor), 0.0, 1.0);
+            }
+            
+            vec3 createMoonGlow(vec3 dir, vec3 moonDir, float r) {
+                float moonGlow = 0.0;
+                float glowSize = (1.0 - ((0.0003 * 400.0) * 2.0));
+                if (dot(dir,moonDir) > glowSize) {
+                    moonGlow = mix(0.0,(dot(dir,moonDir) - glowSize), moonGlowIntensity);
+                }
+                return pow(vec3(moonGlow),vec3(3.0)) * moonGlowColor;
+            }
+
+            float createHorizonFog(vec3 vertexColor) {
+                float clampedVertexColor = 0.0;
+                if (vertexColor.y < 0.0) {
+                    clampedVertexColor = 1.0;
+                } else { 
+                    clampedVertexColor = vertexColor.y;
+                }
+                return clamp(pow((1.0 - clampedVertexColor), horizonSize) - (1.0 - horizonAlpha), 0.0, 1.0);
+            }
+
+            // Ported generate2DClouds
+            vec2 generate2DClouds(vec3 dir, vec3 sunDir, vec3 moonDir) {
+                float horizonCurve = dir.y / horizonUVCurve;
+                vec2 uvBase = vec2(dir.x / horizonCurve, dir.z / horizonCurve);
+                
+                // Texture 1 (Base)
+                vec2 uv1 = uvBase / 5.0 + (time * 4.0 * cloudSpeed * cloudDirection);
+                float clouds = texture2D(cloudTexture, uv1).r;
+                
+                // Texture 2 (Detail) - Multiplied to break up squares
+                vec2 uv2 = uvBase / 10.0 + (time * 4.0 * cloudSpeed * cloudDirection);
+                float cloudDetail = texture2D(cloudTexture, uv2).r; // In Godot this was textureLod -2.0
+                
+                clouds *= cloudDetail;
+
+                // Thresholding
+                clouds = clamp(mix(cloudCoverage, cloudCoverage + 1.0, clouds), cloudCoverage, 1.0);
+                clouds = clamp(pow(clouds, 1.0 + cloudEdge), 0.0, 1.0);
+                
+                // Weather map ignored for now (assuming uniform weather)
+                float weather = 0.5 + 0.5; 
+                
+                float cloudFade = clamp(dir.y, 0.0, 1.0);
+                float cloudsFinal = clamp(clouds - (clamp(weather + 0.5,0.0,1.0) * (1.0 - cloudCoverage / 2.0)),0.0,1.0);
+                float cloudsFinal2 = cloudsFinal * mix(5.0, cloudDensity, dir.y) * (cloudFade * 2.0);
+                float transmittance = exp(-cloudsFinal2);
+                
+                return vec2(transmittance, weather);
+            }
+
+            void main() {
+                vec3 dir = normalize(vWorldPosition);
+                vec3 sunDir = normalize(sunPosition);
+                vec3 moonDir = normalize(moonPosition);
+                
+                // 1. Base Sky (Simplified scatter)
+                vec3 skyColor = baseColor;
+                
+                // 2. Horizon Fog
+                float fogA = createHorizonFog(dir);
+                
+                // 3. Clouds (2D Dynamic)
+                vec2 dynClouds = generate2DClouds(dir, sunDir, moonDir);
+                float dynCloudAlpha = 1.0 - dynClouds.x;
+                
+                // Cloud Lighting (HG Phase)
+                float sun = dot(sunDir, dir);
+                float moon = dot(moonDir, dir);
+                float hg = max(henyey_greenstein(sun, henyeyGreensteinLevel - 0.15), henyey_greenstein(moon, henyeyGreensteinLevel + 0.05));
+                
+                // Apply Cloud Color
+                skyColor = skyColor * dynClouds.x + (baseCloudColor * cloudBrightness * dynCloudAlpha);
+                skyColor = skyColor + ((baseCloudColor * ((dynClouds.x) * hg * absorption)) * dynCloudAlpha);
+                
+                // Subtract noise for texture (Godot's logic)
+                float horizonCurve = dir.y / horizonUVCurve;
+                float noiseVal = texture2D(cloudTexture, vec2(dir.x / horizonCurve, dir.z / horizonCurve) / 5.0).r - 0.5;
+                skyColor -= (clamp(noiseVal, 0.0, 1.0) * baseCloudColor) * dynCloudAlpha;
+                
+                // 4. Mix Horizon
+                skyColor = mix(skyColor, horizonFogColor, fogA);
+                
+                // 5. Add Sun/Moon Discs & Glow
+                // Note: Godot masks these by clouds using (1.0 - dynCloudAlpha)
+                float cloudMask = 1.0 - dynCloudAlpha;
+                
+                skyColor += createSunMoonDisc(dir, sunDir, sunDiscColor, sunRadius, sunEdgeBlur) * cloudMask;
+                skyColor += createSunMoonDisc(dir, moonDir, vec3(1.0), moonRadius, moonEdgeBlur) * cloudMask;
+                
+                // Add Glows (Additive)
+                skyColor += createSunGlow(dir, sunDir, sunRadius);
+                skyColor += createMoonGlow(dir, moonDir, moonRadius);
+
+                // Force ground color
+                if (dir.y < 0.0) {
+                    skyColor = horizonFogColor;
+                }
+
+                gl_FragColor = vec4(skyColor, 1.0);
+            }
+        `;
+
+        // --- 5. SETUP ---
+        const scene = new THREE.Scene();
+        
+        // Camera looking up slightly
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 50000);
+        camera.position.set(0, 20, 0); 
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.0;
+        document.body.appendChild(renderer.domElement);
+        
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 20, -10); 
+        controls.enablePan = false;
+
+        // SKY DOME
+        const skyMat = new THREE.ShaderMaterial({
+            vertexShader, fragmentShader,
+            uniforms: {
+                time: { value: 0 },
+                sunPosition: { value: new THREE.Vector3() },
+                moonPosition: { value: new THREE.Vector3() },
+                baseColor: { value: new THREE.Color() },
+                baseCloudColor: { value: new THREE.Color() },
+                horizonFogColor: { value: new THREE.Color() },
+                sunDiscColor: { value: new THREE.Color() },
+                sunGlowColor: { value: new THREE.Color() },
+                moonGlowColor: { value: new THREE.Color() },
+                horizonSize: { value: godotPreset.horizonSize },
+                horizonAlpha: { value: godotPreset.horizonAlpha },
+                cloudDensity: { value: godotPreset.cloudDensity },
+                mgSize: { value: godotPreset.cloudGlow },
+                cloudCoverage: { value: 0.5 },
+                absorption: { value: godotPreset.cloudLightAbsorption },
+                henyeyGreensteinLevel: { value: godotPreset.anisotropy },
+                cloudBrightness: { value: godotPreset.cloudBrightness },
+                horizonUVCurve: { value: godotPreset.cloudUvCurvature },
+                cloudEdge: { value: godotPreset.cloudEdge },
+                sunRadius: { value: godotPreset.sunRadius },
+                sunEdgeBlur: { value: godotPreset.sunEdgeBlur },
+                sunGlowIntensity: { value: godotPreset.sunGlowIntensity },
+                moonRadius: { value: godotPreset.moonRadius },
+                moonEdgeBlur: { value: godotPreset.moonEdgeBlur },
+                moonGlowIntensity: { value: godotPreset.moonGlowIntensity },
+                cloudTexture: { value: cloudTex },
+                cloudDirection: { value: godotPreset.cloudDirection },
+                cloudSpeed: { value: godotPreset.cloudSpeed }
+            },
+            side: THREE.BackSide
+        });
+
+        const skyMesh = new THREE.Mesh(new THREE.SphereGeometry(1000, 64, 64), skyMat);
+        scene.add(skyMesh);
+
+        // GROUND
+        const groundGeo = new THREE.PlaneGeometry(20000, 20000);
+        const groundMat = new THREE.MeshStandardMaterial({ 
+            color: 0x228833, 
+            roughness: 0.9,
+            side: THREE.DoubleSide
+        });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -5; 
+        ground.frustumCulled = false;
+        scene.add(ground);
+
+        // Lights
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        scene.add(sunLight);
+        const moonLight = new THREE.DirectionalLight(0x445566, 0.2);
+        scene.add(moonLight);
+        const ambient = new THREE.AmbientLight(0x404040);
+        scene.add(ambient);
+
+        // --- 6. LOGIC ---
+        const godotSky = {
+            timeOfDay: 1200.0, rateOfTime: 1.0, simulateTime: true, cloudCoverage: 0.5, sunPosAlpha: 0.0,
+
+            simulateDay: function() {
+                if (this.simulateTime) {
+                    this.timeOfDay += this.rateOfTime;
+                    if (this.timeOfDay >= 2400.0) this.timeOfDay = 0.0;
+                }
+            },
+
+            updateRotation: function() {
+                const hourMapped = this.timeOfDay / 2400.0;
+                const angle = (hourMapped * Math.PI * 2) - (Math.PI / 2);
+                const sunY = Math.sin(angle);
+                const sunZ = Math.cos(angle);
+                const sunVec = new THREE.Vector3(0, sunY, sunZ).normalize();
+                
+                skyMat.uniforms.sunPosition.value.copy(sunVec);
+                skyMat.uniforms.moonPosition.value.copy(sunVec.clone().negate());
+                sunLight.position.copy(sunVec).multiplyScalar(100);
+                moonLight.position.copy(sunVec).negate().multiplyScalar(100);
+                this.sunPosAlpha = sunVec.y * 0.5 + 0.5;
+            },
+
+            updateSky: function() {
+                const pos = this.sunPosAlpha;
+                const preset = godotPreset;
+                skyMat.uniforms.baseColor.value.copy(preset.baseSkyColor.sample(pos));
+                skyMat.uniforms.horizonFogColor.value.copy(preset.horizonFogColor.sample(pos));
+                skyMat.uniforms.baseCloudColor.value.copy(preset.baseCloudColor.sample(pos));
+                skyMat.uniforms.sunDiscColor.value.copy(preset.sunDiscColor.sample(pos));
+                skyMat.uniforms.sunGlowColor.value.copy(preset.sunGlowColor.sample(pos));
+                skyMat.uniforms.moonGlowColor.value.copy(preset.moonGlowColor.sample(pos));
+                skyMat.uniforms.cloudCoverage.value = this.cloudCoverage;
+
+                const sunInt = preset.sunLightIntensity.sample(pos);
+                const moonInt = preset.moonLightIntensity.sample(pos);
+                sunLight.color.copy(preset.sunLightColor.sample(pos));
+                sunLight.intensity = sunInt * 1.5;
+                moonLight.color.copy(preset.moonLightColor.sample(pos));
+                moonLight.intensity = moonInt * 0.5;
+            }
+        };
+
+        const gui = new GUI({ title: 'GodotSky Exact' });
+        gui.add(godotSky, 'timeOfDay', 0, 2400).listen();
+        gui.add(godotSky, 'simulateTime');
+        gui.add(godotSky, 'rateOfTime', 0, 10);
+        gui.add(godotSky, 'cloudCoverage', 0, 1).name('Cloud Coverage');
+        
+        function animate(time) {
+            requestAnimationFrame(animate);
+            godotSky.simulateDay();
+            godotSky.updateRotation();
+            godotSky.updateSky();
+            skyMat.uniforms.time.value = time * 0.001;
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        animate(0);
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+    </body>
+</html>
