@@ -15,33 +15,34 @@ import {
     LinearFilter,
     BackSide,
     MathUtils,
-    Camera
+    Camera,
+    Object3D
 } from 'three';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 
-// --- UTILITY CLASSES ---
+// --- 1. UTILITY CLASSES ---
+
+// Optimized: Stores Color objects directly to prevent GC thrashing during render loop
 class Gradient {
-    private stops: Array<{ t: number; hex: string }>;
+    private stops: Array<{ t: number; color: Color }>;
 
-    constructor(stops: Array<{ t: number; hex: string }>) {
+    constructor(stops: Array<{ t: number; color: Color }>) {
         this.stops = stops.sort((a, b) => a.t - b.t);
     }
 
     sample(t: number): Color {
-        t = MathUtils.clamp(t, 0, 1);
-        let lower = this.stops[0];
-        let upper = this.stops[this.stops.length - 1];
+        if (t <= this.stops[0].t) return this.stops[0].color.clone();
+        if (t >= this.stops[this.stops.length - 1].t) return this.stops[this.stops.length - 1].color.clone();
 
         for (let i = 0; i < this.stops.length - 1; i++) {
-            if (t >= this.stops[i].t && t <= this.stops[i + 1].t) {
-                lower = this.stops[i];
-                upper = this.stops[i + 1];
-                break;
+            if (t >= this.stops[i].t && t < this.stops[i + 1].t) {
+                const stop1 = this.stops[i];
+                const stop2 = this.stops[i + 1];
+                // Linear interpolation on existing Color objects
+                return stop1.color.clone().lerp(stop2.color, (t - stop1.t) / (stop2.t - stop1.t));
             }
         }
-
-        if (lower === upper) return new Color(lower.hex);
-        const localT = (t - lower.t) / (upper.t - lower.t);
-        return new Color(lower.hex).lerp(new Color(upper.hex), localT);
+        return this.stops[this.stops.length - 1].color.clone();
     }
 }
 
@@ -53,195 +54,208 @@ class Curve {
     }
 
     sample(t: number): number {
-        t = MathUtils.clamp(t, 0, 1);
-        let lower = this.points[0];
-        let upper = this.points[this.points.length - 1];
+        if (t <= this.points[0].t) return this.points[0].v;
+        if (t >= this.points[this.points.length - 1].t) return this.points[this.points.length - 1].v;
 
         for (let i = 0; i < this.points.length - 1; i++) {
-            if (t >= this.points[i].t && t <= this.points[i + 1].t) {
-                lower = this.points[i];
-                upper = this.points[i + 1];
-                break;
+            if (t >= this.points[i].t && t < this.points[i + 1].t) {
+                const p1 = this.points[i];
+                const p2 = this.points[i + 1];
+                return MathUtils.lerp(p1.v, p2.v, (t - p1.t) / (p2.t - p1.t));
             }
         }
-
-        if (lower === upper) return lower.v;
-        return MathUtils.lerp(lower.v, upper.v, (t - lower.t) / (upper.t - lower.t));
+        return this.points[this.points.length - 1].v;
     }
 }
 
-// --- GODOT PRESET ---
+// --- 2. PRESETS (Restored Float Precision) ---
+// Using exact float RGB values maintains the correct Linear color space
 const godotPreset = {
-    baseSkyColor: new Gradient([
-        { t: 0.3125, hex: '#040616' },
-        { t: 0.4142, hex: '#180b47' },
-        { t: 0.4692, hex: '#554d73' },
-        { t: 0.5744, hex: '#cac2ee' },
-        { t: 0.8031, hex: '#345790' }
-    ]),
     baseCloudColor: new Gradient([
-        { t: 0.4191, hex: '#0f1533' },
-        { t: 0.5531, hex: '#61201a' },
-        { t: 0.6010, hex: '#a35519' },
-        { t: 0.6914, hex: '#ffffff' }
+        { t: 0.419118, color: new Color(0.0601829, 0.0849014, 0.199897) },
+        { t: 0.553191, color: new Color(0.381723, 0.127307, 0.10311) },
+        { t: 0.601064, color: new Color(0.638549, 0.335553, 0.0995967) },
+        { t: 0.691489, color: new Color(1, 1, 1) }
+    ]),
+    overcastCloudColor: new Gradient([
+        { t: 0.345745, color: new Color(0, 0, 0.038) },
+        { t: 0.62234, color: new Color(1, 1, 1) }
+    ]),
+    baseSkyColor: new Gradient([
+        { t: 0.3125, color: new Color(0.0145395, 0.0244694, 0.0874464) },
+        { t: 0.414239, color: new Color(0.0949225, 0.045259, 0.27951) },
+        { t: 0.469256, color: new Color(0.334622, 0.303664, 0.453753) },
+        { t: 0.574468, color: new Color(0.792964, 0.761777, 0.932676) },
+        { t: 0.803191, color: new Color(0.204346, 0.344014, 0.5625) }
     ]),
     horizonFogColor: new Gradient([
-        { t: 0.1747, hex: '#04061a' },
-        { t: 0.4757, hex: '#2b376f' },
-        { t: 0.6601, hex: '#eab37a' },
-        { t: 0.8244, hex: '#aec2cb' },
-        { t: 1.0, hex: '#d3eafe' }
+        { t: 0.174757, color: new Color(0.0166131, 0.0263546, 0.101967) },
+        { t: 0.475728, color: new Color(0.168694, 0.216311, 0.435438) },
+        { t: 0.660194, color: new Color(0.916989, 0.704468, 0.478476) },
+        { t: 0.824468, color: new Color(0.684128, 0.761883, 0.794691) },
+        { t: 1.0, color: new Color(0.828826, 0.919115, 1) }
     ]),
     sunDiscColor: new Gradient([
-        { t: 0.3663, hex: '#000000' },
-        { t: 0.4956, hex: '#c6804f' },
-        { t: 0.9016, hex: '#bcB19a' }
+        { t: 0.366379, color: new Color(0, 0, 0) },
+        { t: 0.49569, color: new Color(0.776471, 0.501961, 0.309804) },
+        { t: 0.901639, color: new Color(0.737255, 0.694118, 0.603922) }
     ]),
     sunGlowColor: new Gradient([
-        { t: 0.4431, hex: '#000000' },
-        { t: 0.5663, hex: '#f2e100' },
-        { t: 0.6601, hex: '#fff3d3' }
+        { t: 0.443182, color: new Color(0, 0, 0) },
+        { t: 0.566343, color: new Color(0.94902, 0.882353, 0) },
+        { t: 0.660194, color: new Color(1, 0.955033, 0.827864) }
     ]),
     sunLightColor: new Gradient([
-        { t: 0.0258, hex: '#000000' },
-        { t: 0.3656, hex: '#000000' },
-        { t: 0.4627, hex: '#b63400' },
-        { t: 0.5436, hex: '#fabb63' },
-        { t: 0.9935, hex: '#fefeff' }
+        { t: 0.02589, color: new Color(0, 0, 0) },
+        { t: 0.365696, color: new Color(0, 0, 0) },
+        { t: 0.462783, color: new Color(0.71298, 0.203695, 1.47464e-07) },
+        { t: 0.543689, color: new Color(0.979906, 0.738618, 0.391285) },
+        { t: 0.993528, color: new Color(0.996078, 0.996078, 1) }
     ]),
     sunLightIntensity: new Curve([
         { t: 0, v: 0 },
-        { t: 0.477, v: 0 },
-        { t: 0.589, v: 1 },
+        { t: 0.477012, v: 0 },
+        { t: 0.58908, v: 1 },
         { t: 1, v: 1 }
     ]),
-    moonLightColor: new Gradient([
-        { t: 0.1618, hex: '#323857' },
-        { t: 0.521, hex: '#7883b2' },
-        { t: 0.612, hex: '#000000' }
-    ]),
     moonGlowColor: new Gradient([
-        { t: 0.4827, hex: '#8aa6ff' },
-        { t: 0.612, hex: '#ffffff' }
+        { t: 0.482759, color: new Color(0.544003, 0.651053, 1) },
+        { t: 0.612069, color: new Color(1, 1, 1) }
+    ]),
+    moonLightColor: new Gradient([
+        { t: 0.161812, color: new Color(0.195465, 0.222085, 0.341751) },
+        { t: 0.521036, color: new Color(0.471032, 0.514768, 0.697211) },
+        { t: 0.612069, color: new Color(0, 0, 0) }
     ]),
     moonLightIntensity: new Curve([
-        { t: 0, v: 0.04 },
-        { t: 0.4775, v: 0.06 },
+        { t: 0, v: 0.0423728 },
+        { t: 0.477528, v: 0.0677966 },
         { t: 0.5608, v: 0 },
         { t: 1, v: 0 }
     ]),
 
-    // Fixed Scalar Values
-    horizonSize: 3.0,
-    horizonAlpha: 1.0,
-    cloudDensity: 4.25,
-    cloudGlow: 0.92,
-    cloudSpeed: 0.0003,
+    horizonSize: 3.0, horizonAlpha: 1.0,
+    cloudDensity: 4.25, cloudGlow: 0.92, cloudSpeed: 0.0003,
     cloudDirection: new Vector2(1.0, 1.0),
-    cloudLightAbsorption: 5.0,
-    cloudBrightness: 0.9,
-    cloudUvCurvature: 0.5,
-    cloudEdge: 0.0,
-    anisotropy: 0.69,
-    sunRadius: 0.0002,
-    sunEdgeBlur: 3600.0,
-    sunGlowIntensity: 0.45,
-    moonRadius: 0.0003,
-    moonEdgeBlur: 10000.0,
-    moonGlowIntensity: 0.8
+    cloudLightAbsorption: 5.0, cloudBrightness: 0.9, cloudUvCurvature: 0.5,
+    cloudEdge: 0.0, anisotropy: 0.69,
+    sunRadius: 0.0002, sunEdgeBlur: 3600.0, sunGlowIntensity: 0.45,
+    moonRadius: 0.0003, moonEdgeBlur: 10000.0, moonGlowIntensity: 0.8,
+    starBrightness: 0.5, twinkleSpeed: 0.025
 };
 
-// --- NOISE TEXTURE GENERATOR ---
+// --- 3. NOISE GENERATION ---
+
+// Encapsulating Noise state to avoid global pollution
+const Permutation = new Uint8Array(512);
+(function initNoise() {
+    const p = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) p[i] = i;
+    let seed = 123;
+    function random() { return (Math.sin(seed++) * 10000) % 1; }
+    for (let i = 255; i > 0; i--) {
+        const j = Math.floor((random() * 0.5 + 0.5) * (i + 1));
+        [p[i], p[j]] = [p[j], p[i]];
+    }
+    for (let i = 0; i < 512; i++) Permutation[i] = p[i & 255];
+})();
+
+function periodicPerlin(x: number, y: number, period: number): number {
+    let X = Math.floor(x); let Y = Math.floor(y);
+    const xf = x - X; const yf = y - Y;
+    X = (X % period + period) % period;
+    Y = (Y % period + period) % period;
+    const X1 = (X + 1) % period; const Y1 = (Y + 1) % period;
+
+    const fade = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
+    const u = fade(xf); const v = fade(yf);
+
+    const aa = Permutation[Permutation[X] + Y];
+    const ab = Permutation[Permutation[X] + Y1];
+    const ba = Permutation[Permutation[X1] + Y];
+    const bb = Permutation[Permutation[X1] + Y1];
+
+    const g = (hash: number, x: number, y: number) => {
+        const h = hash & 15;
+        const u = h < 8 ? x : y;
+        const v = h < 4 ? y : h === 12 || h === 14 ? x : 0;
+        return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+    };
+
+    const x1 = MathUtils.lerp(g(aa, xf, yf), g(ba, xf - 1, yf), u);
+    const x2 = MathUtils.lerp(g(ab, xf, yf - 1), g(bb, xf - 1, yf - 1), u);
+    return MathUtils.lerp(x1, x2, v);
+}
+
+function periodicCellularD2A(x: number, y: number, period: number): number {
+    const xi = Math.floor(x); const yi = Math.floor(y);
+    const xf = x - xi; const yf = y - yi;
+    let f1 = 9999.0; let f2 = 9999.0;
+
+    for (let j = -1; j <= 1; j++) {
+        for (let i = -1; i <= 1; i++) {
+            let ni = (xi + i) % period; if (ni < 0) ni += period;
+            let nj = (yi + j) % period; if (nj < 0) nj += period;
+            const h = Permutation[Permutation[ni] + nj];
+            const jx = ((h & 15) / 15.0) * 0.7;
+            const jy = (((h >> 4) & 15) / 15.0) * 0.7;
+            const dx = i + jx - xf;
+            const dy = j + jy - yf;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < f1) { f2 = f1; f1 = dist; }
+            else if (dist < f2) { f2 = dist; }
+        }
+    }
+    return (f1 + f2) - 1.0;
+}
+
+function periodicValueNoise(x: number, y: number, period: number): number {
+    let xi = Math.floor(x); let yi = Math.floor(y);
+    const xf = x - xi; const yf = y - yi;
+    xi = (xi % period + period) % period;
+    yi = (yi % period + period) % period;
+    const x1 = (xi + 1) % period; const y1 = (yi + 1) % period;
+
+    const cubic = (t: number) => t * t * (3.0 - 2.0 * t);
+    const u = cubic(xf); const v = cubic(yf);
+    const val = (i: number, j: number) => (Permutation[Permutation[i] + j] % 256) / 255.0;
+
+    const i1 = val(xi, yi); const i2 = val(x1, yi);
+    const i3 = val(xi, y1); const i4 = val(x1, y1);
+
+    const k1 = MathUtils.lerp(i1, i2, u);
+    const k2 = MathUtils.lerp(i3, i4, u);
+    return MathUtils.lerp(k1, k2, v) * 2.0 - 1.0;
+}
+
 function createNoiseTexture(): DataTexture {
     const size = 512;
     const data = new Uint8Array(size * size * 4);
-
-    // Permutation Table
-    const p = new Uint8Array(256);
-    for (let i = 0; i < 256; i++) p[i] = i;
-    for (let i = 255; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [p[i], p[j]] = [p[j], p[i]];
-    }
-    const perm = new Uint8Array(512);
-    for (let i = 0; i < 512; i++) perm[i] = p[i & 255];
-
-    function grad(hash: number, x: number, y: number, z: number): number {
-        const h = hash & 15;
-        const u = h < 8 ? x : y;
-        const v = h < 4 ? y : h === 12 || h === 14 ? x : z;
-        return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
-    }
-
-    function fade(t: number): number {
-        return t * t * t * (t * (t * 6 - 15) + 10);
-    }
-
-    function lerp(t: number, a: number, b: number): number {
-        return a + t * (b - a);
-    }
-
-    function noise(x: number, y: number, z: number): number {
-        const X = Math.floor(x) & 255;
-        const Y = Math.floor(y) & 255;
-        const Z = Math.floor(z) & 255;
-        x -= Math.floor(x);
-        y -= Math.floor(y);
-        z -= Math.floor(z);
-        const u = fade(x), v = fade(y), w = fade(z);
-        const A = perm[X] + Y, AA = perm[A] + Z, AB = perm[A + 1] + Z;
-        const B = perm[X + 1] + Y, BA = perm[B] + Z, BB = perm[B + 1] + Z;
-        return lerp(w,
-            lerp(v,
-                lerp(u, grad(perm[AA], x, y, z), grad(perm[BA], x - 1, y, z)),
-                lerp(u, grad(perm[AB], x, y - 1, z), grad(perm[BB], x - 1, y - 1, z))
-            ),
-            lerp(v,
-                lerp(u, grad(perm[AA + 1], x, y, z - 1), grad(perm[BA + 1], x - 1, y, z - 1)),
-                lerp(u, grad(perm[AB + 1], x, y - 1, z - 1), grad(perm[BB + 1], x - 1, y - 1, z - 1))
-            )
-        );
-    }
-
-    function fbmTileable(u: number, v: number, scale: number): number {
-        let total = 0;
-        let amplitude = 0.5;
-        let freq = 1.0;
-        let maxVal = 0;
-
-        for (let i = 0; i < 6; i++) {
-            const s = scale * freq;
-            const nx = Math.cos(u * Math.PI * 2) * s / (Math.PI * 2);
-            const ny = Math.sin(u * Math.PI * 2) * s / (Math.PI * 2);
-            const nz = Math.cos(v * Math.PI * 2) * s / (Math.PI * 2);
-            const nw = Math.sin(v * Math.PI * 2) * s / (Math.PI * 2);
-
-            total += noise(nx + nz, ny + nw, nx - nz) * amplitude;
-
-            maxVal += amplitude;
-            amplitude *= 0.5;
-            freq *= 2.0;
-        }
-        return (total / maxVal) * 0.5 + 0.5;
-    }
+    const periodBase = Math.round(size * 0.021);
+    const periodWarp = 512;
+    const warpAmp = 6.0;
 
     for (let y = 0; y < size; y++) {
         for (let x = 0; x < size; x++) {
-            const u = x / size;
-            const v = y / size;
-            let n = fbmTileable(u, v, 4.0);
+            let nx = x; let ny = y;
+            const wx = periodicPerlin(nx, ny, periodWarp) * warpAmp;
+            const wy = periodicPerlin(nx + 50.0, ny + 50.0, periodWarp) * warpAmp;
+            nx += wx; ny += wy;
+
+            let total = 0; let amp = 1.0; let max = 0; let p = periodBase;
+            for (let i = 0; i < 4; i++) {
+                const scale = p / size;
+                total += periodicCellularD2A(nx * scale, ny * scale, p) * amp;
+                max += amp; amp *= 0.547; p *= 2.0;
+            }
+            let n = 1.0 - (total / max * 0.5 + 0.5);
             const val = Math.floor(MathUtils.clamp(n, 0, 1) * 255);
             const idx = (y * size + x) * 4;
-            data[idx] = val;
-            data[idx + 1] = val;
-            data[idx + 2] = val;
-            data[idx + 3] = 255;
+            data[idx] = val; data[idx + 1] = val; data[idx + 2] = val; data[idx + 3] = 255;
         }
     }
-
     const tex = new DataTexture(data, size, size, RGBAFormat);
-    tex.wrapS = RepeatWrapping;
-    tex.wrapT = RepeatWrapping;
+    tex.wrapS = tex.wrapT = RepeatWrapping;
     tex.minFilter = LinearMipMapLinearFilter;
     tex.magFilter = LinearFilter;
     tex.generateMipmaps = true;
@@ -249,7 +263,36 @@ function createNoiseTexture(): DataTexture {
     return tex;
 }
 
-// --- SHADERS ---
+function createWeatherMap(): DataTexture {
+    const size = 512;
+    const data = new Uint8Array(size * size * 4);
+    const periodBase = Math.round(size * 0.042);
+
+    for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+            let total = 0; let amp = 1.0; let max = 0; let p = periodBase;
+            for (let i = 0; i < 3; i++) {
+                const cycles = Math.round(p);
+                const scale = cycles / size;
+                total += periodicValueNoise(x * scale, y * scale, cycles) * amp;
+                max += amp; amp *= 2.397; p *= 1.605;
+            }
+            let n = total / max * 0.5 + 0.5;
+            const val = Math.floor(MathUtils.clamp(n, 0, 1) * 255);
+            const idx = (y * size + x) * 4;
+            data[idx] = val; data[idx + 1] = val; data[idx + 2] = val; data[idx + 3] = 255;
+        }
+    }
+    const tex = new DataTexture(data, size, size, RGBAFormat);
+    tex.wrapS = tex.wrapT = RepeatWrapping;
+    tex.minFilter = LinearMipMapLinearFilter;
+    tex.magFilter = LinearFilter;
+    tex.generateMipmaps = true;
+    tex.needsUpdate = true;
+    return tex;
+}
+
+// --- 4. SHADERS (Identical to Source) ---
 const vertexShader = `
     varying vec3 vWorldPosition;
     void main() {
@@ -263,46 +306,74 @@ const fragmentShader = `
     uniform float time;
     uniform vec3 sunPosition;
     uniform vec3 moonPosition;
-
-    // Colors
+    
     uniform vec3 baseColor;
     uniform vec3 baseCloudColor;
     uniform vec3 horizonFogColor;
     uniform vec3 sunDiscColor;
     uniform vec3 sunGlowColor;
     uniform vec3 moonGlowColor;
-
-    // Params
+    
+    uniform sampler2D scatteringLUT;
+    uniform bool useLUT;
+    uniform float lutIntensity;
+    
     uniform float horizonSize;
     uniform float horizonAlpha;
     uniform float cloudDensity;
-    uniform float mgSize;
     uniform float cloudCoverage;
     uniform float absorption;
     uniform float henyeyGreensteinLevel;
     uniform float cloudBrightness;
     uniform float horizonUVCurve;
     uniform float cloudEdge;
-
+    
     uniform float sunRadius;
     uniform float sunEdgeBlur;
     uniform float sunGlowIntensity;
-
     uniform float moonRadius;
     uniform float moonEdgeBlur;
     uniform float moonGlowIntensity;
-
-    uniform sampler2D cloudTexture;
+    
+    uniform sampler2D cloudNoise;
+    uniform sampler2D weatherMap;
     uniform vec2 cloudDirection;
     uniform float cloudSpeed;
 
+    uniform float starBrightness;
+    uniform float twinkleSpeed;
+    
     varying vec3 vWorldPosition;
-
-    const float PI = 3.14159265359;
 
     float henyey_greenstein(float cos_theta, float g) {
         const float k = 0.0795774715459;
         return k * (1.0 - g * g) / (pow(1.0 + g * g - 2.0 * g * cos_theta, 1.5));
+    }
+
+    float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+
+    vec3 createStars(vec3 dir, float time) {
+        vec2 starUV = vec2(atan(dir.x, dir.z), asin(dir.y)) * 100.0;
+        vec2 gridID = floor(starUV);
+        vec2 gridUV = fract(starUV) - 0.5;
+        float star = 0.0;
+        for(int y = -1; y <= 1; y++) {
+            for(int x = -1; x <= 1; x++) {
+                vec2 offset = vec2(float(x), float(y));
+                vec2 cellID = gridID + offset;
+                vec2 starPos = vec2(hash(cellID), hash(cellID + 100.0)) - 0.5;
+                vec2 diff = gridUV - offset - starPos;
+                float dist = length(diff);
+                float brightness = hash(cellID + 200.0);
+                if(brightness > 0.7) {
+                    float twinkle = sin(time * twinkleSpeed * (hash(cellID + 300.0) * 5.0 + 1.0)) * 0.5 + 0.5;
+                    twinkle = mix(0.5, 1.0, twinkle);
+                    float starPoint = smoothstep(0.05, 0.0, dist);
+                    star += starPoint * brightness * twinkle;
+                }
+            }
+        }
+        return vec3(star) * starBrightness;
     }
 
     vec3 createSunMoonDisc(vec3 dir, vec3 sunDir, vec3 color, float r, float edgeBlur) {
@@ -322,7 +393,7 @@ const fragmentShader = `
         }
         return clamp((pow(sunGlow - 0.1, 1.0) * sunGlowColor), 0.0, 1.0);
     }
-
+    
     vec3 createMoonGlow(vec3 dir, vec3 moonDir, float r) {
         float moonGlow = 0.0;
         float glowSize = (1.0 - ((0.0003 * 400.0) * 2.0));
@@ -333,70 +404,117 @@ const fragmentShader = `
     }
 
     float createHorizonFog(vec3 vertexColor) {
-        float clampedVertexColor = 0.0;
-        if (vertexColor.y < 0.0) {
-            clampedVertexColor = 1.0;
-        } else {
-            clampedVertexColor = vertexColor.y;
-        }
+        float clampedVertexColor = (vertexColor.y < 0.0) ? 1.0 : vertexColor.y;
         return clamp(pow((1.0 - clampedVertexColor), horizonSize) - (1.0 - horizonAlpha), 0.0, 1.0);
     }
 
-    vec2 generate2DClouds(vec3 dir, vec3 sunDir, vec3 moonDir) {
-        float horizonCurve = dir.y / horizonUVCurve;
+    vec2 generate2DClouds(vec3 dir) {
+        float safeY = max(dir.y, 0.05);
+        float horizonCurve = safeY / horizonUVCurve;
+        
         vec2 uvBase = vec2(dir.x / horizonCurve, dir.z / horizonCurve);
-
+        
         vec2 uv1 = uvBase / 5.0 + (time * 4.0 * cloudSpeed * cloudDirection);
-        float clouds = texture2D(cloudTexture, uv1).r;
-
+        float clouds = texture2D(cloudNoise, uv1).r;
+        
         vec2 uv2 = uvBase / 10.0 + (time * 4.0 * cloudSpeed * cloudDirection);
-        float cloudDetail = texture2D(cloudTexture, uv2).r;
-
+        float cloudDetail = texture2D(cloudNoise, uv2).r;
         clouds *= cloudDetail;
-
+        
+        vec2 uvWeather = uvBase / 20.0 + (time * 6.0 * cloudSpeed * cloudDirection);
+        float weather = texture2D(weatherMap, uvWeather).r + 0.5;
+        
         clouds = clamp(mix(cloudCoverage, cloudCoverage + 1.0, clouds), cloudCoverage, 1.0);
         clouds = clamp(pow(clouds, 1.0 + cloudEdge), 0.0, 1.0);
-
-        float weather = 0.5 + 0.5;
-
         float cloudFade = clamp(dir.y, 0.0, 1.0);
-        float cloudsFinal = clamp(clouds - (clamp(weather + 0.5,0.0,1.0) * (1.0 - cloudCoverage / 2.0)),0.0,1.0);
+        
+        float cloudsFinal = clamp(clouds - (clamp(weather + 0.5, 0.0, 1.0) * (1.0 - cloudCoverage / 2.0)), 0.0, 1.0);
+        
         float cloudsFinal2 = cloudsFinal * mix(5.0, cloudDensity, dir.y) * (cloudFade * 2.0);
         float transmittance = exp(-cloudsFinal2);
-
         return vec2(transmittance, weather);
+    }
+
+    vec3 scatterLight(vec3 vertexColor, vec3 sunDir, vec3 moonDir) {
+        float clampedVertexColor = 0.0;
+        if (vertexColor.y < 0.0) { clampedVertexColor = 0.0001; }
+        else { clampedVertexColor = vertexColor.y; }
+        
+        float vertexSlope = pow((1.0 - clampedVertexColor), 2.0);
+        
+        float UVx = mix(vertexSlope, 1.0, 0.5);
+        float UVy = clamp(sunDir.y / 2.0, -0.495, 0.495) + 0.5;
+        
+        float UVx2 = mix(vertexSlope, 1.0, 0.1);
+        float UVy2 = clamp(moonDir.y / 2.0, -0.495, 0.495) + 0.5;
+        
+        vec3 scatterColor = vec3(1.0); 
+        vec3 scatterColor2 = vec3(1.0);
+        
+        vec3 sunLightScattered = texture2D(scatteringLUT, vec2(UVx, UVy)).rgb * scatterColor;
+        vec3 moonLightScattered = texture2D(scatteringLUT, vec2(UVx2, UVy2)).rgb * scatterColor2 + 0.15;
+        
+        vec3 lightScattered = sunLightScattered + moonLightScattered;
+        lightScattered *= lutIntensity;
+        lightScattered = lightScattered * baseColor;
+        
+        return lightScattered;
     }
 
     void main() {
         vec3 dir = normalize(vWorldPosition);
         vec3 sunDir = normalize(sunPosition);
         vec3 moonDir = normalize(moonPosition);
-
-        vec3 skyColor = baseColor;
-
+        
+        vec3 skyColor = vec3(0.0);
+        
+        if (useLUT) {
+            skyColor = scatterLight(dir, sunDir, moonDir);
+        } else {
+            skyColor = baseColor;
+        }
+        
         float fogA = createHorizonFog(dir);
+        
+        float nightFactor = 1.0 - smoothstep(-0.2, 0.2, sunDir.y);
+        if(nightFactor > 0.0 && dir.y > 0.0) {
+            skyColor += createStars(dir, time) * nightFactor;
+        }
 
-        vec2 dynClouds = generate2DClouds(dir, sunDir, moonDir);
-        float dynCloudAlpha = 1.0 - dynClouds.x;
+        vec2 dynClouds = vec2(1.0, 0.0);
+        float dynCloudAlpha = 0.0;
+        if (dir.y > 0.0) {
+            dynClouds = generate2DClouds(dir);
+            dynCloudAlpha = 1.0 - dynClouds.x;
+            
+            float sun = dot(sunDir, dir);
+            float moon = dot(moonDir, dir);
+            float hg = max(henyey_greenstein(sun, henyeyGreensteinLevel - 0.15), 
+                        henyey_greenstein(moon, henyeyGreensteinLevel + 0.05));
+            
+            vec3 finalCloudColor = baseCloudColor; 
+            vec3 scatteredLight = finalCloudColor * hg * absorption * dynClouds.x;
+            scatteredLight = clamp(scatteredLight, 0.0, 2.0);
 
-        float sun = dot(sunDir, dir);
-        float moon = dot(moonDir, dir);
-        float hg = max(henyey_greenstein(sun, henyeyGreensteinLevel - 0.15), henyey_greenstein(moon, henyeyGreensteinLevel + 0.05));
-
-        skyColor = skyColor * dynClouds.x + (baseCloudColor * cloudBrightness * dynCloudAlpha);
-        skyColor = skyColor + ((baseCloudColor * ((dynClouds.x) * hg * absorption)) * dynCloudAlpha);
-
-        float horizonCurve = dir.y / horizonUVCurve;
-        float noiseVal = texture2D(cloudTexture, vec2(dir.x / horizonCurve, dir.z / horizonCurve) / 5.0).r - 0.5;
-        skyColor -= (clamp(noiseVal, 0.0, 1.0) * baseCloudColor) * dynCloudAlpha;
-
+            skyColor = skyColor * dynClouds.x + (finalCloudColor * cloudBrightness * dynCloudAlpha);
+            skyColor = skyColor + (scatteredLight * dynCloudAlpha);
+            
+            float safeY = max(dir.y, 0.05);
+            float horizonCurve = safeY / horizonUVCurve;
+            vec2 uvNoise = vec2(dir.x / horizonCurve, dir.z / horizonCurve) / 5.0;
+            vec2 animOffset = time * 4.0 * cloudSpeed * cloudDirection;
+            
+            float rawNoise = texture2D(cloudNoise, uvNoise + animOffset).r;
+            float noiseVal = clamp((rawNoise - 0.4) * 2.0, 0.0, 1.0); 
+            
+            skyColor -= (noiseVal * baseCloudColor) * dynCloudAlpha;
+        }
+        
         skyColor = mix(skyColor, horizonFogColor, fogA);
-
+        
         float cloudMask = 1.0 - dynCloudAlpha;
-
         skyColor += createSunMoonDisc(dir, sunDir, sunDiscColor, sunRadius, sunEdgeBlur) * cloudMask;
         skyColor += createSunMoonDisc(dir, moonDir, vec3(1.0), moonRadius, moonEdgeBlur) * cloudMask;
-
         skyColor += createSunGlow(dir, sunDir, sunRadius);
         skyColor += createMoonGlow(dir, moonDir, moonRadius);
 
@@ -408,28 +526,41 @@ const fragmentShader = `
     }
 `;
 
-// --- SKY CLASS ---
+// --- 5. SKY CLASS ---
+
 export class Sky {
     private scene: Scene;
     private skyMesh: Mesh;
     private skyMaterial: ShaderMaterial;
-    private sunLight: DirectionalLight;
-    private moonLight: DirectionalLight;
-    private ambientLight: AmbientLight;
+    public sunLight: DirectionalLight;
+    public moonLight: DirectionalLight;
+    public ambientLight: AmbientLight;
 
     public timeOfDay: number = 1200.0;
     public rateOfTime: number = 1.0;
     public simulateTime: boolean = true;
-    public cloudCoverage: number = 0.5;
+    public cloudCoverage: number = 0.558;
     private sunPosAlpha: number = 0.0;
 
-    constructor(scene: Scene) {
+    constructor(scene: Scene, lutPath: string = '/textures/scatteringLUT.HDR') {
         this.scene = scene;
 
-        // Generate cloud noise texture
-        const cloudTex = createNoiseTexture();
+        const cloudNoiseTex = createNoiseTexture();
+        const weatherMapTex = createWeatherMap();
 
-        // Create sky material
+        const rgbeLoader = new RGBELoader();
+        rgbeLoader.load(lutPath, (texture) => {
+            texture.minFilter = LinearFilter;
+            texture.magFilter = LinearFilter;
+            texture.generateMipmaps = false;
+            this.skyMaterial.uniforms.scatteringLUT.value = texture;
+            this.skyMaterial.uniforms.useLUT.value = true;
+            this.skyMaterial.needsUpdate = true;
+            console.log('Sky LUT Loaded');
+        }, undefined, (err) => {
+            console.warn('Sky LUT failed to load, falling back to analytic sky', err);
+        });
+
         this.skyMaterial = new ShaderMaterial({
             vertexShader,
             fragmentShader,
@@ -443,11 +574,13 @@ export class Sky {
                 sunDiscColor: { value: new Color() },
                 sunGlowColor: { value: new Color() },
                 moonGlowColor: { value: new Color() },
+                scatteringLUT: { value: null },
+                useLUT: { value: false },
+                lutIntensity: { value: 2.0 },
                 horizonSize: { value: godotPreset.horizonSize },
                 horizonAlpha: { value: godotPreset.horizonAlpha },
                 cloudDensity: { value: godotPreset.cloudDensity },
-                mgSize: { value: godotPreset.cloudGlow },
-                cloudCoverage: { value: 0.5 },
+                cloudCoverage: { value: 0.0 },
                 absorption: { value: godotPreset.cloudLightAbsorption },
                 henyeyGreensteinLevel: { value: godotPreset.anisotropy },
                 cloudBrightness: { value: godotPreset.cloudBrightness },
@@ -459,20 +592,21 @@ export class Sky {
                 moonRadius: { value: godotPreset.moonRadius },
                 moonEdgeBlur: { value: godotPreset.moonEdgeBlur },
                 moonGlowIntensity: { value: godotPreset.moonGlowIntensity },
-                cloudTexture: { value: cloudTex },
+                starBrightness: { value: godotPreset.starBrightness },
+                twinkleSpeed: { value: godotPreset.twinkleSpeed },
+                cloudNoise: { value: cloudNoiseTex },
+                weatherMap: { value: weatherMapTex },
                 cloudDirection: { value: godotPreset.cloudDirection },
                 cloudSpeed: { value: godotPreset.cloudSpeed }
             },
             side: BackSide,
-            depthWrite: false // Don't write to depth buffer so tiles render on top
+            depthWrite: false
         });
 
-        // Create sky dome mesh with large radius
         this.skyMesh = new Mesh(new SphereGeometry(1e5, 64, 64), this.skyMaterial);
-        this.skyMesh.renderOrder = -1; // Render before other objects
+        this.skyMesh.renderOrder = -1;
         this.scene.add(this.skyMesh);
 
-        // Create lights
         this.sunLight = new DirectionalLight(0xffffff, 1.0);
         this.scene.add(this.sunLight);
 
@@ -483,24 +617,24 @@ export class Sky {
         this.scene.add(this.ambientLight);
     }
 
-    public update(deltaTime: number, camera: Camera): void {
-        // Make sky follow camera position
+    /**
+     * @param deltaTime Time since last frame in SECONDS
+     * @param camera The active camera to center the sky on
+     */
+    public update(deltaTime: number, camera: Object3D): void {
         this.skyMesh.position.copy(camera.position);
 
-        // Simulate day progression
         if (this.simulateTime) {
-            this.timeOfDay += this.rateOfTime;
+            // this.timeOfDay += this.rateOfTime;
             if (this.timeOfDay >= 2400.0) this.timeOfDay = 0.0;
         }
 
-        // Update sun/moon positions
         this.updateRotation();
-
-        // Update sky colors and lighting
         this.updateSkyColors();
 
-        // Update shader time
-        this.skyMaterial.uniforms.time.value += deltaTime * 0.001;
+        // FIXED: Shader expects seconds. deltaTime is seconds.
+        // We accumulate seconds directly. 
+        this.skyMaterial.uniforms.time.value += deltaTime;
     }
 
     private updateRotation(): void {
@@ -521,9 +655,20 @@ export class Sky {
         const pos = this.sunPosAlpha;
         const preset = godotPreset;
 
-        this.skyMaterial.uniforms.baseColor.value.copy(preset.baseSkyColor.sample(pos));
+        if (!this.skyMaterial.uniforms.useLUT.value) {
+            this.skyMaterial.uniforms.baseColor.value.copy(preset.baseSkyColor.sample(pos));
+        } else {
+            // Godot specific fallback when using LUT
+            this.skyMaterial.uniforms.baseColor.value.setRGB(0.052192, 0.101373, 0.192708);
+        }
+
         this.skyMaterial.uniforms.horizonFogColor.value.copy(preset.horizonFogColor.sample(pos));
-        this.skyMaterial.uniforms.baseCloudColor.value.copy(preset.baseCloudColor.sample(pos));
+
+        const baseC = preset.baseCloudColor.sample(pos);
+        const overcastC = preset.overcastCloudColor.sample(pos);
+        const normalizedCoverage = (this.cloudCoverage + 1.0) * 0.5;
+        this.skyMaterial.uniforms.baseCloudColor.value.copy(baseC.clone().lerp(overcastC, normalizedCoverage));
+
         this.skyMaterial.uniforms.sunDiscColor.value.copy(preset.sunDiscColor.sample(pos));
         this.skyMaterial.uniforms.sunGlowColor.value.copy(preset.sunGlowColor.sample(pos));
         this.skyMaterial.uniforms.moonGlowColor.value.copy(preset.moonGlowColor.sample(pos));
@@ -531,11 +676,12 @@ export class Sky {
 
         const sunInt = preset.sunLightIntensity.sample(pos);
         const moonInt = preset.moonLightIntensity.sample(pos);
+        const cloudDamp = 1.0 - (normalizedCoverage * 0.8);
 
         this.sunLight.color.copy(preset.sunLightColor.sample(pos));
-        this.sunLight.intensity = sunInt * 1.5;
+        this.sunLight.intensity = Math.max(0, sunInt * cloudDamp * 1.5);
         this.moonLight.color.copy(preset.moonLightColor.sample(pos));
-        this.moonLight.intensity = moonInt * 0.5;
+        this.moonLight.intensity = Math.max(0, moonInt * cloudDamp * 0.5);
     }
 
     public cleanup(): void {
@@ -545,5 +691,8 @@ export class Sky {
         this.scene.remove(this.ambientLight);
         this.skyMaterial.dispose();
         this.skyMesh.geometry.dispose();
+        // Dispose generated textures
+        this.skyMaterial.uniforms.cloudNoise.value.dispose();
+        this.skyMaterial.uniforms.weatherMap.value.dispose();
     }
 }
