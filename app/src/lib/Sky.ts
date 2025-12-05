@@ -142,7 +142,7 @@ const godotPreset = {
     cloudEdge: 0.0, anisotropy: 0.69,
     sunRadius: 0.0002, sunEdgeBlur: 3600.0, sunGlowIntensity: 0.45,
     moonRadius: 0.0003, moonEdgeBlur: 10000.0, moonGlowIntensity: 0.8,
-    starBrightness: 0.5, twinkleSpeed: 0.025
+    starBrightness: 0.8, twinkleSpeed: 0.5
 };
 
 // --- 3. NOISE GENERATION ---
@@ -354,7 +354,8 @@ const fragmentShader = `
     float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 
     vec3 createStars(vec3 dir, float time) {
-        vec2 starUV = vec2(atan(dir.x, dir.z), asin(dir.y)) * 100.0;
+        // Use spherical coordinates for stable star field
+        vec2 starUV = vec2(atan(dir.z, dir.x), asin(clamp(dir.y, -1.0, 1.0))) * 40.0;
         vec2 gridID = floor(starUV);
         vec2 gridUV = fract(starUV) - 0.5;
         float star = 0.0;
@@ -366,9 +367,11 @@ const fragmentShader = `
                 vec2 diff = gridUV - offset - starPos;
                 float dist = length(diff);
                 float brightness = hash(cellID + 200.0);
-                if(brightness > 0.7) {
+                // Fewer stars by increasing threshold
+                if(brightness > 0.85) {
+                    // More pronounced twinkle (0.3 to 1.0 instead of 0.5 to 1.0)
                     float twinkle = sin(time * twinkleSpeed * (hash(cellID + 300.0) * 5.0 + 1.0)) * 0.5 + 0.5;
-                    twinkle = mix(0.5, 1.0, twinkle);
+                    twinkle = mix(0.3, 1.0, twinkle);
                     float starPoint = smoothstep(0.05, 0.0, dist);
                     star += starPoint * brightness * twinkle;
                 }
@@ -712,22 +715,6 @@ export class Sky {
         this.sunLight.intensity = Math.max(0, sunInt * cloudDamp * 1.5);
         this.moonLight.color.copy(preset.moonLightColor.sample(pos));
         this.moonLight.intensity = Math.max(0, moonInt * cloudDamp * 0.5);
-    }
-
-    public logLightInfo(): void {
-        console.log('=== Sky Lighting Debug Info ===');
-        console.log('Time of Day:', this.timeOfDay);
-        console.log('Sun Position:', this.sunLight.position);
-        console.log('Sun Target:', this.sunLight.target.position);
-        console.log('Sun Intensity:', this.sunLight.intensity);
-        console.log('Sun Color:', this.sunLight.color);
-        console.log('Moon Position:', this.moonLight.position);
-        console.log('Moon Target:', this.moonLight.target.position);
-        console.log('Moon Intensity:', this.moonLight.intensity);
-        console.log('Moon Color:', this.moonLight.color);
-        console.log('Ambient Intensity:', this.ambientLight.intensity);
-        console.log('Sun Alpha:', this.sunPosAlpha);
-        console.log('==============================');
     }
 
     public cleanup(): void {
