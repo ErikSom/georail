@@ -13,7 +13,8 @@ import {
     PerspectiveCamera,
     Vector3,
     MathUtils,
-    Matrix4
+    Matrix4,
+    MeshStandardMaterial
 } from 'three';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 
@@ -82,12 +83,48 @@ export class MapViewer {
         });
         this.tiles.registerPlugin(this.reorientationPlugin);
 
+        // Replace unlit materials with lit materials to enable sun/moon lighting
+        this.tiles.addEventListener('load-model', ({ scene }) => {
+            scene.traverse((child: any) => {
+                if (child.isMesh) {
+                    // Disable shadow casting and receiving
+                    child.castShadow = false;
+                    child.receiveShadow = false;
+
+                    // Google 3D tiles often lack normals. We must calculate them
+                    // for MeshStandardMaterial to react to light.
+                    if (child.geometry && !child.geometry.attributes.normal) {
+                        child.geometry.computeVertexNormals();
+                    }
+                    if (child.material) {
+                        const oldMaterial = child.material;
+
+                        // Only replace if it's an unlit material (MeshBasicMaterial)
+                        if (oldMaterial.isMeshBasicMaterial) {
+                            const newMaterial = new MeshStandardMaterial({
+                                map: oldMaterial.map,
+                                color: oldMaterial.color,
+                                opacity: oldMaterial.opacity,
+                                transparent: oldMaterial.transparent,
+                                side: oldMaterial.side,
+                                metalness: 0.0,
+                                roughness: 1.0,
+                                flatShading: true,
+                            });
+
+                            newMaterial.needsUpdate = true;
+                            child.material = newMaterial;
+                            oldMaterial.dispose();
+                        }
+                    }
+                }
+            });
+        });
+
         this.scene.add(this.tiles.group);
 
         this.tiles.setResolutionFromRenderer(this.camera, this.renderer);
         this.tiles.setCamera(this.camera);
-
-        console.log("MapViewer initialized and tiles created.");
     }
 
     private getInitialLocation(): { lat: number, lon: number } {

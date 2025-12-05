@@ -7,6 +7,7 @@ import {
     SphereGeometry,
     ShaderMaterial,
     DirectionalLight,
+    DirectionalLightHelper,
     AmbientLight,
     DataTexture,
     RGBAFormat,
@@ -535,12 +536,15 @@ export class Sky {
     public sunLight: DirectionalLight;
     public moonLight: DirectionalLight;
     public ambientLight: AmbientLight;
+    private sunLightHelper?: DirectionalLightHelper;
+    private moonLightHelper?: DirectionalLightHelper;
 
     public timeOfDay: number = 1200.0;
     public rateOfTime: number = 1.0;
     public simulateTime: boolean = true;
     public cloudCoverage: number = 0.558;
     private sunPosAlpha: number = 0.0;
+    public debugLights: boolean = false;
 
     constructor(scene: Scene, lutPath: string = '/textures/scatteringLUT.HDR') {
         this.scene = scene;
@@ -607,14 +611,25 @@ export class Sky {
         this.skyMesh.renderOrder = -1;
         this.scene.add(this.skyMesh);
 
-        this.sunLight = new DirectionalLight(0xffffff, 1.0);
+        this.sunLight = new DirectionalLight(0xffffff, 1.5);
         this.scene.add(this.sunLight);
 
-        this.moonLight = new DirectionalLight(0x445566, 0.2);
+        this.moonLight = new DirectionalLight(0x445566, 0.4);
         this.scene.add(this.moonLight);
 
-        this.ambientLight = new AmbientLight(0x404040);
+        this.ambientLight = new AmbientLight(0x404040, 1.0);
         this.scene.add(this.ambientLight);
+
+        // Add debug helpers for lights
+        if (this.debugLights) {
+            this.sunLightHelper = new DirectionalLightHelper(this.sunLight, 100, 0xffff00);
+            this.scene.add(this.sunLightHelper);
+
+            this.moonLightHelper = new DirectionalLightHelper(this.moonLight, 100, 0x8888ff);
+            this.scene.add(this.moonLightHelper);
+
+            console.log('Light debug helpers enabled');
+        }
     }
 
     /**
@@ -625,15 +640,21 @@ export class Sky {
         this.skyMesh.position.copy(camera.position);
 
         if (this.simulateTime) {
-            // this.timeOfDay += this.rateOfTime;
+            this.timeOfDay += this.rateOfTime;
             if (this.timeOfDay >= 2400.0) this.timeOfDay = 0.0;
         }
 
         this.updateRotation();
         this.updateSkyColors();
 
+        // Update light helpers
+        if (this.debugLights) {
+            this.sunLightHelper?.update();
+            this.moonLightHelper?.update();
+        }
+
         // FIXED: Shader expects seconds. deltaTime is seconds.
-        // We accumulate seconds directly. 
+        // We accumulate seconds directly.
         this.skyMaterial.uniforms.time.value += deltaTime;
     }
 
@@ -646,8 +667,17 @@ export class Sky {
 
         this.skyMaterial.uniforms.sunPosition.value.copy(sunVec);
         this.skyMaterial.uniforms.moonPosition.value.copy(sunVec.clone().negate());
-        this.sunLight.position.copy(sunVec).multiplyScalar(100);
-        this.moonLight.position.copy(sunVec).negate().multiplyScalar(100);
+
+        // Position directional lights to shine from sun/moon direction towards world origin (where tiles are)
+        // Light shines FROM position TOWARDS target
+        this.sunLight.position.copy(sunVec).multiplyScalar(50000);
+        this.sunLight.target.position.set(0, 0, 0);
+        this.sunLight.target.updateMatrixWorld();
+
+        this.moonLight.position.copy(sunVec).negate().multiplyScalar(50000);
+        this.moonLight.target.position.set(0, 0, 0);
+        this.moonLight.target.updateMatrixWorld();
+
         this.sunPosAlpha = sunVec.y * 0.5 + 0.5;
     }
 
@@ -684,11 +714,38 @@ export class Sky {
         this.moonLight.intensity = Math.max(0, moonInt * cloudDamp * 0.5);
     }
 
+    public logLightInfo(): void {
+        console.log('=== Sky Lighting Debug Info ===');
+        console.log('Time of Day:', this.timeOfDay);
+        console.log('Sun Position:', this.sunLight.position);
+        console.log('Sun Target:', this.sunLight.target.position);
+        console.log('Sun Intensity:', this.sunLight.intensity);
+        console.log('Sun Color:', this.sunLight.color);
+        console.log('Moon Position:', this.moonLight.position);
+        console.log('Moon Target:', this.moonLight.target.position);
+        console.log('Moon Intensity:', this.moonLight.intensity);
+        console.log('Moon Color:', this.moonLight.color);
+        console.log('Ambient Intensity:', this.ambientLight.intensity);
+        console.log('Sun Alpha:', this.sunPosAlpha);
+        console.log('==============================');
+    }
+
     public cleanup(): void {
         this.scene.remove(this.skyMesh);
         this.scene.remove(this.sunLight);
         this.scene.remove(this.moonLight);
         this.scene.remove(this.ambientLight);
+
+        // Remove light helpers
+        if (this.sunLightHelper) {
+            this.scene.remove(this.sunLightHelper);
+            this.sunLightHelper.dispose();
+        }
+        if (this.moonLightHelper) {
+            this.scene.remove(this.moonLightHelper);
+            this.moonLightHelper.dispose();
+        }
+
         this.skyMaterial.dispose();
         this.skyMesh.geometry.dispose();
         // Dispose generated textures
