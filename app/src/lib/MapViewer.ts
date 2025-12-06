@@ -14,7 +14,11 @@ import {
     Vector3,
     MathUtils,
     Matrix4,
-    MeshStandardMaterial
+    MeshStandardMaterial,
+    Mesh,
+    PlaneGeometry,
+    MeshBasicMaterial,
+    Quaternion
 } from 'three';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 
@@ -29,6 +33,7 @@ export class MapViewer {
 
     public tiles: TilesRenderer | null = null;
     private reorientationPlugin: ReorientationPlugin | null = null;
+    private groundPlane: Mesh | null = null;
 
     private tempMatrix = new Matrix4();
     private tempVec = new Vector3();
@@ -50,6 +55,13 @@ export class MapViewer {
 
     public cleanup(): void {
         this.tiles?.dispose();
+
+        if (this.groundPlane) {
+            this.groundPlane.geometry.dispose();
+            (this.groundPlane.material as MeshBasicMaterial).dispose();
+            this.groundPlane = null;
+        }
+
         this.scene = null;
         this.camera = null;
         this.renderer = null;
@@ -123,6 +135,9 @@ export class MapViewer {
 
         this.scene.add(this.tiles.group);
 
+        // Create ground plane at altitude 30 using proper geodetic positioning
+        this.createGroundPlane(lat, lon, -1000);
+
         this.tiles.setResolutionFromRenderer(this.camera, this.renderer);
         this.tiles.setCamera(this.camera);
     }
@@ -142,6 +157,41 @@ export class MapViewer {
         const [lat, lon] = tokens;
         console.log(`Using location from hash: Lat ${lat}, Lon ${lon}`);
         return { lat, lon };
+    }
+
+    private createGroundPlane(lat: number, lon: number, height: number): void {
+        if (!this.tiles) return;
+
+        // Dispose old ground plane if exists
+        if (this.groundPlane) {
+            this.tiles.group.remove(this.groundPlane);
+            this.groundPlane.geometry.dispose();
+            (this.groundPlane.material as MeshBasicMaterial).dispose();
+        }
+
+        // Create large plane geometry
+        const planeGeometry = new PlaneGeometry(1e5, 1e5);
+        const planeMaterial = new MeshBasicMaterial({
+            color: 0x000000,
+            side: 2
+        });
+        this.groundPlane = new Mesh(planeGeometry, planeMaterial);
+        this.groundPlane.frustumCulled = false;
+
+        const cartographic = { lat: lat * MathUtils.DEG2RAD, lon: lon * MathUtils.DEG2RAD, height };
+        const position = new Vector3();
+        WGS84_ELLIPSOID.getCartographicToPosition(cartographic.lat, cartographic.lon, cartographic.height, position);
+
+        this.groundPlane.position.copy(position);
+
+        const normalizedPos = position.clone().normalize();
+        const quaternion = new Quaternion();
+        quaternion.setFromUnitVectors(new Vector3(0, 0, 1), normalizedPos);
+        this.groundPlane.setRotationFromQuaternion(quaternion);
+
+        this.tiles.group.add(this.groundPlane);
+
+        console.log(`Ground plane created at lat: ${lat}, lon: ${lon}, height: ${height}`);
     }
 
     public reorient(lat: number, lon: number, height: number = 0): void {

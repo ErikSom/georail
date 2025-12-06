@@ -16,14 +16,11 @@ import {
     LinearFilter,
     BackSide,
     MathUtils,
-    Camera,
     Object3D
 } from 'three';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 
-// --- 1. UTILITY CLASSES ---
 
-// Optimized: Stores Color objects directly to prevent GC thrashing during render loop
 class Gradient {
     private stops: Array<{ t: number; color: Color }>;
 
@@ -69,8 +66,6 @@ class Curve {
     }
 }
 
-// --- 2. PRESETS (Restored Float Precision) ---
-// Using exact float RGB values maintains the correct Linear color space
 const godotPreset = {
     baseCloudColor: new Gradient([
         { t: 0.419118, color: new Color(0.0601829, 0.0849014, 0.199897) },
@@ -145,9 +140,7 @@ const godotPreset = {
     starBrightness: 0.8, twinkleSpeed: 0.5
 };
 
-// --- 3. NOISE GENERATION ---
 
-// Encapsulating Noise state to avoid global pollution
 const Permutation = new Uint8Array(512);
 (function initNoise() {
     const p = new Uint8Array(256);
@@ -293,7 +286,6 @@ function createWeatherMap(): DataTexture {
     return tex;
 }
 
-// --- 4. SHADERS (Identical to Source) ---
 const vertexShader = `
     varying vec3 vWorldPosition;
     void main() {
@@ -530,8 +522,6 @@ const fragmentShader = `
     }
 `;
 
-// --- 5. SKY CLASS ---
-
 export class Sky {
     private scene: Scene;
     private skyMesh: Mesh;
@@ -548,6 +538,7 @@ export class Sky {
     public cloudCoverage: number = 0.558;
     private sunPosAlpha: number = 0.0;
     public debugLights: boolean = false;
+    public timeConversionFactor = (60 * 60 * 24) / 2400; // seconds in a day divided by timeOfDay range
 
     constructor(scene: Scene, lutPath: string = '/textures/scatteringLUT.HDR') {
         this.scene = scene;
@@ -635,29 +626,23 @@ export class Sky {
         }
     }
 
-    /**
-     * @param deltaTime Time since last frame in SECONDS
-     * @param camera The active camera to center the sky on
-     */
+
     public update(deltaTime: number, camera: Object3D): void {
         this.skyMesh.position.copy(camera.position);
 
         if (this.simulateTime) {
-            this.timeOfDay += this.rateOfTime;
-            if (this.timeOfDay >= 2400.0) this.timeOfDay = 0.0;
+            this.timeOfDay += deltaTime * this.timeConversionFactor * this.rateOfTime;
+            if (this.timeOfDay >= 2400.0) this.timeOfDay -= 2400.0;
         }
 
         this.updateRotation();
         this.updateSkyColors();
 
-        // Update light helpers
         if (this.debugLights) {
             this.sunLightHelper?.update();
             this.moonLightHelper?.update();
         }
 
-        // FIXED: Shader expects seconds. deltaTime is seconds.
-        // We accumulate seconds directly.
         this.skyMaterial.uniforms.time.value += deltaTime;
     }
 
@@ -671,8 +656,7 @@ export class Sky {
         this.skyMaterial.uniforms.sunPosition.value.copy(sunVec);
         this.skyMaterial.uniforms.moonPosition.value.copy(sunVec.clone().negate());
 
-        // Position directional lights to shine from sun/moon direction towards world origin (where tiles are)
-        // Light shines FROM position TOWARDS target
+
         this.sunLight.position.copy(sunVec).multiplyScalar(50000);
         this.sunLight.target.position.set(0, 0, 0);
         this.sunLight.target.updateMatrixWorld();
@@ -691,7 +675,6 @@ export class Sky {
         if (!this.skyMaterial.uniforms.useLUT.value) {
             this.skyMaterial.uniforms.baseColor.value.copy(preset.baseSkyColor.sample(pos));
         } else {
-            // Godot specific fallback when using LUT
             this.skyMaterial.uniforms.baseColor.value.setRGB(0.052192, 0.101373, 0.192708);
         }
 
@@ -723,7 +706,6 @@ export class Sky {
         this.scene.remove(this.moonLight);
         this.scene.remove(this.ambientLight);
 
-        // Remove light helpers
         if (this.sunLightHelper) {
             this.scene.remove(this.sunLightHelper);
             this.sunLightHelper.dispose();
@@ -735,6 +717,7 @@ export class Sky {
 
         this.skyMaterial.dispose();
         this.skyMesh.geometry.dispose();
+
         // Dispose generated textures
         this.skyMaterial.uniforms.cloudNoise.value.dispose();
         this.skyMaterial.uniforms.weatherMap.value.dispose();
