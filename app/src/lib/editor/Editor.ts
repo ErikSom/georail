@@ -268,9 +268,19 @@ export class Editor {
         this.renderer.setPixelRatio(window.devicePixelRatio);
     }
 
+    private editorInputs(): void {
+        if (Input.isPressed('F1')) {
+            // Toggle Sky UI
+            this.sky.toggleUI();
+        }
+    }
+
     private animate(): void {
         this.rafId = requestAnimationFrame(this.animate);
         const dt = this.clock.getDelta();
+
+
+        this.editorInputs();
 
         this.sky.update(dt, this.camera);
         this.flightControls.update(dt);

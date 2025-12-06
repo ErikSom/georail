@@ -9,8 +9,7 @@ import {
     DirectionalLight,
     DirectionalLightHelper,
     AmbientLight,
-    DataTexture,
-    RGBAFormat,
+    TextureLoader,
     RepeatWrapping,
     LinearMipMapLinearFilter,
     LinearFilter,
@@ -19,6 +18,7 @@ import {
     Object3D
 } from 'three';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import * as Tweakpane from 'tweakpane';
 
 
 class Gradient {
@@ -140,151 +140,6 @@ const godotPreset = {
     starBrightness: 0.8, twinkleSpeed: 0.5
 };
 
-
-const Permutation = new Uint8Array(512);
-(function initNoise() {
-    const p = new Uint8Array(256);
-    for (let i = 0; i < 256; i++) p[i] = i;
-    let seed = 123;
-    function random() { return (Math.sin(seed++) * 10000) % 1; }
-    for (let i = 255; i > 0; i--) {
-        const j = Math.floor((random() * 0.5 + 0.5) * (i + 1));
-        [p[i], p[j]] = [p[j], p[i]];
-    }
-    for (let i = 0; i < 512; i++) Permutation[i] = p[i & 255];
-})();
-
-function periodicPerlin(x: number, y: number, period: number): number {
-    let X = Math.floor(x); let Y = Math.floor(y);
-    const xf = x - X; const yf = y - Y;
-    X = (X % period + period) % period;
-    Y = (Y % period + period) % period;
-    const X1 = (X + 1) % period; const Y1 = (Y + 1) % period;
-
-    const fade = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
-    const u = fade(xf); const v = fade(yf);
-
-    const aa = Permutation[Permutation[X] + Y];
-    const ab = Permutation[Permutation[X] + Y1];
-    const ba = Permutation[Permutation[X1] + Y];
-    const bb = Permutation[Permutation[X1] + Y1];
-
-    const g = (hash: number, x: number, y: number) => {
-        const h = hash & 15;
-        const u = h < 8 ? x : y;
-        const v = h < 4 ? y : h === 12 || h === 14 ? x : 0;
-        return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
-    };
-
-    const x1 = MathUtils.lerp(g(aa, xf, yf), g(ba, xf - 1, yf), u);
-    const x2 = MathUtils.lerp(g(ab, xf, yf - 1), g(bb, xf - 1, yf - 1), u);
-    return MathUtils.lerp(x1, x2, v);
-}
-
-function periodicCellularD2A(x: number, y: number, period: number): number {
-    const xi = Math.floor(x); const yi = Math.floor(y);
-    const xf = x - xi; const yf = y - yi;
-    let f1 = 9999.0; let f2 = 9999.0;
-
-    for (let j = -1; j <= 1; j++) {
-        for (let i = -1; i <= 1; i++) {
-            let ni = (xi + i) % period; if (ni < 0) ni += period;
-            let nj = (yi + j) % period; if (nj < 0) nj += period;
-            const h = Permutation[Permutation[ni] + nj];
-            const jx = ((h & 15) / 15.0) * 0.7;
-            const jy = (((h >> 4) & 15) / 15.0) * 0.7;
-            const dx = i + jx - xf;
-            const dy = j + jy - yf;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < f1) { f2 = f1; f1 = dist; }
-            else if (dist < f2) { f2 = dist; }
-        }
-    }
-    return (f1 + f2) - 1.0;
-}
-
-function periodicValueNoise(x: number, y: number, period: number): number {
-    let xi = Math.floor(x); let yi = Math.floor(y);
-    const xf = x - xi; const yf = y - yi;
-    xi = (xi % period + period) % period;
-    yi = (yi % period + period) % period;
-    const x1 = (xi + 1) % period; const y1 = (yi + 1) % period;
-
-    const cubic = (t: number) => t * t * (3.0 - 2.0 * t);
-    const u = cubic(xf); const v = cubic(yf);
-    const val = (i: number, j: number) => (Permutation[Permutation[i] + j] % 256) / 255.0;
-
-    const i1 = val(xi, yi); const i2 = val(x1, yi);
-    const i3 = val(xi, y1); const i4 = val(x1, y1);
-
-    const k1 = MathUtils.lerp(i1, i2, u);
-    const k2 = MathUtils.lerp(i3, i4, u);
-    return MathUtils.lerp(k1, k2, v) * 2.0 - 1.0;
-}
-
-function createNoiseTexture(): DataTexture {
-    const size = 512;
-    const data = new Uint8Array(size * size * 4);
-    const periodBase = Math.round(size * 0.021);
-    const periodWarp = 512;
-    const warpAmp = 6.0;
-
-    for (let y = 0; y < size; y++) {
-        for (let x = 0; x < size; x++) {
-            let nx = x; let ny = y;
-            const wx = periodicPerlin(nx, ny, periodWarp) * warpAmp;
-            const wy = periodicPerlin(nx + 50.0, ny + 50.0, periodWarp) * warpAmp;
-            nx += wx; ny += wy;
-
-            let total = 0; let amp = 1.0; let max = 0; let p = periodBase;
-            for (let i = 0; i < 4; i++) {
-                const scale = p / size;
-                total += periodicCellularD2A(nx * scale, ny * scale, p) * amp;
-                max += amp; amp *= 0.547; p *= 2.0;
-            }
-            let n = 1.0 - (total / max * 0.5 + 0.5);
-            const val = Math.floor(MathUtils.clamp(n, 0, 1) * 255);
-            const idx = (y * size + x) * 4;
-            data[idx] = val; data[idx + 1] = val; data[idx + 2] = val; data[idx + 3] = 255;
-        }
-    }
-    const tex = new DataTexture(data, size, size, RGBAFormat);
-    tex.wrapS = tex.wrapT = RepeatWrapping;
-    tex.minFilter = LinearMipMapLinearFilter;
-    tex.magFilter = LinearFilter;
-    tex.generateMipmaps = true;
-    tex.needsUpdate = true;
-    return tex;
-}
-
-function createWeatherMap(): DataTexture {
-    const size = 512;
-    const data = new Uint8Array(size * size * 4);
-    const periodBase = Math.round(size * 0.042);
-
-    for (let y = 0; y < size; y++) {
-        for (let x = 0; x < size; x++) {
-            let total = 0; let amp = 1.0; let max = 0; let p = periodBase;
-            for (let i = 0; i < 3; i++) {
-                const cycles = Math.round(p);
-                const scale = cycles / size;
-                total += periodicValueNoise(x * scale, y * scale, cycles) * amp;
-                max += amp; amp *= 2.397; p *= 1.605;
-            }
-            let n = total / max * 0.5 + 0.5;
-            const val = Math.floor(MathUtils.clamp(n, 0, 1) * 255);
-            const idx = (y * size + x) * 4;
-            data[idx] = val; data[idx + 1] = val; data[idx + 2] = val; data[idx + 3] = 255;
-        }
-    }
-    const tex = new DataTexture(data, size, size, RGBAFormat);
-    tex.wrapS = tex.wrapT = RepeatWrapping;
-    tex.minFilter = LinearMipMapLinearFilter;
-    tex.magFilter = LinearFilter;
-    tex.generateMipmaps = true;
-    tex.needsUpdate = true;
-    return tex;
-}
 
 const vertexShader = `
     varying vec3 vWorldPosition;
@@ -485,25 +340,23 @@ const fragmentShader = `
             
             float sun = dot(sunDir, dir);
             float moon = dot(moonDir, dir);
-            float hg = max(henyey_greenstein(sun, henyeyGreensteinLevel - 0.15), 
+            float hg = max(henyey_greenstein(sun, henyeyGreensteinLevel - 0.15),
                         henyey_greenstein(moon, henyeyGreensteinLevel + 0.05));
-            
-            vec3 finalCloudColor = baseCloudColor; 
-            vec3 scatteredLight = finalCloudColor * hg * absorption * dynClouds.x;
-            scatteredLight = clamp(scatteredLight, 0.0, 2.0);
 
-            skyColor = skyColor * dynClouds.x + (finalCloudColor * cloudBrightness * dynCloudAlpha);
-            skyColor = skyColor + (scatteredLight * dynCloudAlpha);
-            
+            // Apply cloud base color and brightness
+            skyColor = skyColor * dynClouds.x + (baseCloudColor * cloudBrightness * dynCloudAlpha);
+
+            // Add scattering (this brightens clouds near sun/moon)
+            skyColor = skyColor + ((baseCloudColor * (dynClouds.x * hg * absorption)) * dynCloudAlpha);
+
+            // Subtract noise detail (darkens cloud edges)
             float safeY = max(dir.y, 0.05);
             float horizonCurve = safeY / horizonUVCurve;
             vec2 uvNoise = vec2(dir.x / horizonCurve, dir.z / horizonCurve) / 5.0;
             vec2 animOffset = time * 4.0 * cloudSpeed * cloudDirection;
-            
+
             float rawNoise = texture2D(cloudNoise, uvNoise + animOffset).r;
-            float noiseVal = clamp((rawNoise - 0.4) * 2.0, 0.0, 1.0); 
-            
-            skyColor -= (noiseVal * baseCloudColor) * dynCloudAlpha;
+            skyColor -= (clamp(rawNoise - 0.5, 0.0, 1.0) * baseCloudColor) * dynCloudAlpha;
         }
         
         skyColor = mix(skyColor, horizonFogColor, fogA);
@@ -540,11 +393,23 @@ export class Sky {
     public debugLights: boolean = false;
     public timeConversionFactor = (60 * 60 * 24) / 2400; // seconds in a day divided by timeOfDay range
 
+    private pane: Tweakpane.Pane | null = null;
+    private isPaneVisible: boolean = false;
+
     constructor(scene: Scene, lutPath: string = '/textures/scatteringLUT.HDR') {
         this.scene = scene;
 
-        const cloudNoiseTex = createNoiseTexture();
-        const weatherMapTex = createWeatherMap();
+        // Load cloud textures from files
+        const textureLoader = new TextureLoader();
+        const cloudNoiseTex = textureLoader.load('/textures/cloud-noise.png');
+        cloudNoiseTex.wrapS = cloudNoiseTex.wrapT = RepeatWrapping;
+        cloudNoiseTex.minFilter = LinearMipMapLinearFilter;
+        cloudNoiseTex.magFilter = LinearFilter;
+
+        const weatherMapTex = textureLoader.load('/textures/cloud-weather.png');
+        weatherMapTex.wrapS = weatherMapTex.wrapT = RepeatWrapping;
+        weatherMapTex.minFilter = LinearMipMapLinearFilter;
+        weatherMapTex.magFilter = LinearFilter;
 
         const rgbeLoader = new RGBELoader();
         rgbeLoader.load(lutPath, (texture) => {
@@ -631,7 +496,7 @@ export class Sky {
         this.skyMesh.position.copy(camera.position);
 
         if (this.simulateTime) {
-            this.timeOfDay += deltaTime * this.timeConversionFactor * this.rateOfTime;
+            this.timeOfDay += (deltaTime / this.timeConversionFactor) * this.rateOfTime;
             if (this.timeOfDay >= 2400.0) this.timeOfDay -= 2400.0;
         }
 
@@ -643,7 +508,7 @@ export class Sky {
             this.moonLightHelper?.update();
         }
 
-        this.skyMaterial.uniforms.time.value += deltaTime;
+        this.skyMaterial.uniforms.time.value = this.timeOfDay * this.timeConversionFactor;
     }
 
     private updateRotation(): void {
@@ -721,5 +586,144 @@ export class Sky {
         // Dispose generated textures
         this.skyMaterial.uniforms.cloudNoise.value.dispose();
         this.skyMaterial.uniforms.weatherMap.value.dispose();
+
+        // Dispose UI pane if exists
+        if (this.pane) {
+            this.pane.dispose();
+            this.pane = null;
+        }
+    }
+
+    private createUI(): void {
+        if (this.pane) return; // Already created
+
+        this.pane = new Tweakpane.Pane({ title: 'Sky Settings' });
+
+        // Time controls
+        this.pane.addBinding(this, 'timeOfDay', {
+            min: 0,
+            max: 2400,
+            step: 1
+        });
+        this.pane.addBinding(this, 'simulateTime');
+        this.pane.addBinding(this, 'rateOfTime', {
+            min: 0,
+            max: 100,
+            step: 0.1
+        });
+
+        this.pane.addBlade({ view: 'separator' });
+
+        // Cloud controls
+        this.pane.addBinding(this, 'cloudCoverage', {
+            min: 0,
+            max: 1,
+            step: 0.01
+        });
+        this.pane.addBinding(this.skyMaterial.uniforms.cloudSpeed, 'value', {
+            min: 0,
+            max: 5,
+            step: 0.1,
+            label: 'cloudSpeed'
+        });
+        this.pane.addBinding(this.skyMaterial.uniforms.cloudDensity, 'value', {
+            min: 0,
+            max: 1,
+            step: 0.01,
+            label: 'cloudDensity'
+        });
+
+        this.pane.addBlade({ view: 'separator' });
+
+        // Sun/Moon controls
+        this.pane.addBinding(this.skyMaterial.uniforms.sunRadius, 'value', {
+            min: 0.0001,
+            max: 0.001,
+            step: 0.00001,
+            label: 'sunRadius'
+        });
+        this.pane.addBinding(this.skyMaterial.uniforms.moonRadius, 'value', {
+            min: 0.0001,
+            max: 0.001,
+            step: 0.00001,
+            label: 'moonRadius'
+        });
+
+        this.pane.addBlade({ view: 'separator' });
+
+        // Star controls
+        this.pane.addBinding(this.skyMaterial.uniforms.starBrightness, 'value', {
+            min: 0,
+            max: 2,
+            step: 0.1,
+            label: 'starBrightness'
+        });
+        this.pane.addBinding(this.skyMaterial.uniforms.twinkleSpeed, 'value', {
+            min: 0,
+            max: 2,
+            step: 0.01,
+            label: 'twinkleSpeed'
+        });
+
+        this.pane.addBlade({ view: 'separator' });
+
+        // Light controls
+        this.pane.addBinding(this.sunLight, 'intensity', {
+            min: 0,
+            max: 5,
+            step: 0.1,
+            label: 'sunIntensity'
+        });
+        this.pane.addBinding(this.moonLight, 'intensity', {
+            min: 0,
+            max: 2,
+            step: 0.1,
+            label: 'moonIntensity'
+        });
+        this.pane.addBinding(this.ambientLight, 'intensity', {
+            min: 0,
+            max: 2,
+            step: 0.1,
+            label: 'ambientIntensity'
+        });
+        this.pane.addBinding(this, 'debugLights').on('change', (ev: any) => {
+            if (ev.value) {
+                if (!this.sunLightHelper) {
+                    this.sunLightHelper = new DirectionalLightHelper(this.sunLight, 100, 0xffff00);
+                    this.scene.add(this.sunLightHelper);
+                }
+                if (!this.moonLightHelper) {
+                    this.moonLightHelper = new DirectionalLightHelper(this.moonLight, 100, 0x8888ff);
+                    this.scene.add(this.moonLightHelper);
+                }
+            } else {
+                if (this.sunLightHelper) {
+                    this.scene.remove(this.sunLightHelper);
+                    this.sunLightHelper.dispose();
+                    this.sunLightHelper = undefined;
+                }
+                if (this.moonLightHelper) {
+                    this.scene.remove(this.moonLightHelper);
+                    this.moonLightHelper.dispose();
+                    this.moonLightHelper = undefined;
+                }
+            }
+        });
+
+        // Hide pane by default
+        if (!this.isPaneVisible) {
+            this.pane.element.style.display = 'none';
+        }
+    }
+
+    public toggleUI(): void {
+        if (!this.pane) {
+            this.createUI();
+        }
+
+        this.isPaneVisible = !this.isPaneVisible;
+        if (this.pane) {
+            this.pane.element.style.display = this.isPaneVisible ? 'block' : 'none';
+        }
     }
 }

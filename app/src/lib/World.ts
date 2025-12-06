@@ -134,7 +134,7 @@ export class World {
 
             case ' ':
                 this.startPathFollowing();
-                break
+                break;
         }
     }
 
