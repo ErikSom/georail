@@ -10,7 +10,7 @@ function EditorViewer() {
     const mountRef = useRef<HTMLDivElement | null>(null);
     const editorRef = useRef<Editor | null>(null);
     const [credits, setCredits] = useState<string>('');
-    const [showPatchManagement, setShowPatchManagement] = useState(false);
+    const [showPatchManagement, setShowPatchManagement] = useState(true);
     const [activePatchId, setActivePatchId] = useState<number | null>(null);
     const [selectedNodeData, setSelectedNodeData] = useState<any>(null);
     const [modifiedNodesCount, setModifiedNodesCount] = useState(0);

@@ -34,6 +34,7 @@ export class MapViewer {
     public tiles: TilesRenderer | null = null;
     private reorientationPlugin: ReorientationPlugin | null = null;
     private groundPlane: Mesh | null = null;
+    public initialized: boolean = false;
 
     private tempMatrix = new Matrix4();
     private tempVec = new Vector3();
@@ -44,13 +45,17 @@ export class MapViewer {
     public init(
         scene: Scene,
         camera: PerspectiveCamera,
-        renderer: WebGLRenderer
+        renderer: WebGLRenderer,
+        lat?: number,
+        lon?: number,
+        height?: number
     ): void {
         this.scene = scene;
         this.camera = camera;
         this.renderer = renderer;
 
-        this.reinstantiateTiles();
+        this.reinstantiateTiles(lat, lon, height);
+        // Don't set initialized here - wait for tiles to load
     }
 
     public cleanup(): void {
@@ -67,9 +72,10 @@ export class MapViewer {
         this.renderer = null;
         this.tiles = null;
         this.reorientationPlugin = null;
+        this.initialized = false;
     }
 
-    private reinstantiateTiles(): void {
+    private reinstantiateTiles(lat?: number, lon?: number, height?: number): void {
         if (!this.scene || !this.camera || !this.renderer) return;
 
         this.tiles?.dispose();
@@ -87,11 +93,19 @@ export class MapViewer {
             dracoLoader: new DRACOLoader().setDecoderPath(getDracoDecoderPath())
         }));
 
-        const { lat, lon } = this.getInitialLocation();
+        // Use provided coordinates or fall back to default location
+        let finalLat = lat;
+        let finalLon = lon;
+
+        if (finalLat === undefined || finalLon === undefined) {
+            const defaultLocation = this.getInitialLocation();
+            finalLat = defaultLocation.lat;
+            finalLon = defaultLocation.lon;
+        }
 
         this.reorientationPlugin = new ReorientationPlugin({
-            lat: lat * MathUtils.DEG2RAD,
-            lon: lon * MathUtils.DEG2RAD,
+            lat: finalLat * MathUtils.DEG2RAD,
+            lon: finalLon * MathUtils.DEG2RAD,
         });
         this.tiles.registerPlugin(this.reorientationPlugin);
 
@@ -136,10 +150,18 @@ export class MapViewer {
         this.scene.add(this.tiles.group);
 
         // Create ground plane at altitude 30 using proper geodetic positioning
-        this.createGroundPlane(lat, lon, -1000);
+        this.createGroundPlane(finalLat, finalLon, -1000);
 
         this.tiles.setResolutionFromRenderer(this.camera, this.renderer);
         this.tiles.setCamera(this.camera);
+
+        // Mark as initialized after initial tiles have loaded
+        this.tiles.addEventListener('tiles-load-end', () => {
+            if (!this.initialized) {
+                this.initialized = true;
+                console.log('MapViewer initialized: Initial tiles loaded');
+            }
+        });
     }
 
     private getInitialLocation(): { lat: number, lon: number } {

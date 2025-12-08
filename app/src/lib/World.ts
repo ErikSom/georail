@@ -9,7 +9,7 @@ import {
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { MapViewer } from './MapViewer';
 import { Drone } from './Drone';
-import { fetchRouteByName } from './Georail';
+import { fetchRouteByName, type RouteData } from './Georail';
 import { routePointToWorldPosition } from './utils/CoordinateHelpers';
 import { Sky } from './Sky';
 
@@ -29,11 +29,13 @@ export class World {
     private mountElement: HTMLDivElement;
     private setCreditsCallback: (credits: string) => void;
     private keysPressed: { [key: string]: boolean } = {};
+    private routeData: RouteData | null = null;
 
 
-    constructor(mountElement: HTMLDivElement, setCreditsCallback: (credits: string) => void) {
+    constructor(mountElement: HTMLDivElement, setCreditsCallback: (credits: string) => void, routeData?: RouteData) {
         this.mountElement = mountElement;
         this.setCreditsCallback = setCreditsCallback;
+        this.routeData = routeData || null;
 
         this.animate = this.animate.bind(this);
         this.onWindowResize = this.onWindowResize.bind(this);
@@ -52,8 +54,8 @@ export class World {
         this.camera = new PerspectiveCamera(60, this.mountElement.clientWidth / this.mountElement.clientHeight, 1, 1e7);
         this.camera.position.set(1e3, 1e3, 1e3).multiplyScalar(0.5);
 
+        // Initialize MapViewer but don't call init() yet - wait for route data
         this.mapViewer = new MapViewer();
-        this.mapViewer.init(this.scene, this.camera, this.renderer);
 
         this.sky = new Sky(this.scene);
 
@@ -76,6 +78,11 @@ export class World {
         window.addEventListener('keyup', this.onKeyUp, false);
 
         this.animate();
+
+        // Automatically start following the route if provided
+        if (this.routeData) {
+            this.startPathFollowing();
+        }
     }
 
     public cleanup(): void {
@@ -139,18 +146,24 @@ export class World {
     }
 
     private async startPathFollowing(): Promise<void> {
-        console.log('Fetching route from Amsterdam Centraal to Utrecht Centraal...');
         try {
-            const routeData = await fetchRouteByName(
-                'Hoorn Kersenboogerd', '1',
-                'Amsterdam Centraal', '4b'
-            );
+            let routeData = this.routeData;
+
+            // If no route data was provided in constructor, fetch hardcoded route (for backwards compatibility)
+            if (!routeData) {
+                console.log('Fetching hardcoded route from Hoorn Kersenboogerd to Amsterdam Centraal...');
+                routeData = await fetchRouteByName(
+                    'Hoorn Kersenboogerd', '1',
+                    'Amsterdam Centraal', '4b'
+                );
+            } else {
+                console.log('Using provided route:', routeData.properties);
+            }
 
             // More detailed logging to inspect the incoming data structure
             console.log('--- Raw Route Data Received ---');
             console.log(JSON.stringify(routeData, null, 2));
             console.log('---------------------------------');
-
 
             // Use the definitive 'node_coords' array from the new function
             if (!routeData?.geometry?.route || routeData.geometry.route.length < 2) {
@@ -165,12 +178,18 @@ export class World {
 
             console.log(`Processed into a single path with ${pathCoordinates.length} total coordinates.`);
 
-            // Teleport the world origin to the start of the path
+            // Extract starting coordinates from route
             // Route point format: [lon, lat, world_offset_x, world_offset_y, world_offset_z]
-            // world_offset_y is the height/altitude offset
+            // world_offset_y is the vertical offset (altitude)
             const [startLon, startLat, , world_offset_y] = pathCoordinates[0];
             const droneHeight = world_offset_y || 200;
-            console.log('Starting drone at height:', droneHeight);
+            console.log('Starting location:', { lat: startLat, lon: startLon, offset_y: world_offset_y });
+
+            // Initialize MapViewer at the starting location (ground level - height 0)
+            // The offsets will be applied when converting route points
+            this.mapViewer.init(this.scene, this.camera, this.renderer, startLat, startLon, 0);
+
+            // Teleport the drone to the start position with offset applied
             this.teleportDroneTo(startLat, startLon, droneHeight);
 
             // Now, convert all geographic coordinates with offsets applied to world positions
@@ -198,9 +217,19 @@ export class World {
     }
 
     private teleportDroneTo(lat: number, lon: number, height: number = 1000): void {
-        this.mapViewer.reorient(lat, lon, height);
+        // Reorient to ground level (height 0) to keep coordinate system consistent
+        // This ensures all ENU offsets are relative to ground level, not to the drone height
+        this.mapViewer.reorient(lat, lon, 0);
 
-        this.drone.position.set(0, 0, 0);
+        // Position drone at the specified height
+        const droneWorldPos = this.mapViewer.latLonHeightToWorldPosition(lat, lon, height);
+        if (droneWorldPos) {
+            this.drone.position.copy(droneWorldPos);
+        } else {
+            // Fallback to origin if conversion fails
+            this.drone.position.set(0, 0, 0);
+        }
+
         this.drone.rotation.set(0, 0, 0);
     }
 
@@ -211,18 +240,20 @@ export class World {
         // 1. Update Sky
         this.sky.update(deltaTime, this.camera);
 
-        // 2. Update Drone position
-        this.drone.update(deltaTime, this.keysPressed);
+        // 2. Update Drone position (only if initialized)
+        if (this.mapViewer.initialized) {
+            this.drone.update(deltaTime, this.keysPressed);
+        }
 
-        // 3. Update MapViewer (tiles)
+        // 3. Update MapViewer (tiles) - always update to allow tiles to load
         this.mapViewer.update();
 
-        // --- MODIFIED ---
-
-        // 4–6. Follow the drone without fighting controls
-        this.tmp.copy(this.drone.position).sub(this.controls.target); // delta the drone moved
-        this.controls.target.add(this.tmp);
-        this.camera.position.add(this.tmp);
+        // 4–6. Follow the drone without fighting controls (only if initialized)
+        if (this.mapViewer.initialized) {
+            this.tmp.copy(this.drone.position).sub(this.controls.target); // delta the drone moved
+            this.controls.target.add(this.tmp);
+            this.camera.position.add(this.tmp);
+        }
 
         // 7. Let controls handle damping/zoom/orbit
         this.controls.update();
@@ -233,16 +264,22 @@ export class World {
         // 9. Render
         this.renderer.render(this.scene, this.camera);
 
-        // 10. Update UI
-        const cameraCredits = this.mapViewer.getCredits();
-        const droneCoords = this.mapViewer.getLatLonHeightFromWorldPosition(this.drone.position);
+        // 10. Update UI - only if MapViewer is initialized
+        if (this.mapViewer.initialized) {
+            const cameraCredits = this.mapViewer.getCredits();
+            const droneCoords = this.mapViewer.getLatLonHeightFromWorldPosition(this.drone.position);
 
-        const droneLat = (droneCoords!.lat * MathUtils.RAD2DEG).toFixed(5);
-        const droneLon = (droneCoords!.lon * MathUtils.RAD2DEG).toFixed(5);
-        const droneHeight = droneCoords!.height.toFixed(1);
+            if (droneCoords) {
+                const droneLat = (droneCoords.lat * MathUtils.RAD2DEG).toFixed(5);
+                const droneLon = (droneCoords.lon * MathUtils.RAD2DEG).toFixed(5);
+                const droneHeight = droneCoords.height.toFixed(1);
 
-        const fullCredits = `${cameraCredits}\nDrone: ${droneLat}°, ${droneLon}° | Height: ${droneHeight}m`;
+                const fullCredits = `${cameraCredits}\nDrone: ${droneLat}°, ${droneLon}° | Height: ${droneHeight}m`;
 
-        this.setCreditsCallback(fullCredits);
+                this.setCreditsCallback(fullCredits);
+            }
+        } else {
+            this.setCreditsCallback('Loading route...');
+        }
     }
 }

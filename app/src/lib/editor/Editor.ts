@@ -58,8 +58,8 @@ export class Editor {
 
         Input.init(this.renderer.domElement);
 
+        // Initialize MapViewer but don't call init() yet - wait for patch to load
         this.mapViewer = new MapViewer();
-        this.mapViewer.init(this.scene, this.camera, this.renderer);
 
         this.sky = new Sky(this.scene);
 
@@ -145,10 +145,21 @@ export class Editor {
             // In review mode, bypass owner check to allow moderators to view any patch
             const patchWithData = await fetchPatchWithData(patchId, reviewMode);
 
+            // Initialize MapViewer at the start of the route (only once)
+            if (!this.mapViewer.initialized && routeData.geometry.route && routeData.geometry.route.length > 0) {
+                // Route format: [lon, lat, world_offset_x, world_offset_y, world_offset_z]
+                const [lon, lat] = routeData.geometry.route[0];
+                console.log('Initializing MapViewer at route start:', { lat, lon });
+                // Initialize at ground level (height 0) to keep coordinate system consistent
+                this.mapViewer.init(this.scene, this.camera, this.renderer, lat, lon, 0);
+            }
+
             // Relocate camera to the start of the route before loading nodes
             if (routeData.geometry.route && routeData.geometry.route.length > 0) {
-                const [lon, lat, height] = routeData.geometry.route[0];
-                this.relocateToPosition(lat, lon, height + 100); // 100m above the start point
+                // Route format: [lon, lat, world_offset_x, world_offset_y, world_offset_z]
+                const [lon, lat, , world_offset_y] = routeData.geometry.route[0];
+                const altitude = world_offset_y || 200;
+                this.relocateToPosition(lat, lon, altitude + 100); // 100m above the start point
             }
 
             // Create route editor if not exists
@@ -202,8 +213,9 @@ export class Editor {
     }
 
     public relocateToPosition(lat: number, lon: number, height: number): void {
-        // Reorient the map to the new location
-        this.mapViewer.reorient(lat, lon, height);
+        // Reorient the map to ground level (height 0) to keep coordinate system consistent
+        // This ensures all ENU offsets are relative to ground level, not to the camera height
+        this.mapViewer.reorient(lat, lon, 0);
 
         // Convert geographic coordinates to world position for camera placement
         const worldPos = this.mapViewer.latLonHeightToWorldPosition(lat, lon, height);
@@ -285,14 +297,28 @@ export class Editor {
         this.sky.update(dt, this.camera);
         this.flightControls.update(dt);
         this.camera.updateMatrixWorld();
+
+        // Always update mapViewer to allow tiles to load (even before initialized)
         this.mapViewer.update();
-        this.routeEditor?.update();
+
+        // Only update route editor if mapViewer is initialized
+        if (this.mapViewer.initialized) {
+            this.routeEditor?.update();
+        }
 
         this.renderer.render(this.scene, this.camera);
 
-        this.handleRaycasting();
+        // Only handle raycasting if mapViewer is initialized
+        if (this.mapViewer.initialized) {
+            this.handleRaycasting();
+        }
 
-        this.setCreditsCallback(this.mapViewer.getCredits());
+        // Show credits only if mapViewer is initialized
+        if (this.mapViewer.initialized) {
+            this.setCreditsCallback(this.mapViewer.getCredits());
+        } else {
+            this.setCreditsCallback('Select or create a patch to begin editing');
+        }
 
         Input.update();
     }
