@@ -14,7 +14,7 @@ initializeSupabase();
 app.use(express.json());
 
 app.use((req, res, next) => {
-    const allowedOrigins = ['http://localhost:4321', 'https://georail-app.pages.dev'];
+    const allowedOrigins = ['http://localhost:4321', 'https://georail-app.pages.dev', 'https://georail.app'];
     const origin = req.headers.origin;
 
     if (allowedOrigins.includes(origin)) {
