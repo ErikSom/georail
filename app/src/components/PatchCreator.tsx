@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'preact/hooks';
 import type { RouteInfo } from '../lib/types/Patch';
 import { fetchAllStations, type StationTrackInfo } from '../lib/api/station';
-import { submitPatch } from '../lib/api/patches';
 
 import styles from './PatchCreator.module.css';
 
@@ -51,6 +50,8 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
 
         try {
             setLoading(true);
+
+            const { submitPatch } = await import('../lib/api/patches');
 
             // Create empty patch with route info
             const result = await submitPatch({

@@ -12,7 +12,6 @@ import { FlightControls } from '../utils/FlightControls';
 import { Input } from '../utils/Input';
 import { RouteEditor } from './RouteEditor';
 import { fetchRouteByName, type RouteData } from '../Georail';
-import { fetchPatchWithData } from '../api/patches';
 import type { RouteInfo } from '../types/Patch';
 import { Sky } from '../Sky';
 
@@ -143,6 +142,7 @@ export class Editor {
 
             // Fetch existing patch data to apply saved offsets
             // In review mode, bypass owner check to allow moderators to view any patch
+            const { fetchPatchWithData } = await import('../api/patches');
             const patchWithData = await fetchPatchWithData(patchId, reviewMode);
 
             // Initialize MapViewer at the start of the route (only once)

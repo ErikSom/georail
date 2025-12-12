@@ -2,7 +2,6 @@ import { useState, useEffect } from 'preact/hooks';
 import PatchList from './PatchList';
 import PatchCreator from './PatchCreator';
 import type { RouteInfo, Patch } from '../lib/types/Patch';
-import { cancelPatch, submitPatchForReview } from '../lib/api/patches';
 import { fetchUserRole, type UserRole } from '../lib/api/profile';
 
 import styles from './PatchManagement.module.css';
@@ -67,6 +66,7 @@ function PatchManagement({ onClose, onStartEditing, activePatchId }: PatchManage
 
     const handleCancelPatch = async (patchId: number) => {
         try {
+            const { cancelPatch } = await import('../lib/api/patches');
             await cancelPatch(patchId);
             // Force PatchList to reload by changing its key
             setPatchListKey(k => k + 1);
@@ -77,6 +77,7 @@ function PatchManagement({ onClose, onStartEditing, activePatchId }: PatchManage
 
     const handleSubmitPatch = async (patchId: number) => {
         try {
+            const { submitPatchForReview } = await import('../lib/api/patches');
             await submitPatchForReview(patchId);
             // Force PatchList to reload by changing its key
             setPatchListKey(k => k + 1);

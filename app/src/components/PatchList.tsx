@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'preact/hooks';
 import type { Patch } from '../lib/types/Patch';
-import { fetchPatches, fetchAllPatches, deletePatch, type PatchWithProfile } from '../lib/api/patches';
+import { type PatchWithProfile } from '../lib/api/patches';
 
 import styles from './PatchList.module.css';
 
@@ -36,6 +36,7 @@ function PatchList({ onCreateNew, onEditPatch, onReviewPatch, onReopenPatch, onC
             setLoading(true);
             setError(null);
             const filter = statusFilter === 'all' ? undefined : statusFilter;
+            const { fetchPatches, fetchAllPatches } = await import('../lib/api/patches');
             const data = moderatorMode
                 ? await fetchAllPatches(filter)
                 : await fetchPatches(filter);
@@ -59,6 +60,7 @@ function PatchList({ onCreateNew, onEditPatch, onReviewPatch, onReopenPatch, onC
         }
 
         try {
+            const { deletePatch } = await import('../lib/api/patches');
             setDeletingId(patchId);
             await deletePatch(patchId);
             await loadPatches();
