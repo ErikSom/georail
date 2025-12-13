@@ -70,6 +70,19 @@ export class Cab {
         this.group.add(this.rearBogieConnector);
     }
 
+    private updateModelTransform(): void {
+        if (!this.model) return;
+
+        this.model.scale.setScalar(this.config.scale);
+
+        // Combine altitudeOffset (mechanical clearance) with modelOffset.y (mesh correction)
+        this.model.position.set(
+            this.config.modelOffset.x,
+            this.config.altitudeOffset + this.config.modelOffset.y,
+            this.config.modelOffset.z
+        );
+    }
+
     private loadModel(path: string): void {
         const loader = getGLTFLoader();
         loader.load(
@@ -80,6 +93,9 @@ export class Cab {
                 }
 
                 this.model = gltf.scene!;
+
+                this.updateModelTransform();
+
                 this.model!.scale.setScalar(this.config.scale);
                 this.model!.position.y = this.config.altitudeOffset;
 
@@ -221,6 +237,8 @@ export class Cab {
             this.model.position.y = config.altitudeOffset;
             console.log('Updated model: scale =', config.scale, 'altitude =', config.altitudeOffset);
         }
+
+        this.updateModelTransform();
 
         // Re-find bogie entities if names changed
         if (bogieNamesChanged && this.model) {

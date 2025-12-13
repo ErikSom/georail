@@ -12,6 +12,7 @@ export class Train {
 
     // Route path for positioning on rails
     private pathPoints: Vector3[] = [];
+    public pathDebugSpheres: Mesh[] = [];
     private currentPathIndex: number = 0;
 
     // Global debug visualization (added directly to scene, not affected by hierarchy)
@@ -23,12 +24,12 @@ export class Train {
         rearBogieBack: Mesh | null;
         cabCenter: Mesh | null;
     } = {
-        frontBogieFront: null,
-        frontBogieBack: null,
-        rearBogieFront: null,
-        rearBogieBack: null,
-        cabCenter: null
-    };
+            frontBogieFront: null,
+            frontBogieBack: null,
+            rearBogieFront: null,
+            rearBogieBack: null,
+            cabCenter: null
+        };
 
     constructor(config: TrainConfig, debug: boolean = false) {
         this.config = config;
@@ -107,30 +108,38 @@ export class Train {
         return JSON.parse(JSON.stringify(this.config));
     }
 
+
+
+
+    private drawDebugPath(scene: Scene): void {
+        // Clear existing debug spheres
+        this.pathDebugSpheres.forEach(sphere => scene.remove(sphere));
+        this.pathDebugSpheres = [];
+
+        const sphereGeometry = new SphereGeometry(1.0, 8, 8);
+        const sphereMaterial = new MeshBasicMaterial({ color: 0xffff00 });
+
+        this.pathPoints.forEach((point, index) => {
+            const sphere = new Mesh(sphereGeometry, sphereMaterial);
+            sphere.position.copy(point);
+            scene.add(sphere);
+            this.pathDebugSpheres.push(sphere);
+        });
+
+        console.log(`Drawn ${this.pathDebugSpheres.length} debug spheres along the train path`);
+    }
+
+
     /**
      * Set the rail path that the train will follow
      */
     public setPath(pathPoints: Vector3[]): void {
         this.pathPoints = pathPoints;
         this.currentPathIndex = 0;
-    }
 
-    /**
-     * Find the closest point on the path to a given position
-     */
-    private findClosestPathIndex(position: Vector3): number {
-        let closestIndex = 0;
-        let closestDistance = Infinity;
-
-        for (let i = 0; i < this.pathPoints.length; i++) {
-            const distance = position.distanceTo(this.pathPoints[i]);
-            if (distance < closestDistance) {
-                closestDistance = distance;
-                closestIndex = i;
-            }
+        if (this.debug) {
+            this.drawDebugPath(this.group.parent as Scene);
         }
-
-        return closestIndex;
     }
 
     /**
@@ -254,7 +263,6 @@ export class Train {
             tempObj.up.set(0, 1, 0);
             tempObj.lookAt(frontPoint);
             this.group.quaternion.copy(tempObj.quaternion);
-            this.group.rotateY(Math.PI); // Adjust based on model forward direction
         }
 
         // Step 3: Orient bogies relative to the train's local space
@@ -408,6 +416,16 @@ export class Train {
             if (this.pathPoints.length > 0) {
                 this.positionOnPath(this.currentPathIndex);
             }
+        });
+
+        // 3d point model offset bindings
+        cabFolder.addBinding(this.config.cab, 'modelOffset', {
+            label: 'Model Offset'
+        }).on('change', (ev) => {
+            // Manually update the config with the new value from Tweakpane
+            this.config.cab.modelOffset = ev.value;
+            console.log('Model Offset changed to:', ev.value);
+            this.cab.updateConfig(this.config.cab);
         });
 
         cabFolder.addBinding(this.config.cab, 'showDebug', {

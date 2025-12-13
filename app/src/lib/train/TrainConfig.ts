@@ -20,6 +20,13 @@ export interface CabConfig {
     scale: number;
     // Vertical offset from rail (altitude)
     altitudeOffset: number;
+    // Position offset for the visual model (X, Y, Z)
+    // Use this to align the GLB model with the mechanical cab center
+    modelOffset: {
+        x: number;
+        y: number;
+        z: number;
+    }
     // Front bogie configuration
     frontBogie: BogieConfig;
     // Rear bogie configuration
@@ -41,6 +48,11 @@ export function getDefaultTrainConfig(): TrainConfig {
             modelPath: '/models/train/cab.glb',
             scale: 1.0,
             altitudeOffset: 0.0,
+            modelOffset: {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0
+            },
             frontBogie: {
                 zOffset: 5.0,  // 5 meters forward from cab center
                 frontWheelOffset: 1.0,  // 1 meter forward from bogie center
