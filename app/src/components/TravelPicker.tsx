@@ -60,6 +60,8 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
             const data = await fetchAllStations();
             setStations(data);
             setError(null);
+
+            handleDebug(); // to do remove later
         } catch (err) {
             setError('Failed to load stations. Please try again.');
             console.error(err);
@@ -98,6 +100,16 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
         } finally {
             setFetchingRoute(false);
         }
+    };
+
+    const handleDebug = () => {
+        setFromStation('Hoorn Kersenboogerd');
+        setToStation('Amsterdam Centraal');
+
+        setTimeout(() => {
+            setFromTrack('1');
+            setToTrack('4b');
+        }, 100);
     };
 
     const canSubmit = fromStation && toStation && !fetchingRoute;
