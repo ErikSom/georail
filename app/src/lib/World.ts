@@ -13,6 +13,8 @@ import { routePointToWorldPosition } from './utils/CoordinateHelpers';
 import { Sky } from './Sky';
 import { Train } from './train/Train';
 import { getDefaultTrainConfig } from './train/TrainConfig';
+import { Input } from './utils/Input';
+import { FlightControls } from './utils/FlightControls';
 
 export class World {
     private scene!: Scene;
@@ -21,6 +23,7 @@ export class World {
     private clock!: Clock;
 
     private controls!: OrbitControls;
+    private flightControls: FlightControls | null = null;
     private train!: Train;
     private mapViewer!: MapViewer;
     private sky!: Sky;
@@ -30,6 +33,7 @@ export class World {
     private mountElement: HTMLDivElement;
     private setCreditsCallback: (credits: string) => void;
     private routeData: RouteData | null = null;
+    private freeFlyCameraMode: boolean = false;
 
 
     constructor(mountElement: HTMLDivElement, setCreditsCallback: (credits: string) => void, routeData?: RouteData) {
@@ -74,6 +78,9 @@ export class World {
         this.controls.target.copy(this.train.group.position);
         this.controls.update();
 
+        // Initialize Input system
+        Input.init(this.renderer.domElement);
+
         window.addEventListener('resize', this.onWindowResize, false);
 
         this.animate();
@@ -90,11 +97,17 @@ export class World {
         }
 
         window.removeEventListener('resize', this.onWindowResize);
+        Input.cleanup();
 
         this.sky.cleanup();
         this.mapViewer.cleanup();
         this.train.cleanup();
         this.controls.dispose();
+
+        if (this.flightControls) {
+            this.flightControls.cleanup();
+        }
+
         this.renderer.dispose();
 
         if (this.mountElement) {
@@ -191,10 +204,31 @@ export class World {
         }
     }
 
+    private handleInput(): void {
+        // Check for camera mode toggle (Shift + ~)
+        if (Input.isPressed('Backquote') && Input.isShift) {
+            this.freeFlyCameraMode = !this.freeFlyCameraMode;
+
+            if (this.freeFlyCameraMode) {
+                // Initialize FlightControls if not already created
+                if (!this.flightControls) {
+                    this.flightControls = new FlightControls(this.camera, this.renderer.domElement);
+                    this.flightControls.init();
+                }
+                console.log('Free-fly camera mode enabled (right-click to move camera)');
+            }
+        }
+
+        Input.update();
+    }
+
 
     private animate(): void {
         this.rafId = requestAnimationFrame(this.animate);
         const deltaTime = this.clock.getDelta();
+
+        // Update Input
+        this.handleInput();
 
         // 1. Update Sky
         this.sky.update(deltaTime, this.camera);
@@ -202,15 +236,19 @@ export class World {
         // 2. Update MapViewer (tiles) - always update to allow tiles to load
         this.mapViewer.update();
 
-        // 3. Follow the train without fighting controls (only if initialized)
-        if (this.mapViewer.initialized) {
+        // 3. Follow the train without fighting controls (only if initialized and not in free-fly mode)
+        if (this.mapViewer.initialized && !this.freeFlyCameraMode) {
             this.tmp.copy(this.train.group.position).sub(this.controls.target); // delta the train moved
             this.controls.target.add(this.tmp);
             this.camera.position.add(this.tmp);
         }
 
-        // 4. Let controls handle damping/zoom/orbit
-        this.controls.update();
+        // 4. Update controls based on mode
+        if (this.freeFlyCameraMode && this.flightControls) {
+            this.flightControls.update(deltaTime);
+        } else {
+            this.controls.update();
+        }
 
         // 5. Update Camera
         this.camera.updateMatrixWorld();
