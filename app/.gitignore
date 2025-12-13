@@ -1,5 +1,8 @@
 # build output
 dist/
+
+asset-pipeline/build
+
 # generated types
 .astro/
 
