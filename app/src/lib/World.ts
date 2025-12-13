@@ -61,6 +61,7 @@ export class World {
         const trainConfig = getDefaultTrainConfig();
         this.train = new Train(trainConfig, true);
         this.scene.add(this.train.group);
+        this.scene.add(this.train.globalDebugGroup); // Add global debug spheres to scene
 
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
         this.controls.minDistance = 100;

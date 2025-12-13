@@ -1,4 +1,4 @@
-import { Group, Vector3 } from 'three';
+import { Group, Vector3, Mesh, SphereGeometry, MeshBasicMaterial, Scene } from 'three';
 import { Pane } from 'tweakpane';
 import type { TrainConfig } from './TrainConfig';
 import { Cab } from './Cab';
@@ -14,6 +14,22 @@ export class Train {
     private pathPoints: Vector3[] = [];
     private currentPathIndex: number = 0;
 
+    // Global debug visualization (added directly to scene, not affected by hierarchy)
+    public globalDebugGroup: Group = new Group();
+    private globalWheelSpheres: {
+        frontBogieFront: Mesh | null;
+        frontBogieBack: Mesh | null;
+        rearBogieFront: Mesh | null;
+        rearBogieBack: Mesh | null;
+        cabCenter: Mesh | null;
+    } = {
+        frontBogieFront: null,
+        frontBogieBack: null,
+        rearBogieFront: null,
+        rearBogieBack: null,
+        cabCenter: null
+    };
+
     constructor(config: TrainConfig, debug: boolean = false) {
         this.config = config;
         this.debug = debug;
@@ -27,7 +43,53 @@ export class Train {
         // Create Tweakpane UI if debug mode is enabled
         if (this.debug) {
             this.createDebugUI();
+            this.createGlobalDebugSpheres();
         }
+    }
+
+    /**
+     * Create global debug spheres that show wheel and cab positions in world space
+     */
+    private createGlobalDebugSpheres(): void {
+        const geometry = new SphereGeometry(0.5, 16, 16);
+
+        // Front bogie front wheel - Bright Green
+        this.globalWheelSpheres.frontBogieFront = new Mesh(
+            geometry,
+            new MeshBasicMaterial({ color: 0x00ff00 })
+        );
+        this.globalDebugGroup.add(this.globalWheelSpheres.frontBogieFront);
+
+        // Front bogie back wheel - Dark Green
+        this.globalWheelSpheres.frontBogieBack = new Mesh(
+            geometry,
+            new MeshBasicMaterial({ color: 0x00aa00 })
+        );
+        this.globalDebugGroup.add(this.globalWheelSpheres.frontBogieBack);
+
+        // Rear bogie front wheel - Bright Red
+        this.globalWheelSpheres.rearBogieFront = new Mesh(
+            geometry,
+            new MeshBasicMaterial({ color: 0xff0000 })
+        );
+        this.globalDebugGroup.add(this.globalWheelSpheres.rearBogieFront);
+
+        // Rear bogie back wheel - Dark Red
+        this.globalWheelSpheres.rearBogieBack = new Mesh(
+            geometry,
+            new MeshBasicMaterial({ color: 0xaa0000 })
+        );
+        this.globalDebugGroup.add(this.globalWheelSpheres.rearBogieBack);
+
+        // Cab center - Blue
+        this.globalWheelSpheres.cabCenter = new Mesh(
+            geometry,
+            new MeshBasicMaterial({ color: 0x0000ff })
+        );
+        this.globalDebugGroup.add(this.globalWheelSpheres.cabCenter);
+
+        this.globalDebugGroup.name = 'TrainGlobalDebug';
+        console.log('Created global debug spheres for train');
     }
 
     public updateConfig(config: TrainConfig): void {
@@ -74,6 +136,7 @@ export class Train {
     /**
      * Get a point on the path at a specific distance from a starting index
      * This allows us to find where the wheels should be positioned
+     * Extrapolates beyond path endpoints if necessary
      */
     private getPointAtDistance(startIndex: number, distance: number): { point: Vector3; index: number } | null {
         if (this.pathPoints.length < 2) return null;
@@ -86,7 +149,20 @@ export class Train {
 
         while (remainingDistance > 0 && currentIndex >= 0 && currentIndex < this.pathPoints.length - 1) {
             const nextIndex = forward ? currentIndex + 1 : currentIndex - 1;
-            if (nextIndex < 0 || nextIndex >= this.pathPoints.length) break;
+
+            // If we've reached the bounds, extrapolate
+            if (nextIndex < 0) {
+                // Extrapolate backward from index 0 using direction from point 1 to point 0
+                const direction = new Vector3().subVectors(this.pathPoints[0], this.pathPoints[1]).normalize();
+                currentPoint.copy(this.pathPoints[0]).add(direction.multiplyScalar(remainingDistance));
+                break;
+            } else if (nextIndex >= this.pathPoints.length) {
+                // Extrapolate forward from last index
+                const lastIndex = this.pathPoints.length - 1;
+                const direction = new Vector3().subVectors(this.pathPoints[lastIndex], this.pathPoints[lastIndex - 1]).normalize();
+                currentPoint.copy(this.pathPoints[lastIndex]).add(direction.multiplyScalar(remainingDistance));
+                break;
+            }
 
             const segmentVector = new Vector3().subVectors(this.pathPoints[nextIndex], this.pathPoints[currentIndex]);
             const segmentLength = segmentVector.length();
@@ -152,26 +228,88 @@ export class Train {
             return;
         }
 
-        // Position and orient front bogie
+        // ===== NEW APPROACH: Calculate global positions first, then orient top-down =====
+
+        // Store all global world positions - these are the TRUE positions on the rails
+        const globalPositions = {
+            frontBogieFrontWheel: frontBogieFrontWheel.point.clone(),
+            frontBogieBackWheel: frontBogieBackWheel.point.clone(),
+            rearBogieFrontWheel: rearBogieFrontWheel.point.clone(),
+            rearBogieBackWheel: rearBogieBackWheel.point.clone(),
+            cabCenter: cabCenterPos.clone()
+        };
+
+        // Step 1: Position the train group at the cab center in world space
+        this.group.position.copy(globalPositions.cabCenter);
+
+        // Step 2: Orient the entire train to follow the overall direction
+        // Use the direction from the rearmost wheel to the frontmost wheel
+        const rearPoint = globalPositions.rearBogieBackWheel;
+        const frontPoint = globalPositions.frontBogieFrontWheel;
+        const overallDirection = new Vector3().subVectors(frontPoint, rearPoint);
+
+        if (overallDirection.length() > 0.001) {
+            const tempObj = new Group();
+            tempObj.position.copy(rearPoint);
+            tempObj.up.set(0, 1, 0);
+            tempObj.lookAt(frontPoint);
+            this.group.quaternion.copy(tempObj.quaternion);
+            this.group.rotateY(Math.PI); // Adjust based on model forward direction
+        }
+
+        // Step 3: Orient bogies relative to the train's local space
+        // Convert global wheel positions to local space of the train group
         const frontBogie = this.cab.getFrontBogie();
-        frontBogie.orientOnRail(frontBogieFrontWheel.point, frontBogieBackWheel.point);
-
-        // Position and orient rear bogie
         const rearBogie = this.cab.getRearBogie();
-        rearBogie.orientOnRail(rearBogieFrontWheel.point, rearBogieBackWheel.point);
 
-        // Position the entire train/cab group at the path point
-        this.group.position.copy(cabCenterPos);
+        const localFrontFront = globalPositions.frontBogieFrontWheel.clone();
+        const localFrontBack = globalPositions.frontBogieBackWheel.clone();
+        const localRearFront = globalPositions.rearBogieFrontWheel.clone();
+        const localRearBack = globalPositions.rearBogieBackWheel.clone();
 
-        // Orient the cab based on its bogies
+        this.group.worldToLocal(localFrontFront);
+        this.group.worldToLocal(localFrontBack);
+        this.group.worldToLocal(localRearFront);
+        this.group.worldToLocal(localRearBack);
+
+        // Orient bogies based on their local wheel positions
+        frontBogie.orientOnRail(localFrontFront, localFrontBack);
+        rearBogie.orientOnRail(localRearFront, localRearBack);
+
+        // Orient cab model between the bogies (optional, for visual smoothness)
         this.cab.orientOnBogies();
+
+        // Update global debug spheres with world positions
+        if (this.debug) {
+            if (this.globalWheelSpheres.frontBogieFront) {
+                this.globalWheelSpheres.frontBogieFront.position.copy(frontBogieFrontWheel.point);
+            }
+            if (this.globalWheelSpheres.frontBogieBack) {
+                this.globalWheelSpheres.frontBogieBack.position.copy(frontBogieBackWheel.point);
+            }
+            if (this.globalWheelSpheres.rearBogieFront) {
+                this.globalWheelSpheres.rearBogieFront.position.copy(rearBogieFrontWheel.point);
+            }
+            if (this.globalWheelSpheres.rearBogieBack) {
+                this.globalWheelSpheres.rearBogieBack.position.copy(rearBogieBackWheel.point);
+            }
+            if (this.globalWheelSpheres.cabCenter) {
+                this.globalWheelSpheres.cabCenter.position.copy(cabCenterPos);
+            }
+        }
 
         // Debug logging (only log occasionally to avoid spam)
         if (pathIndex % 100 === 0 || pathIndex === 0) {
             console.log(`Train positioned at path index ${pathIndex}:`, {
                 position: this.group.position,
                 frontBogieRotation: frontBogie.group.rotation,
-                rearBogieRotation: rearBogie.group.rotation
+                rearBogieRotation: rearBogie.group.rotation,
+                wheelPositions: {
+                    frontFront: frontBogieFrontWheel.point,
+                    frontBack: frontBogieBackWheel.point,
+                    rearFront: rearBogieFrontWheel.point,
+                    rearBack: rearBogieBackWheel.point
+                }
             });
         }
     }
