@@ -13,7 +13,7 @@ export class Train {
     private rearCab: Cab | null = null;
 
     private path: Path | null = null;
-    private currentPathIndex: number = 0;
+    private distanceTraveled: number = 0;
 
     private debug: boolean;
     private pane: Pane | null = null;
@@ -46,7 +46,7 @@ export class Train {
         this.cab.updateConfig(structuredClone(this.config.cab));
 
         if (this.path && this.path.points.length > 0) {
-            this.positionOnPath(this.currentPathIndex);
+            this.positionOnPath();
         }
 
         this.pane?.refresh();
@@ -54,32 +54,30 @@ export class Train {
 
     public setPath(path: Path): void {
         this.path = path;
-        this.currentPathIndex = 0;
 
         if (this.debug) {
             this.path?.drawDebugPath(this.group.parent as Scene);
+            this.createDebugUI();
         }
     }
 
-    public positionOnPath(pathIndex: number): void {
+    public positionOnPath(): void {
         const pathPoints = this.path?.points || [];
         if (pathPoints.length < 2) {
             console.warn('Train: Not enough path points to position train');
             return;
         }
 
-        // Clamp path index
-        pathIndex = Math.max(0, Math.min(pathIndex, pathPoints.length - 1));
-        this.currentPathIndex = pathIndex;
+        const trainPosition = this.path!.getPointAtDistance(this.distanceTraveled, this.group.position);
 
-        this.cab.positionOnPath(pathIndex, this.path!);
-    }
-
-    public getCurrentPathIndex(): number {
-        return this.currentPathIndex;
+        this.cab.positionOnPath(this.distanceTraveled, this.path!);
     }
 
     private createDebugUI(): void {
+        if (this.pane) {
+            this.pane.dispose();
+        }
+
         this.pane = new Pane({ title: 'Train Configuration' });
 
         // Cab
@@ -101,14 +99,15 @@ export class Train {
         // Add path index slider if we have a path
         const pathPoints = this.path?.points || [];
         if (pathPoints.length > 1) {
-            const params = { pathIndex: this.currentPathIndex };
-            this.pane.addBinding(params, 'pathIndex', {
-                label: 'Path Position',
+            const params = { pathProgress: 0 };
+            this.pane.addBinding(params, 'pathProgress', {
+                label: 'Path Progress',
                 min: 0,
-                max: Math.max(0, pathPoints.length - 1),
-                step: 1
+                max: 1,
+                step: 0.0001,
             }).on('change', (ev) => {
-                this.positionOnPath(ev.value);
+                this.distanceTraveled = this.path?.getTotalLength()! * ev.value;
+                this.positionOnPath();
             });
         }
     }

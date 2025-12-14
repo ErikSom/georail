@@ -6,16 +6,6 @@ import type { Pane } from 'tweakpane';
 import { dummy } from '../utils/Helper';
 import FilePicker from '../utils/FilePicker';
 
-interface IRailPositions {
-    center: Vector3;
-    bogieFront: { point: Vector3; index: number };
-    bogieFrontFront: { point: Vector3; index: number };
-    bogieFrontBack: { point: Vector3; index: number };
-    bogieRear: { point: Vector3; index: number };
-    bogieRearFront: { point: Vector3; index: number };
-    bogieRearBack: { point: Vector3; index: number };
-}
-
 export class Cab {
     public group: Group;
     public globalDebugGroup: Group;
@@ -26,6 +16,16 @@ export class Cab {
 
     private frontBogieEntity: Object3D | null = null;
     private rearBogieEntity: Object3D | null = null;
+
+    private railPositions = {
+        center: new Vector3(),
+        bogieFront: new Vector3(),
+        bogieFrontFront: new Vector3(),
+        bogieFrontBack: new Vector3(),
+        bogieRear: new Vector3(),
+        bogieRearFront: new Vector3(),
+        bogieRearBack: new Vector3(),
+    }
 
     // Global debug visualization (added directly to scene, not affected by hierarchy)
     private debug: boolean = false;
@@ -172,45 +172,37 @@ export class Cab {
         object.children.forEach(child => this.logModelHierarchy(child, depth + 1));
     }
 
-    public positionOnPath(pathIndex: number, path: Path): void {
+    public positionOnPath(distance: number, path: Path): void {
         const { frontBogie, rearBogie } = this.config;
 
-        const getWheelPoint = (config: BogieConfig, offset: number) => {
+        const getWheelPoint = (config: BogieConfig, offset: number, out: Vector3) => {
             const totalOffset = config.zOffset + offset;
-            return path.getPointAtDistance(pathIndex, totalOffset);
+            return path.getPointAtDistance(totalOffset, out);
         };
 
-        const railPositions = {
-            center: path.points[pathIndex].clone(),
-            bogieFront: getWheelPoint(frontBogie, 0),
-            bogieFrontFront: getWheelPoint(frontBogie, frontBogie.frontWheelOffset),
-            bogieFrontBack: getWheelPoint(frontBogie, frontBogie.backWheelOffset),
-            bogieRear: getWheelPoint(rearBogie, 0),
-            bogieRearFront: getWheelPoint(rearBogie, rearBogie.frontWheelOffset),
-            bogieRearBack: getWheelPoint(rearBogie, rearBogie.backWheelOffset),
-        } as IRailPositions;
+        // Get bogie and wheel positions
+        getWheelPoint(frontBogie, distance, this.railPositions.bogieFront);
+        getWheelPoint(frontBogie, distance + frontBogie.frontWheelOffset, this.railPositions.bogieFrontFront);
+        getWheelPoint(frontBogie, distance + frontBogie.backWheelOffset, this.railPositions.bogieFrontBack);
+        getWheelPoint(rearBogie, distance, this.railPositions.bogieRear);
+        getWheelPoint(rearBogie, distance + rearBogie.frontWheelOffset, this.railPositions.bogieRearFront);
+        getWheelPoint(rearBogie, distance + rearBogie.backWheelOffset, this.railPositions.bogieRearBack);
+        path.getPointAtDistance(distance, this.railPositions.center);
 
-        if (!railPositions.center ||
-            !railPositions.bogieFront || !railPositions.bogieFrontFront || !railPositions.bogieFrontBack ||
-            !railPositions.bogieRear || !railPositions.bogieRearFront || !railPositions.bogieRearBack) {
-            console.warn('Train: Could not find all wheel positions on path');
-            return;
-        }
+        this.orientOnRails();
 
-        this.orientOnRails(railPositions);
-
-        if (this.debug) this.updateDebugVisuals(railPositions);
+        if (this.debug) this.updateDebugVisuals();
     }
 
-    private updateDebugVisuals(railPositions: IRailPositions): void {
+    private updateDebugVisuals(): void {
         const map = {
-            bogieFront: railPositions.bogieFront.point,
-            bogieFrontFront: railPositions.bogieFrontFront.point,
-            bogieFrontBack: railPositions.bogieFrontBack.point,
-            bogieRear: railPositions.bogieRear.point,
-            bogieRearFront: railPositions.bogieRearFront.point,
-            bogieRearBack: railPositions.bogieRearBack.point,
-            center: railPositions.center
+            bogieFront: this.railPositions.bogieFront,
+            bogieFrontFront: this.railPositions.bogieFrontFront,
+            bogieFrontBack: this.railPositions.bogieFrontBack,
+            bogieRear: this.railPositions.bogieRear,
+            bogieRearFront: this.railPositions.bogieRearFront,
+            bogieRearBack: this.railPositions.bogieRearBack,
+            center: this.railPositions.center
         };
 
         type WheelSphereKey = keyof typeof map;
@@ -272,12 +264,9 @@ export class Cab {
         }
     }
 
-    public orientOnRails(railPositions: IRailPositions): void {
-        this.group.position.copy(railPositions.center);
-
-
-        const frontPoint = railPositions.bogieFront.point;
-        const rearPoint = railPositions.bogieRear.point;
+    public orientOnRails(): void {
+        const frontPoint = this.railPositions.bogieFront;
+        const rearPoint = this.railPositions.bogieRear;
 
         dummy.position.copy(rearPoint);
         dummy.lookAt(frontPoint);

@@ -190,7 +190,7 @@ export class World {
 
             const path = new Path(pathPoints);
             this.train.setPath(path);
-            this.train.positionOnPath(0);
+            this.train.positionOnPath();
 
             // Focus camera on train
             this.camera.position.set(
@@ -239,7 +239,7 @@ export class World {
 
         // 3. Follow the train without fighting controls (only if initialized and not in free-fly mode)
         if (this.mapViewer.initialized && !this.freeFlyCameraMode) {
-            this.tmp.copy(this.train.group.position).sub(this.controls.target); // delta the train moved
+            this.tmp.copy(this.train.group.position).sub(this.controls.target);
             this.controls.target.add(this.tmp);
             this.camera.position.add(this.tmp);
         }
