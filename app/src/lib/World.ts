@@ -15,6 +15,7 @@ import { Train } from './train/Train';
 import { getDefaultTrainConfig } from './train/TrainConfig';
 import { Input } from './utils/Input';
 import { FlightControls } from './utils/FlightControls';
+import Path from './utils/Path';
 
 export class World {
     private scene!: Scene;
@@ -65,7 +66,7 @@ export class World {
         const trainConfig = getDefaultTrainConfig();
         this.train = new Train(trainConfig, true);
         this.scene.add(this.train.group);
-        this.scene.add(this.train.globalDebugGroup); // Add global debug spheres to scene
+        this.scene.add(this.train.globalDebugGroup);
 
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
         this.controls.minDistance = 100;
@@ -187,8 +188,8 @@ export class World {
                 return;
             }
 
-            // Set path for train and position it at the start
-            this.train.setPath(pathPoints);
+            const path = new Path(pathPoints);
+            this.train.setPath(path);
             this.train.positionOnPath(0);
 
             // Focus camera on train
