@@ -64,7 +64,7 @@ export default class Path {
         this.pathDebugSpheres.forEach(sphere => scene.remove(sphere));
         this.pathDebugSpheres = [];
 
-        const sphereGeometry = new SphereGeometry(1.0, 8, 8);
+        const sphereGeometry = new SphereGeometry(0.4, 8, 8);
         const sphereMaterial = new MeshBasicMaterial({ color: 0xffff00 });
 
         this.points.forEach((point, index) => {
