@@ -305,21 +305,6 @@ export class Train {
                 this.globalWheelSpheres.cabCenter.position.copy(cabCenterPos);
             }
         }
-
-        // Debug logging (only log occasionally to avoid spam)
-        if (pathIndex % 100 === 0 || pathIndex === 0) {
-            console.log(`Train positioned at path index ${pathIndex}:`, {
-                position: this.group.position,
-                frontBogieRotation: frontBogie.group.rotation,
-                rearBogieRotation: rearBogie.group.rotation,
-                wheelPositions: {
-                    frontFront: frontBogieFrontWheel.point,
-                    frontBack: frontBogieBackWheel.point,
-                    rearFront: rearBogieFrontWheel.point,
-                    rearBack: rearBogieBackWheel.point
-                }
-            });
-        }
     }
 
     public getCurrentPathIndex(): number {
@@ -399,25 +384,6 @@ export class Train {
             }
         });
 
-        cabFolder.addBinding(this.config.cab, 'altitudeOffset', {
-            label: 'Altitude Offset',
-            min: -10.0,
-            max: 10.0,
-            step: 0.1
-        }).on('change', (ev) => {
-            // Manually update the config with the new value from Tweakpane
-            this.config.cab.altitudeOffset = ev.value;
-            console.log('Altitude changed to:', ev.value);
-
-            // Update the cab with the modified config
-            this.cab.updateConfig(this.config.cab);
-
-            // Reposition if we have a path
-            if (this.pathPoints.length > 0) {
-                this.positionOnPath(this.currentPathIndex);
-            }
-        });
-
         // 3d point model offset bindings
         cabFolder.addBinding(this.config.cab, 'modelOffset', {
             label: 'Model Offset'
@@ -427,10 +393,6 @@ export class Train {
             console.log('Model Offset changed to:', ev.value);
             this.cab.updateConfig(this.config.cab);
         });
-
-        cabFolder.addBinding(this.config.cab, 'showDebug', {
-            label: 'Show Debug'
-        }).on('change', () => this.updateConfig(this.config));
 
         // Front Bogie folder
         const frontBogieFolder = cabFolder.addFolder({ title: 'Front Bogie', expanded: true });
@@ -476,10 +438,6 @@ export class Train {
             label: 'Entity Name (GLB)'
         }).on('change', () => this.updateConfig(this.config));
 
-        frontBogieFolder.addBinding(this.config.cab.frontBogie, 'showDebug', {
-            label: 'Show Debug'
-        }).on('change', () => this.updateConfig(this.config));
-
         // Rear Bogie folder
         const rearBogieFolder = cabFolder.addFolder({ title: 'Rear Bogie', expanded: true });
 
@@ -522,10 +480,6 @@ export class Train {
 
         rearBogieFolder.addBinding(this.config.cab.rearBogie, 'entityName', {
             label: 'Entity Name (GLB)'
-        }).on('change', () => this.updateConfig(this.config));
-
-        rearBogieFolder.addBinding(this.config.cab.rearBogie, 'showDebug', {
-            label: 'Show Debug'
         }).on('change', () => this.updateConfig(this.config));
 
         // Add button to copy configuration as JSON

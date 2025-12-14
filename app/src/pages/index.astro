@@ -1,9 +1,10 @@
 ---
-import AstroLayout from '../layouts/Layout.astro';
-import ThreeViewer from '../components/ThreeViewer.tsx';
-import Auth from '../components/Auth.tsx';
+import AstroLayout from "../layouts/Layout.astro";
+import ThreeViewer from "../components/ThreeViewer.tsx";
+import Auth from "../components/Auth.tsx";
 ---
-<AstroLayout title="Astro 3D Viewer">
+
+<AstroLayout title="Georail">
     <Auth client:load />
     <ThreeViewer client:load />
 </AstroLayout>
