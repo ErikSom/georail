@@ -48,6 +48,8 @@ export class Train {
         if (this.path && this.path.points.length > 0) {
             this.positionOnPath(this.currentPathIndex);
         }
+
+        this.pane?.refresh();
     }
 
     public setPath(path: Path): void {
@@ -75,37 +77,6 @@ export class Train {
 
     public getCurrentPathIndex(): number {
         return this.currentPathIndex;
-    }
-
-    private openGLBFilePicker(): void {
-        // Create a hidden file input element
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.glb,.gltf';
-        input.style.display = 'none';
-
-        input.onchange = (e) => {
-            const file = (e.target as HTMLInputElement).files?.[0];
-            if (!file) return;
-
-            // Create a blob URL for the selected file
-            const url = URL.createObjectURL(file);
-
-            console.log('Loading GLB file:', file.name, 'from URL:', url);
-
-            this.config.cab.modelPath = url;
-
-            this.updateConfig(this.config);
-
-            if (this.pane) {
-                this.pane.refresh();
-            }
-        };
-
-        // Trigger the file picker
-        document.body.appendChild(input);
-        input.click();
-        document.body.removeChild(input);
     }
 
     private createDebugUI(): void {

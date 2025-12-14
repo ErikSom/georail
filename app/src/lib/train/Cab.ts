@@ -5,6 +5,7 @@ import { getGLTFLoader } from '../utils/ModelLoader';
 import type Path from '../utils/Path';
 import type { Pane } from 'tweakpane';
 import { dummy } from '../utils/Helper';
+import FilePicker from '../utils/FilePicker';
 
 export class Cab {
     public group: Group;
@@ -318,7 +319,15 @@ export class Cab {
 
         // Add file picker button for GLB model
         cabFolder.addButton({ title: 'Load GLB File...' }).on('click', () => {
-            // this.openGLBFilePicker();
+            FilePicker((url: string) => {
+                if (this.rearCab) {
+                    config.rearCab!.modelPath = url;
+                } else {
+                    config.cab.modelPath = url;
+                }
+
+                updateConfig(config);
+            }, '.glb,.gltf');
         });
 
         cabFolder.addBinding(config.cab, 'scale', {
