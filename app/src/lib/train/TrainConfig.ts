@@ -7,7 +7,7 @@ export interface BogieConfig {
     entityName?: string;
 }
 
-export interface CabConfig {
+interface BaseWagonConfig {
     modelPath: string;
     scale: number;
     modelOffset: {
@@ -19,10 +19,18 @@ export interface CabConfig {
     rearBogie: BogieConfig;
 }
 
+export interface CabConfig extends BaseWagonConfig {
+    // Additional cab-specific properties can go here
+}
+
+export interface WagonConfig extends BaseWagonConfig {
+    // Additional wagon-specific properties can go here
+}
+
 export interface TrainConfig {
     cab: CabConfig;
-    // Future: wagons will go here
-    // wagons: WagonConfig[];
+    wagons: WagonConfig[];
+    rearCab?: CabConfig;
 }
 
 // Default configuration
@@ -48,6 +56,7 @@ export function getDefaultTrainConfig(): TrainConfig {
                 backWheelOffset: -1.0,  // 1 meter backward from bogie center
                 entityName: '',  // Name of rear bogie in GLB (leave empty to auto-detect)
             },
-        }
+        },
+        wagons: []
     };
 }

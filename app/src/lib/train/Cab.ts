@@ -1,14 +1,17 @@
 import { Group, Mesh, Quaternion, Object3D, SphereGeometry, MeshBasicMaterial, Vector3 } from 'three';
-import type { CabConfig } from './TrainConfig';
+import type { BogieConfig, CabConfig, TrainConfig } from './TrainConfig';
 import { Bogie } from './Bogie';
 import { getGLTFLoader } from '../utils/ModelLoader';
 import type Path from '../utils/Path';
+import type { Pane } from 'tweakpane';
+import { dummy } from '../utils/Helper';
 
 export class Cab {
     public group: Group;
     public globalDebugGroup: Group;
 
     private config: CabConfig;
+    private rearCab: boolean = false;
     private frontBogie: Bogie;
     private rearBogie: Bogie;
     private model: Group | null = null;
@@ -16,7 +19,6 @@ export class Cab {
     private frontBogieEntity: Object3D | null = null;
     private rearBogieEntity: Object3D | null = null;
     private tempQuaternion: Quaternion = new Quaternion();
-
 
     // Global debug visualization (added directly to scene, not affected by hierarchy)
     private debug: boolean = false;
@@ -34,12 +36,13 @@ export class Cab {
             cabCenter: null
         };
 
-    constructor(config: CabConfig, debug: boolean = false) {
+    constructor(config: CabConfig, rearCab: boolean = false, debug: boolean = false) {
         this.config = config;
         this.debug = debug;
+        this.rearCab = rearCab;
 
         this.group = new Group();
-        this.group.name = 'Cab';
+        this.group.name = rearCab ? 'RearCab' : 'FrontCab';
 
         this.globalDebugGroup = new Group();
         this.globalDebugGroup.name = 'CabGlobalDebug';
@@ -151,6 +154,82 @@ export class Cab {
         object.children.forEach(child => this.logModelHierarchy(child, depth + 1));
     }
 
+    public positionOnPath(pathIndex: number, path: Path): void {
+        const { frontBogie, rearBogie } = this.config;
+
+        // 1. Calculate Global Wheel Positions
+        // Helper to calculate offset and fetch point
+        const getWheelPoint = (config: BogieConfig, offset: number) => {
+            const totalOffset = config.zOffset + offset;
+            return path.getPointAtDistance(pathIndex, totalOffset);
+        };
+
+        const wheels = {
+            frontFront: getWheelPoint(frontBogie, frontBogie.frontWheelOffset),
+            frontBack: getWheelPoint(frontBogie, frontBogie.backWheelOffset),
+            rearFront: getWheelPoint(rearBogie, rearBogie.frontWheelOffset),
+            rearBack: getWheelPoint(rearBogie, rearBogie.backWheelOffset),
+        };
+
+        // 2. Validation
+        if (!wheels.frontFront || !wheels.frontBack || !wheels.rearFront || !wheels.rearBack) {
+            console.warn('Train: Could not find all wheel positions on path');
+            return;
+        }
+
+        // 3. Position the Main Train Body
+        const cabCenterPos = path.points[pathIndex].clone(); // Or calculate geometrically between bogies if preferred
+        this.group.position.copy(cabCenterPos);
+
+        // 4. Orient the Main Train Body
+        // We align the train based on the vector from the very last wheel to the very first wheel
+        const frontPoint = wheels.frontFront.point;
+        const rearPoint = wheels.rearBack.point;
+
+        // Optimization: Use a class-level dummy object to avoid creating 'new Group()' every frame
+        // If you don't have this._dummy, create it once in the constructor: this._dummy = new Object3D();
+        dummy.position.copy(rearPoint);
+        dummy.lookAt(frontPoint);
+        this.group.quaternion.copy(dummy.quaternion);
+
+        // 5. Orient Individual Bogies
+        this.updateBogie(this.getFrontBogie(), wheels.frontFront.point, wheels.frontBack.point);
+        this.updateBogie(this.getRearBogie(), wheels.rearFront.point, wheels.rearBack.point);
+
+        // 6. Optional: Orient Cab & Debug
+        this.orientOnBogies();
+        if (this.debug) this.updateDebugVisuals(cabCenterPos, wheels);
+    }
+
+    private updateBogie(bogieModel: Bogie, globalFront: Vector3, globalBack: Vector3): void {
+        const localFront = globalFront.clone();
+        const localBack = globalBack.clone();
+
+        this.group.worldToLocal(localFront);
+        this.group.worldToLocal(localBack);
+
+        bogieModel.orientOnRail(localFront, localBack);
+    }
+
+    private updateDebugVisuals(cabCenter: Vector3, wheels: any): void {
+        const map = {
+            frontBogieFront: wheels.frontFront.point,
+            frontBogieBack: wheels.frontBack.point,
+            rearBogieFront: wheels.rearFront.point,
+            rearBogieBack: wheels.rearBack.point,
+            cabCenter: cabCenter
+        };
+
+        type WheelSphereKey = keyof typeof map;
+
+        for (const [key, pos] of Object.entries(map)) {
+            const typedKey = key as WheelSphereKey;
+            if (this.globalWheelSpheres[typedKey]) {
+                this.globalWheelSpheres[typedKey]!.position.copy(pos);
+            }
+        }
+    }
+
     private findBogieEntities(): void {
         if (!this.model) return;
 
@@ -177,98 +256,6 @@ export class Cab {
                 console.log('Found rear bogie entity:', this.config.rearBogie.entityName);
             } else {
                 console.warn('Rear bogie entity not found:', this.config.rearBogie.entityName);
-            }
-        }
-    }
-
-    public positionOnPath(pathIndex: number, path: Path): void {
-        // Get cab center position (approximately at pathIndex)
-        const cabCenterPos = path.points[pathIndex].clone();
-
-        // Calculate where each wheel should be on the path
-        // Front bogie, front wheel
-        const frontBogieConfig = this.config.frontBogie;
-        const frontBogieOffset = frontBogieConfig.zOffset;
-        const frontBogieWheelFrontOffset = frontBogieOffset + frontBogieConfig.frontWheelOffset;
-        const frontBogieWheelBackOffset = frontBogieOffset + frontBogieConfig.backWheelOffset;
-
-        // Rear bogie, front wheel
-        const rearBogieConfig = this.config.rearBogie;
-        const rearBogieOffset = rearBogieConfig.zOffset;
-        const rearBogieWheelFrontOffset = rearBogieOffset + rearBogieConfig.frontWheelOffset;
-        const rearBogieWheelBackOffset = rearBogieOffset + rearBogieConfig.backWheelOffset;
-
-        // Find positions on path for each wheel
-        const frontBogieFrontWheel = path.getPointAtDistance(pathIndex, frontBogieWheelFrontOffset);
-        const frontBogieBackWheel = path.getPointAtDistance(pathIndex, frontBogieWheelBackOffset);
-        const rearBogieFrontWheel = path.getPointAtDistance(pathIndex, rearBogieWheelFrontOffset);
-        const rearBogieBackWheel = path.getPointAtDistance(pathIndex, rearBogieWheelBackOffset);
-
-        if (!frontBogieFrontWheel || !frontBogieBackWheel || !rearBogieFrontWheel || !rearBogieBackWheel) {
-            console.warn('Train: Could not find all wheel positions on path');
-            return;
-        }
-
-        const globalPositions = {
-            frontBogieFrontWheel: frontBogieFrontWheel.point.clone(),
-            frontBogieBackWheel: frontBogieBackWheel.point.clone(),
-            rearBogieFrontWheel: rearBogieFrontWheel.point.clone(),
-            rearBogieBackWheel: rearBogieBackWheel.point.clone(),
-            cabCenter: cabCenterPos.clone()
-        };
-
-        this.group.position.copy(globalPositions.cabCenter);
-
-        const rearPoint = globalPositions.rearBogieBackWheel;
-        const frontPoint = globalPositions.frontBogieFrontWheel;
-        const overallDirection = new Vector3().subVectors(frontPoint, rearPoint);
-
-        if (overallDirection.length() > 0.001) {
-            const tempObj = new Group();
-            tempObj.position.copy(rearPoint);
-            tempObj.up.set(0, 1, 0);
-            tempObj.lookAt(frontPoint);
-            this.group.quaternion.copy(tempObj.quaternion);
-        }
-
-        // Step 3: Orient bogies relative to the train's local space
-        // Convert global wheel positions to local space of the train group
-        const frontBogie = this.getFrontBogie();
-        const rearBogie = this.getRearBogie();
-
-        const localFrontFront = globalPositions.frontBogieFrontWheel.clone();
-        const localFrontBack = globalPositions.frontBogieBackWheel.clone();
-        const localRearFront = globalPositions.rearBogieFrontWheel.clone();
-        const localRearBack = globalPositions.rearBogieBackWheel.clone();
-
-        this.group.worldToLocal(localFrontFront);
-        this.group.worldToLocal(localFrontBack);
-        this.group.worldToLocal(localRearFront);
-        this.group.worldToLocal(localRearBack);
-
-        // Orient bogies based on their local wheel positions
-        frontBogie.orientOnRail(localFrontFront, localFrontBack);
-        rearBogie.orientOnRail(localRearFront, localRearBack);
-
-        // Orient cab model between the bogies (optional, for visual smoothness)
-        this.orientOnBogies();
-
-        // Update global debug spheres with world positions
-        if (this.debug) {
-            if (this.globalWheelSpheres.frontBogieFront) {
-                this.globalWheelSpheres.frontBogieFront.position.copy(frontBogieFrontWheel.point);
-            }
-            if (this.globalWheelSpheres.frontBogieBack) {
-                this.globalWheelSpheres.frontBogieBack.position.copy(frontBogieBackWheel.point);
-            }
-            if (this.globalWheelSpheres.rearBogieFront) {
-                this.globalWheelSpheres.rearBogieFront.position.copy(rearBogieFrontWheel.point);
-            }
-            if (this.globalWheelSpheres.rearBogieBack) {
-                this.globalWheelSpheres.rearBogieBack.position.copy(rearBogieBackWheel.point);
-            }
-            if (this.globalWheelSpheres.cabCenter) {
-                this.globalWheelSpheres.cabCenter.position.copy(cabCenterPos);
             }
         }
     }
@@ -320,6 +307,87 @@ export class Cab {
 
     public getRearBogie(): Bogie {
         return this.rearBogie;
+    }
+
+    public createDebugUI(pane: Pane, config: TrainConfig, updateConfig: (config: TrainConfig) => void): void {
+        const cabFolder = pane.addFolder({ title: this.rearCab ? 'Rear Cab' : 'Front Cab', expanded: true });
+
+        cabFolder.addBinding(config.cab, 'modelPath', {
+            label: 'Model Path'
+        }).on('change', () => updateConfig(config));
+
+        // Add file picker button for GLB model
+        cabFolder.addButton({ title: 'Load GLB File...' }).on('click', () => {
+            // this.openGLBFilePicker();
+        });
+
+        cabFolder.addBinding(config.cab, 'scale', {
+            label: 'Scale',
+            min: 0.1,
+            max: 5.0,
+            step: 0.1
+        }).on('change', () => updateConfig(config));
+
+        // 3d point model offset bindings
+        cabFolder.addBinding(config.cab, 'modelOffset', {
+            label: 'Model Offset'
+        }).on('change', () => updateConfig(config));
+
+        // Front Bogie folder
+        const frontBogieFolder = cabFolder.addFolder({ title: 'Front Bogie', expanded: true });
+
+        frontBogieFolder.addBinding(config.cab.frontBogie, 'zOffset', {
+            label: 'Z Offset',
+            min: -20.0,
+            max: 20.0,
+            step: 0.1
+        }).on('change', () => updateConfig(config));
+
+        frontBogieFolder.addBinding(config.cab.frontBogie, 'frontWheelOffset', {
+            label: 'Front Wheel Offset',
+            min: -5.0,
+            max: 5.0,
+            step: 0.1
+        }).on('change', () => updateConfig(config));
+
+        frontBogieFolder.addBinding(config.cab.frontBogie, 'backWheelOffset', {
+            label: 'Back Wheel Offset',
+            min: -5.0,
+            max: 5.0,
+            step: 0.1
+        }).on('change', () => updateConfig(config));
+
+        frontBogieFolder.addBinding(config.cab.frontBogie, 'entityName', {
+            label: 'Entity Name (GLB)'
+        }).on('change', () => updateConfig(config));
+
+        // Rear Bogie folder
+        const rearBogieFolder = cabFolder.addFolder({ title: 'Rear Bogie', expanded: true });
+
+        rearBogieFolder.addBinding(config.cab.rearBogie, 'zOffset', {
+            label: 'Z Offset',
+            min: -20.0,
+            max: 20.0,
+            step: 0.1
+        }).on('change', () => updateConfig(config));
+
+        rearBogieFolder.addBinding(config.cab.rearBogie, 'frontWheelOffset', {
+            label: 'Front Wheel Offset',
+            min: -5.0,
+            max: 5.0,
+            step: 0.1
+        }).on('change', () => updateConfig(config));
+
+        rearBogieFolder.addBinding(config.cab.rearBogie, 'backWheelOffset', {
+            label: 'Back Wheel Offset',
+            min: -5.0,
+            max: 5.0,
+            step: 0.1
+        }).on('change', () => updateConfig(config));
+
+        rearBogieFolder.addBinding(config.cab.rearBogie, 'entityName', {
+            label: 'Entity Name (GLB)'
+        }).on('change', () => updateConfig(config));
     }
 
     public cleanup(): void {

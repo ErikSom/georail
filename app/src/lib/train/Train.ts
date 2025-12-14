@@ -1,4 +1,4 @@
-import { Group, Vector3, Mesh, SphereGeometry, MeshBasicMaterial, Scene } from 'three';
+import { Group, Scene } from 'three';
 import { Pane } from 'tweakpane';
 import type { TrainConfig } from './TrainConfig';
 import { Cab } from './Cab';
@@ -10,12 +10,13 @@ export class Train {
 
     private config!: TrainConfig;
     private cab: Cab;
-    private debug: boolean;
-    private pane: Pane | null = null;
+    private rearCab: Cab | null = null;
 
     private path: Path | null = null;
-    public pathDebugSpheres: Mesh[] = [];
     private currentPathIndex: number = 0;
+
+    private debug: boolean;
+    private pane: Pane | null = null;
 
     constructor(config: TrainConfig, debug: boolean = false) {
 
@@ -26,7 +27,7 @@ export class Train {
         this.globalDebugGroup = new Group();
         this.globalDebugGroup.name = 'Train Global Debug Spheres';
 
-        this.cab = new Cab(structuredClone(config.cab), debug);
+        this.cab = new Cab(structuredClone(config.cab), false, debug);
         this.group.add(this.cab.group);
         this.globalDebugGroup.add(this.cab.globalDebugGroup);
 
@@ -110,101 +111,10 @@ export class Train {
     private createDebugUI(): void {
         this.pane = new Pane({ title: 'Train Configuration' });
 
-        // Cab folder
-        const cabFolder = this.pane.addFolder({ title: 'Cab', expanded: true });
-
-        cabFolder.addBinding(this.config.cab, 'modelPath', {
-            label: 'Model Path'
-        }).on('change', () => this.updateConfig(this.config));
-
-        // Add file picker button for GLB model
-        cabFolder.addButton({ title: 'Load GLB File...' }).on('click', () => {
-            this.openGLBFilePicker();
+        // Cab
+        this.cab.createDebugUI(this.pane, this.config, (updatedConfig: TrainConfig) => {
+            this.updateConfig(updatedConfig);
         });
-
-        cabFolder.addBinding(this.config.cab, 'scale', {
-            label: 'Scale',
-            min: 0.1,
-            max: 5.0,
-            step: 0.1
-        }).on('change', () => {
-            this.updateConfig(this.config);
-        });
-
-        // 3d point model offset bindings
-        cabFolder.addBinding(this.config.cab, 'modelOffset', {
-            label: 'Model Offset'
-        }).on('change', () => {
-            this.updateConfig(this.config);
-        });
-
-        // Front Bogie folder
-        const frontBogieFolder = cabFolder.addFolder({ title: 'Front Bogie', expanded: true });
-
-        frontBogieFolder.addBinding(this.config.cab.frontBogie, 'zOffset', {
-            label: 'Z Offset',
-            min: -20.0,
-            max: 20.0,
-            step: 0.1
-        }).on('change', () => {
-            this.updateConfig(this.config)
-        });
-
-        frontBogieFolder.addBinding(this.config.cab.frontBogie, 'frontWheelOffset', {
-            label: 'Front Wheel Offset',
-            min: -5.0,
-            max: 5.0,
-            step: 0.1
-        }).on('change', () => {
-            this.updateConfig(this.config);
-        });
-
-        frontBogieFolder.addBinding(this.config.cab.frontBogie, 'backWheelOffset', {
-            label: 'Back Wheel Offset',
-            min: -5.0,
-            max: 5.0,
-            step: 0.1
-        }).on('change', () => {
-            this.updateConfig(this.config);
-        });
-
-        frontBogieFolder.addBinding(this.config.cab.frontBogie, 'entityName', {
-            label: 'Entity Name (GLB)'
-        }).on('change', () => this.updateConfig(this.config));
-
-        // Rear Bogie folder
-        const rearBogieFolder = cabFolder.addFolder({ title: 'Rear Bogie', expanded: true });
-
-        rearBogieFolder.addBinding(this.config.cab.rearBogie, 'zOffset', {
-            label: 'Z Offset',
-            min: -20.0,
-            max: 20.0,
-            step: 0.1
-        }).on('change', () => {
-            this.updateConfig(this.config);
-        });
-
-        rearBogieFolder.addBinding(this.config.cab.rearBogie, 'frontWheelOffset', {
-            label: 'Front Wheel Offset',
-            min: -5.0,
-            max: 5.0,
-            step: 0.1
-        }).on('change', () => {
-            this.updateConfig(this.config);
-        });
-
-        rearBogieFolder.addBinding(this.config.cab.rearBogie, 'backWheelOffset', {
-            label: 'Back Wheel Offset',
-            min: -5.0,
-            max: 5.0,
-            step: 0.1
-        }).on('change', () => {
-            this.updateConfig(this.config);
-        });
-
-        rearBogieFolder.addBinding(this.config.cab.rearBogie, 'entityName', {
-            label: 'Entity Name (GLB)'
-        }).on('change', () => this.updateConfig(this.config));
 
         // Add button to copy configuration as JSON
         this.pane.addButton({ title: 'Copy Config JSON' }).on('click', () => {
