@@ -203,11 +203,7 @@ export class RollingStock {
         getWheelPoint(rearBogie, distance + rearBogie.wheelOffsetFront, this.railPositions.bogieRearFront);
         getWheelPoint(rearBogie, distance + rearBogie.wheelOffsetRear, this.railPositions.bogieRearBack);
 
-        this.railPositions.center.lerpVectors(
-            this.railPositions.bogieFront,
-            this.railPositions.bogieRear,
-            0.5
-        );
+        path.getPointAtDistance(distance, this.railPositions.center);
 
         this.orientOnRails();
 
