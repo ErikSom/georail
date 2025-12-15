@@ -1,5 +1,5 @@
 import { Group, Mesh, Object3D, SphereGeometry, BoxGeometry, MeshBasicMaterial, Vector3 } from 'three';
-import type { BogieConfig, CabConfig, RollingStockConfig, TrainConfig } from './TrainConfig';
+import type { BogieConfig, RollingStockConfig, TrainConfig } from './TrainConfig';
 import { getGLTFLoader } from '../utils/ModelLoader';
 import type Path from '../utils/Path';
 import type { FolderApi, Pane } from 'tweakpane';
@@ -280,7 +280,7 @@ export class RollingStock {
         }
     }
 
-    public updateConfig(config: CabConfig): void {
+    public updateConfig(config: RollingStockConfig): void {
         const modelChanged = config.modelPath !== this.config.modelPath;
         const bogieNamesChanged =
             config.frontBogie.entityName !== this.config.frontBogie.entityName ||

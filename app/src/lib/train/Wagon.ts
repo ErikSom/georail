@@ -48,9 +48,10 @@ export class Wagon extends RollingStock {
         return folder;
     }
 
-    public updateConfig(config: WagonConfig): void {
-        this.config = config;
-        // Update debug pane name if index changed
+    public override updateConfig(config: WagonConfig): void {
+        super.updateConfig(config);
+
+        // Update debug pane name
         this.debugPaneName = `Wagon #${this.wagonIndex + 1}`;
     }
 }
