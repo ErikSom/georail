@@ -10,6 +10,7 @@ export default class Path {
     private cumulativeLengths!: Float64Array;
     private invSegmentLengths!: Float64Array;
     private totalLength = 0;
+    private looping = false;
 
     // Cached extrapolation directions
     private startDir = new Vector3(1, 0, 0);
@@ -23,6 +24,12 @@ export default class Path {
 
     constructor(points: Vector3[]) {
         this.points = points;
+
+        const loopingEpsilon = 1e-5;
+        if (points.length > 2 && points[0].distanceToSquared(points[points.length - 1]) < loopingEpsilon) {
+            this.looping = true;
+        }
+
         this.precompute();
     }
 
@@ -93,6 +100,11 @@ export default class Path {
         if (n < 2) {
             return n === 1 ? out.copy(this.points[0]) : out.set(0, 0, 0);
         }
+
+        if (this.looping) {
+            return this.getPointOnPathInternal(this.wrapDistance(distance), out);
+        }
+
 
         // 1. Negative Extrapolation
         if (distance < 0) {
@@ -185,6 +197,14 @@ export default class Path {
         }
         // Clamping handles out-of-bounds inputs gracefully
         return Math.max(0, Math.min(cum.length - 2, high));
+    }
+
+    private wrapDistance(distance: number): number {
+        const L = this.totalLength;
+        if (L <= EPS) return 0;
+        distance %= L;
+        if (distance < 0) distance += L;
+        return distance;
     }
 
     public getTotalLength(): number {
