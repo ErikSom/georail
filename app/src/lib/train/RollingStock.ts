@@ -1,4 +1,4 @@
-import { Group, Mesh, Object3D, SphereGeometry, MeshBasicMaterial, Vector3 } from 'three';
+import { Group, Mesh, Object3D, SphereGeometry, BoxGeometry, MeshBasicMaterial, Vector3 } from 'three';
 import type { BogieConfig, CabConfig, RollingStockConfig, TrainConfig } from './TrainConfig';
 import { getGLTFLoader } from '../utils/ModelLoader';
 import type Path from '../utils/Path';
@@ -26,10 +26,15 @@ export class RollingStock {
         bogieRearBack: new Vector3(),
     }
 
-    // Global debug visualization (added directly to scene, not affected by hierarchy)
+    // Global debug visualization
     private debug: boolean = false;
     protected debugPaneName: string = 'RollingStock Debug';
-    private globalWheelSpheres: {
+
+    // Container for rotating debug parts (Box, Couplers)
+    private debugAnchor: Group | null = null;
+
+    private debugMeshes: {
+        // Spheres
         center: Mesh | null;
         bogieFront: Mesh | null;
         bogieFrontFront: Mesh | null;
@@ -37,6 +42,11 @@ export class RollingStock {
         bogieRear: Mesh | null;
         bogieRearFront: Mesh | null;
         bogieRearBack: Mesh | null;
+
+        // Boxes
+        body: Mesh | null;
+        couplerFront: Mesh | null;
+        couplerRear: Mesh | null;
     } = {
             center: null,
             bogieFront: null,
@@ -45,6 +55,9 @@ export class RollingStock {
             bogieRear: null,
             bogieRearFront: null,
             bogieRearBack: null,
+            body: null,
+            couplerFront: null,
+            couplerRear: null,
         };
 
     constructor(config: RollingStockConfig, debug: boolean = false) {
@@ -63,72 +76,63 @@ export class RollingStock {
         }
 
         if (debug) {
-            this.createGlobalDebugSpheres();
+            this.createDebugVisuals();
         }
     }
 
-    private createGlobalDebugSpheres(): void {
-        const geometry = new SphereGeometry(0.5, 16, 16);
+    private createDebugVisuals(): void {
+        const sphereGeo = new SphereGeometry(0.5, 16, 16);
+        const boxGeo = new BoxGeometry(1, 1, 1); // Unit box, we will scale it
 
-        // Front bogie front wheel - Bright Green
-        this.globalWheelSpheres.bogieFrontFront = new Mesh(
-            geometry,
-            new MeshBasicMaterial({ color: 0x00ff00 })
+        // --- 1. Wheel/Bogie Spheres (Absolute World Positioning) ---
+
+        // Front bogie
+        this.debugMeshes.bogieFrontFront = new Mesh(sphereGeo, new MeshBasicMaterial({ color: 0x00ff00 }));
+        this.debugMeshes.bogieFront = new Mesh(sphereGeo, new MeshBasicMaterial({ color: 0x009b00 }));
+        this.debugMeshes.bogieFrontBack = new Mesh(sphereGeo, new MeshBasicMaterial({ color: 0x005f00 }));
+
+        // Rear bogie
+        this.debugMeshes.bogieRearFront = new Mesh(sphereGeo, new MeshBasicMaterial({ color: 0xff0000 }));
+        this.debugMeshes.bogieRear = new Mesh(sphereGeo, new MeshBasicMaterial({ color: 0x9b0000 }));
+        this.debugMeshes.bogieRearBack = new Mesh(sphereGeo, new MeshBasicMaterial({ color: 0x5f0000 }));
+
+        // Center
+        this.debugMeshes.center = new Mesh(sphereGeo, new MeshBasicMaterial({ color: 0x0000ff }));
+
+        // Add spheres directly to global debug group
+        this.globalDebugGroup.add(
+            this.debugMeshes.bogieFrontFront, this.debugMeshes.bogieFront, this.debugMeshes.bogieFrontBack,
+            this.debugMeshes.bogieRearFront, this.debugMeshes.bogieRear, this.debugMeshes.bogieRearBack,
+            this.debugMeshes.center
         );
 
-        // Front bogie center - Lesser Bright Green
-        this.globalWheelSpheres.bogieFront = new Mesh(
-            geometry,
-            new MeshBasicMaterial({ color: 0x009b00 })
+        // --- 2. Structural Boxes (Relative Positioning) ---
+
+        // Create an anchor group that will copy the train's transform
+        this.debugAnchor = new Group();
+        this.globalDebugGroup.add(this.debugAnchor);
+
+        // Body Box (Wireframe so we can see inside)
+        this.debugMeshes.body = new Mesh(
+            boxGeo,
+            new MeshBasicMaterial({ color: 0x00ffff, wireframe: true })
         );
-        this.globalDebugGroup.add(this.globalWheelSpheres.bogieFront);
+        this.debugAnchor.add(this.debugMeshes.body);
 
-        this.globalDebugGroup.add(this.globalWheelSpheres.bogieFrontFront);
+        // Couplers
+        const couplerMat = new MeshBasicMaterial({ color: 0xffffff, wireframe: true });
 
-        // Front bogie back wheel - Dark Green
-        this.globalWheelSpheres.bogieFrontBack = new Mesh(
-            geometry,
-            new MeshBasicMaterial({ color: 0x005f00 })
-        );
-        this.globalDebugGroup.add(this.globalWheelSpheres.bogieFrontBack);
+        this.debugMeshes.couplerFront = new Mesh(boxGeo, couplerMat);
+        this.debugAnchor.add(this.debugMeshes.couplerFront);
 
-
-        // Rear bogie front wheel - Bright Red
-        this.globalWheelSpheres.bogieRearFront = new Mesh(
-            geometry,
-            new MeshBasicMaterial({ color: 0xff0000 })
-        );
-        this.globalDebugGroup.add(this.globalWheelSpheres.bogieRearFront);
-
-        // Rear bogie center - Lesser Bright Red
-        this.globalWheelSpheres.bogieRear = new Mesh(
-            geometry,
-            new MeshBasicMaterial({ color: 0x9b0000 })
-        );
-        this.globalDebugGroup.add(this.globalWheelSpheres.bogieRear);
-
-        // Rear bogie back wheel - Dark Red
-        this.globalWheelSpheres.bogieRearBack = new Mesh(
-            geometry,
-            new MeshBasicMaterial({ color: 0x5f0000 })
-        );
-        this.globalDebugGroup.add(this.globalWheelSpheres.bogieRearBack);
-
-        // Cab center - Blue
-        this.globalWheelSpheres.center = new Mesh(
-            geometry,
-            new MeshBasicMaterial({ color: 0x0000ff })
-        );
-        this.globalDebugGroup.add(this.globalWheelSpheres.center);
-
-        this.globalDebugGroup.name = 'RollingStockGlobalDebug';
+        this.debugMeshes.couplerRear = new Mesh(boxGeo, couplerMat);
+        this.debugAnchor.add(this.debugMeshes.couplerRear);
     }
 
     private updateModelTransform(): void {
         if (!this.model) return;
 
         this.model.scale.setScalar(this.config.scale);
-
         this.model.position.set(
             this.config.modelOffset.x,
             this.config.modelOffset.y,
@@ -141,33 +145,15 @@ export class RollingStock {
         loader.load(
             path,
             (gltf: any) => {
-                if (this.model) {
-                    this.group.remove(this.model);
-                }
-
+                if (this.model) this.group.remove(this.model);
                 this.model = gltf.scene!;
-
                 this.updateModelTransform();
-
                 this.group.add(this.model!);
-
-                if (this.model) {
-                    this.logModelHierarchy(this.model, 0);
-                }
-
                 this.findBogieEntities();
             },
             undefined,
-            (error: any) => {
-                console.warn('Failed to load cab model:', path, error);
-            }
+            (error: any) => console.warn('Failed to load cab model:', path, error)
         );
-    }
-
-    private logModelHierarchy(object: Object3D, depth: number = 0): void {
-        const indent = '  '.repeat(depth);
-        console.log(`${indent}- ${object.name || '(unnamed)'} [${object.type}]`);
-        object.children.forEach(child => this.logModelHierarchy(child, depth + 1));
     }
 
     public positionOnPath(distance: number, path: Path): void {
@@ -178,13 +164,15 @@ export class RollingStock {
             return path.getPointAtDistance(totalOffset, out);
         };
 
-        // Get bogie and wheel positions
+        // Update rail position vectors
         getWheelPoint(frontBogie, distance, this.railPositions.bogieFront);
-        getWheelPoint(frontBogie, distance + frontBogie.frontWheelOffset, this.railPositions.bogieFrontFront);
-        getWheelPoint(frontBogie, distance + frontBogie.backWheelOffset, this.railPositions.bogieFrontBack);
+        getWheelPoint(frontBogie, distance + frontBogie.wheelOffsetFront, this.railPositions.bogieFrontFront);
+        getWheelPoint(frontBogie, distance + frontBogie.wheelOffsetRear, this.railPositions.bogieFrontBack);
+
         getWheelPoint(rearBogie, distance, this.railPositions.bogieRear);
-        getWheelPoint(rearBogie, distance + rearBogie.frontWheelOffset, this.railPositions.bogieRearFront);
-        getWheelPoint(rearBogie, distance + rearBogie.backWheelOffset, this.railPositions.bogieRearBack);
+        getWheelPoint(rearBogie, distance + rearBogie.wheelOffsetFront, this.railPositions.bogieRearFront);
+        getWheelPoint(rearBogie, distance + rearBogie.wheelOffsetRear, this.railPositions.bogieRearBack);
+
         this.railPositions.center.lerpVectors(
             this.railPositions.bogieFront,
             this.railPositions.bogieRear,
@@ -197,6 +185,7 @@ export class RollingStock {
     }
 
     private updateDebugVisuals(): void {
+        // 1. Update Spheres positions
         const map = {
             bogieFront: this.railPositions.bogieFront,
             bogieFrontFront: this.railPositions.bogieFrontFront,
@@ -207,43 +196,61 @@ export class RollingStock {
             center: this.railPositions.center
         };
 
-        type WheelSphereKey = keyof typeof map;
-
+        type DebugKey = keyof typeof map;
         for (const [key, pos] of Object.entries(map)) {
-            const typedKey = key as WheelSphereKey;
-            if (this.globalWheelSpheres[typedKey]) {
-                this.globalWheelSpheres[typedKey]!.position.copy(pos);
+            const mesh = this.debugMeshes[key as DebugKey];
+            if (mesh) mesh.position.copy(pos);
+        }
+
+        // 2. Update Structural Boxes
+        if (this.debugAnchor && this.debugMeshes.body) {
+            // Move anchor to match train center/rotation
+            this.debugAnchor.position.copy(this.railPositions.center);
+            this.debugAnchor.quaternion.copy(this.group.quaternion);
+
+            const c = this.config;
+
+            // Update Body Box
+            // Scale to config dimensions
+            this.debugMeshes.body.scale.set(c.width, c.height, c.length);
+            // Position: sit on top of the rail (y = height/2)
+            this.debugMeshes.body.position.set(0, c.height / 2, 0);
+
+            // Update Couplers
+            // We want them "thin", say 20% of width/height
+            const cw = c.width * 0.2;
+            const ch = c.height * 0.2;
+
+            // Front Coupler
+            if (this.debugMeshes.couplerFront) {
+                const len = Math.max(0.1, c.couplerLengthFront); // prevent 0 scale warning
+                this.debugMeshes.couplerFront.scale.set(cw, ch, len);
+                // Position: at the front face of body + half coupler length
+                this.debugMeshes.couplerFront.position.set(0, c.height / 2, (c.length / 2) + (len / 2));
+                this.debugMeshes.couplerFront.visible = c.couplerLengthFront > 0;
+            }
+
+            // Rear Coupler
+            if (this.debugMeshes.couplerRear) {
+                const len = Math.max(0.1, c.couplerLengthRear);
+                this.debugMeshes.couplerRear.scale.set(cw, ch, len);
+                // Position: at the rear face of body - half coupler length
+                this.debugMeshes.couplerRear.position.set(0, c.height / 2, -(c.length / 2) - (len / 2));
+                this.debugMeshes.couplerRear.visible = c.couplerLengthRear > 0;
             }
         }
     }
 
     private findBogieEntities(): void {
         if (!this.model) return;
-
-        // Reset bogie entities
         this.frontBogieEntity = null;
         this.rearBogieEntity = null;
 
-        // Find front bogie
         if (this.config.frontBogie.entityName) {
-            const found = this.model.getObjectByName(this.config.frontBogie.entityName);
-            this.frontBogieEntity = found || null;
-            if (this.frontBogieEntity) {
-                console.log('Found front bogie entity:', this.config.frontBogie.entityName);
-            } else {
-                console.warn('Front bogie entity not found:', this.config.frontBogie.entityName);
-            }
+            this.frontBogieEntity = this.model.getObjectByName(this.config.frontBogie.entityName) || null;
         }
-
-        // Find rear bogie
         if (this.config.rearBogie.entityName) {
-            const found = this.model.getObjectByName(this.config.rearBogie.entityName);
-            this.rearBogieEntity = found || null;
-            if (this.rearBogieEntity) {
-                console.log('Found rear bogie entity:', this.config.rearBogie.entityName);
-            } else {
-                console.warn('Rear bogie entity not found:', this.config.rearBogie.entityName);
-            }
+            this.rearBogieEntity = this.model.getObjectByName(this.config.rearBogie.entityName) || null;
         }
     }
 
@@ -254,16 +261,10 @@ export class RollingStock {
             config.rearBogie.entityName !== this.config.rearBogie.entityName;
 
         this.config = config;
-
         this.updateModelTransform();
 
-        if (bogieNamesChanged && this.model) {
-            this.findBogieEntities();
-        }
-
-        if (modelChanged && config.modelPath) {
-            this.loadModel(config.modelPath);
-        }
+        if (bogieNamesChanged && this.model) this.findBogieEntities();
+        if (modelChanged && config.modelPath) this.loadModel(config.modelPath);
     }
 
     public orientOnRails(): void {
@@ -274,7 +275,6 @@ export class RollingStock {
         dummy.lookAt(frontPoint);
         this.group.quaternion.copy(dummy.quaternion);
 
-        //  convert center to parent.group local space
         dummy.position.copy(this.railPositions.center);
         this.group.parent!.worldToLocal(dummy.position);
         this.group.position.copy(dummy.position);
@@ -287,12 +287,11 @@ export class RollingStock {
             expanded: true
         });
 
-        const maxTransformOffset = 50;
         const maxBogieZOffset = 20;
-        const maxWheelToBogieOffset = 20;
+        const maxWheelToBogieOffset = 4.0; // Reduced: wheels are rarely >4m from bogie center
 
         // --- 1. Physics & Dimensions ---
-        const physFolder = cabFolder.addFolder({ title: 'Physics', expanded: false });
+        const physFolder = cabFolder.addFolder({ title: 'Dimensions & Physics', expanded: false });
 
         physFolder.addBinding(config.cab, 'length', {
             label: 'Length (m)',
@@ -301,57 +300,87 @@ export class RollingStock {
             step: 0.1
         }).on('change', () => updateConfig(config));
 
+        // NEW: Width
+        physFolder.addBinding(config.cab, 'width', {
+            label: 'Width (m)',
+            min: 1.5, // Narrow gauge
+            max: 4.5, // Wide cargo
+            step: 0.05
+        }).on('change', () => updateConfig(config));
+
+        // NEW: Height
+        physFolder.addBinding(config.cab, 'height', {
+            label: 'Height (m)',
+            min: 2.0,
+            max: 6.5, // Double-decker height
+            step: 0.05
+        }).on('change', () => updateConfig(config));
+
         physFolder.addBinding(config.cab, 'weight', {
             label: 'Weight (Tons)',
             min: 10.0,
-            max: 150.0,
+            max: 200.0, // Heavy locomotives can reach ~150-180t
             step: 0.5
         }).on('change', () => updateConfig(config));
 
+        // --- 2. Connections (Couplers) ---
+        // Added a separate folder for these as requested
+        const connFolder = cabFolder.addFolder({ title: 'Connections', expanded: false });
 
-        // --- 2. Engine Configuration ---
-        // Toggle for Is Engine
+        // NEW: Coupler Front
+        connFolder.addBinding(config.cab, 'couplerLengthFront', {
+            label: 'Coupler Front (m)',
+            min: 0.0, // Buffers touching
+            max: 2.5, // Long drawbar
+            step: 0.05
+        }).on('change', () => updateConfig(config));
+
+        // NEW: Coupler Rear
+        connFolder.addBinding(config.cab, 'couplerLengthRear', {
+            label: 'Coupler Rear (m)',
+            min: 0.0,
+            max: 2.5,
+            step: 0.05
+        }).on('change', () => updateConfig(config));
+
+        // --- 3. Engine Configuration ---
         const engineToggle = cabFolder.addBinding(config.cab, 'engine', {
             label: 'Is Engine'
         });
 
-        // Engine Specs Folder (Initially Hidden/Shown based on config)
         const engFolder = cabFolder.addFolder({
             title: 'Engine Specs',
             expanded: true
         });
+        // Set initial visibility
         engFolder.hidden = !config.cab.engine;
 
-        // Toggle Listener
         engineToggle.on('change', (ev) => {
             engFolder.hidden = !ev.value;
             updateConfig(config);
         });
 
-        // Engine Properties
         engFolder.addBinding(config.cab, 'enginePower', {
             label: 'Power (kW)',
             min: 0,
-            max: 10000,
+            max: 12000, // Modern heavy electric locos can hit 8-10MW
             step: 50
         }).on('change', () => updateConfig(config));
 
         engFolder.addBinding(config.cab, 'brakingPower', {
             label: 'Brakes (kN)',
             min: 0,
-            max: 1000,
+            max: 2000,
             step: 10
         }).on('change', () => updateConfig(config));
 
-
-        // --- 3. Visuals & Model Loading ---
-        const visFolder = cabFolder.addFolder({ title: 'Visuals', expanded: true });
+        // --- 4. Visuals & Model Loading ---
+        const visFolder = cabFolder.addFolder({ title: 'Visuals', expanded: false });
 
         visFolder.addBinding(config.cab, 'modelPath', {
             label: 'Model Path'
         }).on('change', () => updateConfig(config));
 
-        // Add file picker button for GLB model
         visFolder.addButton({ title: 'Load GLB File...' }).on('click', () => {
             FilePicker((url: string) => {
                 config.cab.modelPath = url;
@@ -363,89 +392,72 @@ export class RollingStock {
             label: 'Scale',
             min: 0.1,
             max: 5.0,
-            step: 0.1
+            step: 0.01 // Finer step for precision scaling
         }).on('change', () => updateConfig(config));
 
-        // 3d point model offset bindings
         visFolder.addBinding(config.cab, 'modelOffset', {
             label: 'Model Offset',
-            x: { min: -maxTransformOffset, max: maxTransformOffset },
-            y: { min: -maxTransformOffset, max: maxTransformOffset },
-            z: { min: -maxTransformOffset, max: maxTransformOffset }
+            x: { min: -10, max: 10 }, // 50 was likely too large for a visual offset
+            y: { min: -10, max: 10 },
+            z: { min: -10, max: 10 }
         }).on('change', () => updateConfig(config));
 
-        // --- 4. Bogie Configuration ---
-        const bogieMainFolder = cabFolder.addFolder({ title: 'Bogie Setup', expanded: true });
+        // --- 5. Bogie Configuration ---
+        const bogieMainFolder = cabFolder.addFolder({ title: 'Bogie Setup', expanded: false });
 
-        // Front Bogie folder
+        // Helper to keep code dry
+        const addBogieControls = (folder: any, bogie: any, isRear: boolean) => {
+            folder.addBinding(bogie, 'zOffset', {
+                label: 'Z Offset',
+                // Dynamically set min/max based on whether it's front or rear
+                min: isRear ? -maxBogieZOffset : 0,
+                max: isRear ? 0 : maxBogieZOffset,
+                step: 0.1
+            }).on('change', () => updateConfig(config));
+
+            folder.addBinding(bogie, 'wheelOffsetFront', {
+                label: 'Front Axle Dist',
+                min: 0.0,
+                max: maxWheelToBogieOffset,
+                step: 0.05
+            }).on('change', () => updateConfig(config));
+
+            folder.addBinding(bogie, 'wheelOffsetRear', {
+                label: 'Rear Axle Dist',
+                min: -maxWheelToBogieOffset,
+                max: 0.0,
+                step: 0.05
+            }).on('change', () => updateConfig(config));
+
+            folder.addBinding(bogie, 'entityName', {
+                label: 'Bone/Node Name'
+            }).on('change', () => updateConfig(config));
+        };
+
         const frontBogieFolder = bogieMainFolder.addFolder({ title: 'Front Bogie', expanded: true });
+        addBogieControls(frontBogieFolder, config.cab.frontBogie, false);
 
-        frontBogieFolder.addBinding(config.cab.frontBogie, 'zOffset', {
-            label: 'Z Offset',
-            min: 0.0,
-            max: maxBogieZOffset,
-            step: 0.1
-        }).on('change', () => updateConfig(config));
-
-        frontBogieFolder.addBinding(config.cab.frontBogie, 'frontWheelOffset', {
-            label: 'Front Wheel Offset',
-            min: 0.0,
-            max: maxWheelToBogieOffset,
-            step: 0.1
-        }).on('change', () => updateConfig(config));
-
-        frontBogieFolder.addBinding(config.cab.frontBogie, 'backWheelOffset', {
-            label: 'Back Wheel Offset',
-            min: -maxWheelToBogieOffset,
-            max: 0.0,
-            step: 0.1
-        }).on('change', () => updateConfig(config));
-
-        frontBogieFolder.addBinding(config.cab.frontBogie, 'entityName', {
-            label: 'Entity Name (GLB)'
-        }).on('change', () => updateConfig(config));
-
-        // Rear Bogie folder
         const rearBogieFolder = bogieMainFolder.addFolder({ title: 'Rear Bogie', expanded: true });
-
-        rearBogieFolder.addBinding(config.cab.rearBogie, 'zOffset', {
-            label: 'Z Offset',
-            min: -maxBogieZOffset,
-            max: 0.0,
-            step: 0.1
-        }).on('change', () => updateConfig(config));
-
-        rearBogieFolder.addBinding(config.cab.rearBogie, 'frontWheelOffset', {
-            label: 'Front Wheel Offset',
-            min: 0.0,
-            max: maxWheelToBogieOffset,
-            step: 0.1
-        }).on('change', () => updateConfig(config));
-
-        rearBogieFolder.addBinding(config.cab.rearBogie, 'backWheelOffset', {
-            label: 'Back Wheel Offset',
-            min: -maxWheelToBogieOffset,
-            max: 0.0,
-            step: 0.1
-        }).on('change', () => updateConfig(config));
-
-        rearBogieFolder.addBinding(config.cab.rearBogie, 'entityName', {
-            label: 'Entity Name (GLB)'
-        }).on('change', () => updateConfig(config));
+        addBogieControls(rearBogieFolder, config.cab.rearBogie, true);
     }
 
     public cleanup(): void {
+        // Clean up model
         if (this.model) {
             this.model.traverse((child) => {
                 if (child instanceof Mesh) {
                     child.geometry.dispose();
-                    if (Array.isArray(child.material)) {
-                        child.material.forEach(mat => mat.dispose());
-                    } else {
-                        child.material.dispose();
-                    }
+                    if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+                    else child.material.dispose();
                 }
             });
         }
+        // Clean up debug meshes
+        Object.values(this.debugMeshes).forEach(mesh => {
+            if (mesh) {
+                mesh.geometry.dispose();
+                (mesh.material as any).dispose();
+            }
+        });
     }
 }
