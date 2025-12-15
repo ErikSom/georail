@@ -2,7 +2,7 @@ import { Group, Mesh, Object3D, SphereGeometry, BoxGeometry, MeshBasicMaterial, 
 import type { BogieConfig, CabConfig, RollingStockConfig, TrainConfig } from './TrainConfig';
 import { getGLTFLoader } from '../utils/ModelLoader';
 import type Path from '../utils/Path';
-import type { Pane } from 'tweakpane';
+import type { FolderApi, Pane } from 'tweakpane';
 import { dummy } from '../utils/Helper';
 import FilePicker from '../utils/FilePicker';
 
@@ -156,6 +156,36 @@ export class RollingStock {
         );
     }
 
+    private setDebugVisibility(visible: boolean): void {
+        // Set visibility for all debug meshes in the group
+        if (this.debugAnchor) {
+            this.debugAnchor.visible = visible;
+        }
+
+        // Set visibility for global debug spheres
+        Object.values(this.debugMeshes).forEach((mesh) => {
+            if (mesh && mesh.parent === this.globalDebugGroup) {
+                mesh.visible = visible;
+            }
+        });
+    }
+
+    private getDebugVisibility(): boolean {
+        // Return visibility state based on debugAnchor or first available debug mesh
+        if (this.debugAnchor) {
+            return this.debugAnchor.visible;
+        }
+
+        // Check first available debug mesh
+        for (const mesh of Object.values(this.debugMeshes)) {
+            if (mesh) {
+                return mesh.visible;
+            }
+        }
+
+        return true; // Default to visible
+    }
+
     public positionOnPath(distance: number, path: Path): void {
         const { frontBogie, rearBogie } = this.config;
 
@@ -280,20 +310,39 @@ export class RollingStock {
         this.group.position.copy(dummy.position);
     }
 
-    public createDebugUI(pane: Pane, config: TrainConfig, updateConfig: (config: TrainConfig) => void): void {
+    protected getConfigTarget(config: TrainConfig): RollingStockConfig {
+        return {} as RollingStockConfig; // Placeholder, to be overridden in subclasses
+    }
+
+    public createDebugUI(pane: Pane, config: TrainConfig, updateConfig: (config: TrainConfig) => void): FolderApi {
         // Main Folder
-        const cabFolder = pane.addFolder({
+        const rollingStockFolder = pane.addFolder({
             title: this.debugPaneName,
             expanded: true
         });
 
+        // Get the correct config target (cab or specific wagon)
+        const targetConfig = this.getConfigTarget(config);
+
+        // Debug Visualization Toggle
+        const debugParams = {
+            showDebugVisuals: this.getDebugVisibility()
+        };
+
+        rollingStockFolder.addBinding(debugParams, 'showDebugVisuals', {
+            label: 'Show Debug Visuals'
+        }).on('change', (ev) => {
+            this.setDebugVisibility(ev.value);
+        });
+
+        const maxModelOffset = 50.0;
         const maxBogieZOffset = 20;
         const maxWheelToBogieOffset = 4.0; // Reduced: wheels are rarely >4m from bogie center
 
         // --- 1. Physics & Dimensions ---
-        const physFolder = cabFolder.addFolder({ title: 'Dimensions & Physics', expanded: false });
+        const physFolder = rollingStockFolder.addFolder({ title: 'Dimensions & Physics', expanded: false });
 
-        physFolder.addBinding(config.cab, 'length', {
+        physFolder.addBinding(targetConfig, 'length', {
             label: 'Length (m)',
             min: 5.0,
             max: 30.0,
@@ -301,7 +350,7 @@ export class RollingStock {
         }).on('change', () => updateConfig(config));
 
         // NEW: Width
-        physFolder.addBinding(config.cab, 'width', {
+        physFolder.addBinding(targetConfig, 'width', {
             label: 'Width (m)',
             min: 1.5, // Narrow gauge
             max: 4.5, // Wide cargo
@@ -309,14 +358,14 @@ export class RollingStock {
         }).on('change', () => updateConfig(config));
 
         // NEW: Height
-        physFolder.addBinding(config.cab, 'height', {
+        physFolder.addBinding(targetConfig, 'height', {
             label: 'Height (m)',
             min: 2.0,
             max: 6.5, // Double-decker height
             step: 0.05
         }).on('change', () => updateConfig(config));
 
-        physFolder.addBinding(config.cab, 'weight', {
+        physFolder.addBinding(targetConfig, 'weight', {
             label: 'Weight (Tons)',
             min: 10.0,
             max: 200.0, // Heavy locomotives can reach ~150-180t
@@ -325,10 +374,10 @@ export class RollingStock {
 
         // --- 2. Connections (Couplers) ---
         // Added a separate folder for these as requested
-        const connFolder = cabFolder.addFolder({ title: 'Connections', expanded: false });
+        const connFolder = rollingStockFolder.addFolder({ title: 'Connections', expanded: false });
 
         // NEW: Coupler Front
-        connFolder.addBinding(config.cab, 'couplerLengthFront', {
+        connFolder.addBinding(targetConfig, 'couplerLengthFront', {
             label: 'Coupler Front (m)',
             min: 0.0, // Buffers touching
             max: 2.5, // Long drawbar
@@ -336,7 +385,7 @@ export class RollingStock {
         }).on('change', () => updateConfig(config));
 
         // NEW: Coupler Rear
-        connFolder.addBinding(config.cab, 'couplerLengthRear', {
+        connFolder.addBinding(targetConfig, 'couplerLengthRear', {
             label: 'Coupler Rear (m)',
             min: 0.0,
             max: 2.5,
@@ -344,30 +393,30 @@ export class RollingStock {
         }).on('change', () => updateConfig(config));
 
         // --- 3. Engine Configuration ---
-        const engineToggle = cabFolder.addBinding(config.cab, 'engine', {
+        const engineToggle = rollingStockFolder.addBinding(targetConfig, 'engine', {
             label: 'Is Engine'
         });
 
-        const engFolder = cabFolder.addFolder({
+        const engFolder = rollingStockFolder.addFolder({
             title: 'Engine Specs',
             expanded: true
         });
         // Set initial visibility
-        engFolder.hidden = !config.cab.engine;
+        engFolder.hidden = !targetConfig.engine;
 
         engineToggle.on('change', (ev) => {
             engFolder.hidden = !ev.value;
             updateConfig(config);
         });
 
-        engFolder.addBinding(config.cab, 'enginePower', {
+        engFolder.addBinding(targetConfig, 'enginePower', {
             label: 'Power (kW)',
             min: 0,
             max: 12000, // Modern heavy electric locos can hit 8-10MW
             step: 50
         }).on('change', () => updateConfig(config));
 
-        engFolder.addBinding(config.cab, 'brakingPower', {
+        engFolder.addBinding(targetConfig, 'brakingPower', {
             label: 'Brakes (kN)',
             min: 0,
             max: 2000,
@@ -375,35 +424,35 @@ export class RollingStock {
         }).on('change', () => updateConfig(config));
 
         // --- 4. Visuals & Model Loading ---
-        const visFolder = cabFolder.addFolder({ title: 'Visuals', expanded: false });
+        const visFolder = rollingStockFolder.addFolder({ title: 'Visuals', expanded: false });
 
-        visFolder.addBinding(config.cab, 'modelPath', {
+        visFolder.addBinding(targetConfig, 'modelPath', {
             label: 'Model Path'
         }).on('change', () => updateConfig(config));
 
         visFolder.addButton({ title: 'Load GLB File...' }).on('click', () => {
             FilePicker((url: string) => {
-                config.cab.modelPath = url;
+                targetConfig.modelPath = url;
                 updateConfig(config);
             }, '.glb,.gltf');
         });
 
-        visFolder.addBinding(config.cab, 'scale', {
+        visFolder.addBinding(targetConfig, 'scale', {
             label: 'Scale',
             min: 0.1,
             max: 5.0,
             step: 0.01 // Finer step for precision scaling
         }).on('change', () => updateConfig(config));
 
-        visFolder.addBinding(config.cab, 'modelOffset', {
+        visFolder.addBinding(targetConfig, 'modelOffset', {
             label: 'Model Offset',
-            x: { min: -10, max: 10 }, // 50 was likely too large for a visual offset
-            y: { min: -10, max: 10 },
-            z: { min: -10, max: 10 }
+            x: { min: -maxModelOffset, max: maxModelOffset },
+            y: { min: -maxModelOffset, max: maxModelOffset },
+            z: { min: -maxModelOffset, max: maxModelOffset }
         }).on('change', () => updateConfig(config));
 
         // --- 5. Bogie Configuration ---
-        const bogieMainFolder = cabFolder.addFolder({ title: 'Bogie Setup', expanded: false });
+        const bogieMainFolder = rollingStockFolder.addFolder({ title: 'Bogie Setup', expanded: false });
 
         // Helper to keep code dry
         const addBogieControls = (folder: any, bogie: any, isRear: boolean) => {
@@ -435,10 +484,12 @@ export class RollingStock {
         };
 
         const frontBogieFolder = bogieMainFolder.addFolder({ title: 'Front Bogie', expanded: true });
-        addBogieControls(frontBogieFolder, config.cab.frontBogie, false);
+        addBogieControls(frontBogieFolder, targetConfig.frontBogie, false);
 
         const rearBogieFolder = bogieMainFolder.addFolder({ title: 'Rear Bogie', expanded: true });
-        addBogieControls(rearBogieFolder, config.cab.rearBogie, true);
+        addBogieControls(rearBogieFolder, targetConfig.rearBogie, true);
+
+        return rollingStockFolder;
     }
 
     public cleanup(): void {

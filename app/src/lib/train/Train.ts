@@ -1,7 +1,8 @@
 import { Group, Scene } from 'three';
 import { Pane } from 'tweakpane';
-import type { TrainConfig } from './TrainConfig';
+import type { TrainConfig, WagonConfig } from './TrainConfig';
 import { Cab } from './Cab';
+import { Wagon } from './Wagon';
 import type Path from '../utils/Path';
 
 export class Train {
@@ -10,6 +11,7 @@ export class Train {
 
     private config!: TrainConfig;
     private cab: Cab;
+    private wagons: Wagon[] = [];
     private rearCab: Cab | null = null;
 
     private path: Path | null = null;
@@ -45,6 +47,31 @@ export class Train {
         // clone config to avoid reference issues
         this.cab.updateConfig(structuredClone(this.config.cab));
 
+        // Update wagons - remove excess, add missing, update existing
+        while (this.wagons.length > this.config.wagons.length) {
+            const wagon = this.wagons.pop();
+            if (wagon) {
+                this.group.remove(wagon.group);
+                this.globalDebugGroup.remove(wagon.globalDebugGroup);
+                wagon.cleanup();
+            }
+        }
+
+        // Add new wagons if needed
+        while (this.wagons.length < this.config.wagons.length) {
+            const index = this.wagons.length;
+            const wagonConfig = structuredClone(this.config.wagons[index]);
+            const wagon = new Wagon(wagonConfig, index, this.debug);
+            this.wagons.push(wagon);
+            this.group.add(wagon.group);
+            this.globalDebugGroup.add(wagon.globalDebugGroup);
+        }
+
+        // Update existing wagons
+        this.wagons.forEach((wagon, index) => {
+            wagon.updateConfig(structuredClone(this.config.wagons[index]));
+        });
+
         if (this.path && this.path.points.length > 0) {
             this.positionOnPath();
         }
@@ -70,6 +97,10 @@ export class Train {
             return this.cab.group;
         }
 
+        if (index > 0 && index <= this.wagons.length) {
+            return this.wagons[index - 1].group;
+        }
+
         throw new Error(`Train: getRollingStockTransform - No rolling stock at index ${index}`);
     }
 
@@ -82,7 +113,24 @@ export class Train {
 
         const trainPosition = this.path!.getPointAtDistance(this.distanceTraveled, this.group.position);
 
-        this.cab.positionOnPath(this.distanceTraveled, this.path!);
+        // Position cab
+        let currentDistance = this.distanceTraveled;
+        this.cab.positionOnPath(currentDistance, this.path!);
+
+        // Position wagons behind cab
+        currentDistance -= this.config.cab.length / 2;
+        currentDistance -= this.config.cab.couplerLengthRear;
+
+        for (let i = 0; i < this.wagons.length; i++) {
+            const wagonConfig = this.config.wagons[i];
+            currentDistance -= wagonConfig.couplerLengthFront;
+            currentDistance -= wagonConfig.length / 2;
+
+            this.wagons[i].positionOnPath(currentDistance, this.path!);
+
+            currentDistance -= wagonConfig.length / 2;
+            currentDistance -= wagonConfig.couplerLengthRear;
+        }
     }
 
     private createDebugUI(): void {
@@ -97,6 +145,24 @@ export class Train {
         // Cab
         this.cab.createDebugUI(this.pane, this.config, (updatedConfig: TrainConfig) => {
             this.updateConfig(updatedConfig);
+        });
+
+        // Wagons
+        this.wagons.forEach((wagon, index) => {
+            wagon.createDebugUI(
+                this.pane!,
+                this.config,
+                (updatedConfig: TrainConfig) => {
+                    this.updateConfig(updatedConfig);
+                },
+                () => this.deleteWagon(index),
+                () => this.duplicateWagon(index)
+            );
+        });
+
+        // Add Wagon button
+        this.pane.addButton({ title: 'Add Wagon' }).on('click', () => {
+            this.addWagon();
         });
 
         // Add button to copy configuration as JSON
@@ -126,8 +192,62 @@ export class Train {
         }
     }
 
+    private addWagon(): void {
+        // Create a default wagon config
+        const defaultWagon: WagonConfig = {
+            length: 15.0,
+            weight: 30.0,
+            height: 4.0,
+            width: 3.0,
+            modelPath: '/models/train/wagon.glb',
+            scale: 1.0,
+            modelOffset: { x: 0, y: 0, z: 0 },
+            frontBogie: {
+                zOffset: 5.0,
+                wheelOffsetFront: 1.0,
+                wheelOffsetRear: -1.0,
+                entityName: '',
+            },
+            rearBogie: {
+                zOffset: -5.0,
+                wheelOffsetFront: 1.0,
+                wheelOffsetRear: -1.0,
+                entityName: '',
+            },
+            couplerLengthFront: 0.5,
+            couplerLengthRear: 0.5,
+            engine: false,
+            enginePower: 0.0,
+            brakingPower: 0.0,
+        };
+
+        this.config.wagons.push(defaultWagon);
+        this.updateConfig(this.config);
+        this.createDebugUI();
+    }
+
+    private duplicateWagon(index: number): void {
+        if (index >= 0 && index < this.config.wagons.length) {
+            // Clone the wagon config at the specified index
+            const duplicatedWagon = structuredClone(this.config.wagons[index]);
+            // Insert the duplicated wagon right after the original
+            this.config.wagons.splice(index + 1, 0, duplicatedWagon);
+            this.updateConfig(this.config);
+            this.createDebugUI();
+        }
+    }
+
+    private deleteWagon(index: number): void {
+        if (index >= 0 && index < this.config.wagons.length) {
+            this.config.wagons.splice(index, 1);
+            this.updateConfig(this.config);
+            this.createDebugUI();
+        }
+    }
+
     public cleanup(): void {
         this.cab.cleanup();
+        this.wagons.forEach(wagon => wagon.cleanup());
         this.path?.cleanup();
 
         if (this.pane) {

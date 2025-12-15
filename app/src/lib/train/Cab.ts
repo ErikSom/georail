@@ -1,4 +1,4 @@
-import type { CabConfig } from './TrainConfig';
+import type { CabConfig, RollingStockConfig, TrainConfig } from './TrainConfig';
 import { RollingStock } from './RollingStock';
 
 export class Cab extends RollingStock {
@@ -12,5 +12,9 @@ export class Cab extends RollingStock {
         this.rearCab = rearCab;
 
         this.debugPaneName = this.rearCab ? 'Rear Cab Config' : 'Front Cab Config';
+    }
+
+    protected getConfigTarget(config: TrainConfig): RollingStockConfig {
+        return this.rearCab ? (config.rearCab as CabConfig) : config.cab;
     }
 }
