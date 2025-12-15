@@ -1,5 +1,3 @@
-// Train configuration types
-
 export interface BogieConfig {
     zOffset: number;
     frontWheelOffset: number;
@@ -7,7 +5,9 @@ export interface BogieConfig {
     entityName?: string;
 }
 
-interface BaseWagonConfig {
+export interface RollingStockConfig {
+    length: number; // in meters
+    weight: number; // in metric tons
     modelPath: string;
     scale: number;
     modelOffset: {
@@ -17,13 +17,18 @@ interface BaseWagonConfig {
     }
     frontBogie: BogieConfig;
     rearBogie: BogieConfig;
+
+    // Optional properties
+    engine: boolean;
+    enginePower: number; // in kW
+    brakingPower: number; // in kN
 }
 
-export interface CabConfig extends BaseWagonConfig {
+export interface CabConfig extends RollingStockConfig {
     // Additional cab-specific properties can go here
 }
 
-export interface WagonConfig extends BaseWagonConfig {
+export interface WagonConfig extends RollingStockConfig {
     // Additional wagon-specific properties can go here
 }
 
@@ -37,6 +42,8 @@ export interface TrainConfig {
 export function getDefaultTrainConfig(): TrainConfig {
     return {
         cab: {
+            length: 10.0,
+            weight: 40.0,
             modelPath: '/models/train/cab.glb',
             scale: 1.0,
             modelOffset: {
@@ -45,17 +52,20 @@ export function getDefaultTrainConfig(): TrainConfig {
                 z: 0.0
             },
             frontBogie: {
-                zOffset: 5.0,  // 5 meters forward from cab center
-                frontWheelOffset: 1.0,  // 1 meter forward from bogie center
-                backWheelOffset: -1.0,  // 1 meter backward from bogie center
-                entityName: '',  // Name of front bogie in GLB (leave empty to auto-detect)
+                zOffset: 5.0,
+                frontWheelOffset: 1.0,
+                backWheelOffset: -1.0,
+                entityName: '',
             },
             rearBogie: {
-                zOffset: -5.0,  // 5 meters backward from cab center
-                frontWheelOffset: 1.0,  // 1 meter forward from bogie center
-                backWheelOffset: -1.0,  // 1 meter backward from bogie center
-                entityName: '',  // Name of rear bogie in GLB (leave empty to auto-detect)
+                zOffset: -5.0,
+                frontWheelOffset: 1.0,
+                backWheelOffset: -1.0,
+                entityName: '',
             },
+            engine: false,
+            enginePower: 0.0,
+            brakingPower: 0.0,
         },
         wagons: []
     };
