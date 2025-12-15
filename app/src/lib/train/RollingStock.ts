@@ -185,7 +185,11 @@ export class RollingStock {
         getWheelPoint(rearBogie, distance, this.railPositions.bogieRear);
         getWheelPoint(rearBogie, distance + rearBogie.frontWheelOffset, this.railPositions.bogieRearFront);
         getWheelPoint(rearBogie, distance + rearBogie.backWheelOffset, this.railPositions.bogieRearBack);
-        path.getPointAtDistance(distance, this.railPositions.center);
+        this.railPositions.center.lerpVectors(
+            this.railPositions.bogieFront,
+            this.railPositions.bogieRear,
+            0.5
+        );
 
         this.orientOnRails();
 
@@ -269,6 +273,11 @@ export class RollingStock {
         dummy.position.copy(rearPoint);
         dummy.lookAt(frontPoint);
         this.group.quaternion.copy(dummy.quaternion);
+
+        //  convert center to parent.group local space
+        dummy.position.copy(this.railPositions.center);
+        this.group.parent!.worldToLocal(dummy.position);
+        this.group.position.copy(dummy.position);
     }
 
     public createDebugUI(pane: Pane, config: TrainConfig, updateConfig: (config: TrainConfig) => void): void {
@@ -277,6 +286,10 @@ export class RollingStock {
             title: this.debugPaneName,
             expanded: true
         });
+
+        const maxTransformOffset = 50;
+        const maxBogieZOffset = 20;
+        const maxWheelToBogieOffset = 20;
 
         // --- 1. Physics & Dimensions ---
         const physFolder = cabFolder.addFolder({ title: 'Physics', expanded: false });
@@ -356,11 +369,10 @@ export class RollingStock {
         // 3d point model offset bindings
         visFolder.addBinding(config.cab, 'modelOffset', {
             label: 'Model Offset',
-            x: { min: -5, max: 5 },
-            y: { min: -5, max: 5 },
-            z: { min: -10, max: 10 }
+            x: { min: -maxTransformOffset, max: maxTransformOffset },
+            y: { min: -maxTransformOffset, max: maxTransformOffset },
+            z: { min: -maxTransformOffset, max: maxTransformOffset }
         }).on('change', () => updateConfig(config));
-
 
         // --- 4. Bogie Configuration ---
         const bogieMainFolder = cabFolder.addFolder({ title: 'Bogie Setup', expanded: true });
@@ -371,20 +383,20 @@ export class RollingStock {
         frontBogieFolder.addBinding(config.cab.frontBogie, 'zOffset', {
             label: 'Z Offset',
             min: 0.0,
-            max: 20.0,
+            max: maxBogieZOffset,
             step: 0.1
         }).on('change', () => updateConfig(config));
 
         frontBogieFolder.addBinding(config.cab.frontBogie, 'frontWheelOffset', {
             label: 'Front Wheel Offset',
             min: 0.0,
-            max: 10.0,
+            max: maxWheelToBogieOffset,
             step: 0.1
         }).on('change', () => updateConfig(config));
 
         frontBogieFolder.addBinding(config.cab.frontBogie, 'backWheelOffset', {
             label: 'Back Wheel Offset',
-            min: -10.0,
+            min: -maxWheelToBogieOffset,
             max: 0.0,
             step: 0.1
         }).on('change', () => updateConfig(config));
@@ -398,7 +410,7 @@ export class RollingStock {
 
         rearBogieFolder.addBinding(config.cab.rearBogie, 'zOffset', {
             label: 'Z Offset',
-            min: -20.0,
+            min: -maxBogieZOffset,
             max: 0.0,
             step: 0.1
         }).on('change', () => updateConfig(config));
@@ -406,13 +418,13 @@ export class RollingStock {
         rearBogieFolder.addBinding(config.cab.rearBogie, 'frontWheelOffset', {
             label: 'Front Wheel Offset',
             min: 0.0,
-            max: 10.0,
+            max: maxWheelToBogieOffset,
             step: 0.1
         }).on('change', () => updateConfig(config));
 
         rearBogieFolder.addBinding(config.cab.rearBogie, 'backWheelOffset', {
             label: 'Back Wheel Offset',
-            min: -10.0,
+            min: -maxWheelToBogieOffset,
             max: 0.0,
             step: 0.1
         }).on('change', () => updateConfig(config));

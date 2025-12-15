@@ -53,12 +53,24 @@ export class Train {
     }
 
     public setPath(path: Path): void {
+        if (this.path) {
+            this.path.cleanup();
+        }
+
         this.path = path;
 
         if (this.debug) {
             this.path?.drawDebugPath(this.group.parent as Scene);
             this.createDebugUI();
         }
+    }
+
+    public getRollingStockTransform(index: number = 0): Group {
+        if (index === 0) {
+            return this.cab.group;
+        }
+
+        throw new Error(`Train: getRollingStockTransform - No rolling stock at index ${index}`);
     }
 
     public positionOnPath(): void {
@@ -78,7 +90,9 @@ export class Train {
             this.pane.dispose();
         }
 
-        this.pane = new Pane({ title: 'Train Configuration' });
+        const rootDomContainer = document.getElementById('tweakpane-container');
+
+        this.pane = new Pane({ title: 'Train Configuration', container: rootDomContainer || undefined });
 
         // Cab
         this.cab.createDebugUI(this.pane, this.config, (updatedConfig: TrainConfig) => {
@@ -114,6 +128,7 @@ export class Train {
 
     public cleanup(): void {
         this.cab.cleanup();
+        this.path?.cleanup();
 
         if (this.pane) {
             this.pane.dispose();

@@ -191,9 +191,21 @@ export default class Path {
         return this.totalLength;
     }
 
-    public drawDebugPath(scene: Scene): void {
-        this.pathDebugSpheres.forEach(sphere => scene.remove(sphere));
+    public removeDebugPath(): void {
+        this.pathDebugSpheres.forEach(sphere => {
+            if (sphere.parent) {
+                sphere.parent.remove(sphere);
+            }
+            sphere.geometry.dispose();
+            if (sphere.material instanceof MeshBasicMaterial) {
+                sphere.material.dispose();
+            }
+        });
         this.pathDebugSpheres = [];
+    }
+
+    public drawDebugPath(scene: Scene): void {
+        this.removeDebugPath();
 
         const sphereGeometry = new SphereGeometry(0.4, 8, 8);
         const sphereMaterial = new MeshBasicMaterial({ color: 0xffff00 });
@@ -204,5 +216,9 @@ export default class Path {
             scene.add(sphere);
             this.pathDebugSpheres.push(sphere);
         });
+    }
+
+    public cleanup(): void {
+        this.removeDebugPath();
     }
 }

@@ -5,6 +5,7 @@ interface Props {
 
 const { title } = Astro.props;
 ---
+
 <!doctype html>
 <html lang="en">
     <head>
@@ -16,6 +17,7 @@ const { title } = Astro.props;
     </head>
     <body>
         <slot />
+        <div id="tweakpane-container"></div>
     </body>
 </html>
 <style is:global>
@@ -28,5 +30,14 @@ const { title } = Astro.props;
         font-family: system-ui, sans-serif;
         overflow: hidden;
         color: #333;
+    }
+    #tweakpane-container {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        position: fixed;
+        top: 0;
+        right: 0;
+        z-index: 1000;
     }
 </style>
