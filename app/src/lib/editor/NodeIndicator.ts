@@ -38,7 +38,6 @@ export class NodeIndicator {
 
         // Add x-ray overlay mesh as child (renders through geometry)
         this.xrayMesh = new Mesh(sharedGeometry, sharedMaterials.xray);
-        this.xrayMesh.scale.set(scale, scale, scale);
         this.xrayMesh.renderOrder = -1; // Render before main mesh
         this.mesh.add(this.xrayMesh);
     }
