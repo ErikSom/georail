@@ -8,7 +8,7 @@ const obfuscatorPlugin = obfuscator({
     compact: true,
     controlFlowFlattening: true,
     controlFlowFlatteningThreshold: 0.25,
-    transformObjectKeys: true,
+    transformObjectKeys: false, // Disabled: breaks config objects
     deadCodeInjection: true,
     deadCodeInjectionThreshold: 0.1,
     debugProtection: true,
