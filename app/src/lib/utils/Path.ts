@@ -1,4 +1,6 @@
-import { Mesh, MeshBasicMaterial, Scene, SphereGeometry, Vector3 } from "three";
+import { Scene, Vector3, Object3D } from "three";
+import { NodeIndicator } from "../editor/NodeIndicator";
+import { dummy } from "./Helper";
 
 const EPS = 1e-6;
 const MAX_WALK = 4; // Max segments to scan linearly before switching to binary search
@@ -20,7 +22,7 @@ export default class Path {
     private lastIndex = 0;
 
     // Debug
-    private pathDebugSpheres: Mesh[] = [];
+    private pathDebugIndicators: NodeIndicator[] = [];
 
     constructor(points: Vector3[]) {
         this.points = points;
@@ -212,29 +214,46 @@ export default class Path {
     }
 
     public removeDebugPath(): void {
-        this.pathDebugSpheres.forEach(sphere => {
-            if (sphere.parent) {
-                sphere.parent.remove(sphere);
+        this.pathDebugIndicators.forEach(indicator => {
+            if (indicator.mesh.parent) {
+                indicator.mesh.parent.remove(indicator.mesh);
             }
-            sphere.geometry.dispose();
-            if (sphere.material instanceof MeshBasicMaterial) {
-                sphere.material.dispose();
-            }
+            indicator.dispose();
         });
-        this.pathDebugSpheres = [];
+        this.pathDebugIndicators = [];
     }
 
     public drawDebugPath(scene: Scene): void {
         this.removeDebugPath();
 
-        const sphereGeometry = new SphereGeometry(0.4, 8, 8);
-        const sphereMaterial = new MeshBasicMaterial({ color: 0xffff00 });
+        this.points.forEach((point, index) => {
+            const indicator = new NodeIndicator(0.2);
+            indicator.mesh.position.copy(point);
 
-        this.points.forEach((point) => {
-            const sphere = new Mesh(sphereGeometry, sphereMaterial);
-            sphere.position.copy(point);
-            scene.add(sphere);
-            this.pathDebugSpheres.push(sphere);
+            // Orient the indicator to point towards the next point (or previous for last point)
+            if (index < this.points.length - 1) {
+                // Point towards next point
+                const nextPoint = this.points[index + 1];
+                dummy.position.copy(point);
+                dummy.lookAt(nextPoint);
+                indicator.mesh.quaternion.copy(dummy.quaternion);
+            } else if (index > 0 && !this.looping) {
+                // Last point: use same orientation as previous point
+                const prevIndicator = this.pathDebugIndicators[index - 1];
+                indicator.mesh.quaternion.copy(prevIndicator.mesh.quaternion);
+            } else if (this.looping && this.points.length > 1) {
+                // Looping path: point towards first point
+                const nextPoint = this.points[0];
+                dummy.position.copy(point);
+                dummy.lookAt(nextPoint);
+                indicator.mesh.quaternion.copy(dummy.quaternion);
+            }
+
+            // Use 'selected' mode (yellow) to make them stand out
+            indicator.setMode('selected');
+
+            scene.add(indicator.mesh);
+            this.pathDebugIndicators.push(indicator);
         });
     }
 

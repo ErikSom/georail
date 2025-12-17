@@ -6,6 +6,8 @@ const sharedGeometry = (() => {
     // Rotate geometry so cone points down (-Y) but local Z points forward (+Z)
     geometry.rotateX(Math.PI); // Flip to point down
     geometry.rotateY(Math.PI / 4); // Rotate to align with forward direction
+    // Translate geometry up by half its height so the tip sits on the floor
+    geometry.translate(0, 2, 0); // Height is 4, so translate up by 4/2 = 2
     return geometry;
 })();
 
@@ -29,12 +31,14 @@ export class NodeIndicator {
     private xrayMesh: Mesh;
     private currentMode: NodeMode = 'normal';
 
-    constructor() {
+    constructor(scale: number = 1) {
         // Create main mesh with shared geometry and normal material
         this.mesh = new Mesh(sharedGeometry, sharedMaterials.normal);
+        this.mesh.scale.set(scale, scale, scale);
 
         // Add x-ray overlay mesh as child (renders through geometry)
         this.xrayMesh = new Mesh(sharedGeometry, sharedMaterials.xray);
+        this.xrayMesh.scale.set(scale, scale, scale);
         this.xrayMesh.renderOrder = -1; // Render before main mesh
         this.mesh.add(this.xrayMesh);
     }
