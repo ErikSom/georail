@@ -2,12 +2,9 @@ import {
     Scene,
     Camera,
     Mesh,
-    ConeGeometry,
-    MeshBasicMaterial,
     Group,
     Vector3,
     Raycaster,
-    GreaterDepth,
     CylinderGeometry,
     LineBasicMaterial,
     BufferGeometry,
@@ -19,6 +16,7 @@ import type { MapViewer } from '../MapViewer';
 import type { PatchData } from '../types/Patch';
 import { Input } from '../utils/Input';
 import { geoToENU, applyENUOffset, type GeoCoords } from '../utils/CoordinateHelpers';
+import { NodeIndicator } from './NodeIndicator';
 
 interface NodeSnapshot {
     position: Vector3;
@@ -60,7 +58,7 @@ export class RouteEditor {
     private mapViewer: MapViewer;
     private routeGroup: Group;
     private nodes: Map<string, NodeData> = new Map();
-    private nodeMeshes: Map<string, Mesh> = new Map();
+    private nodeIndicators: Map<string, NodeIndicator> = new Map();
     private transformControls: TransformControls;
     private selectedNode: string | null = null;
     private reviewMode: boolean = false;
@@ -125,26 +123,6 @@ export class RouteEditor {
             return;
         }
 
-        // Create base geometry - cone pointing up along +Y
-        const baseConeGeometry = new ConeGeometry(2, 4, 4);
-
-        // Rotate geometry so cone points down (-Y) but local Z points forward (+Z)
-        // This way the mesh's local coordinate system has Z pointing in the "forward" direction
-        baseConeGeometry.rotateX(Math.PI); // Flip to point down
-        baseConeGeometry.rotateY(Math.PI / 4); // Rotate to align with forward direction
-
-        const normalMaterial = new MeshBasicMaterial({ color: 0x00ff00, wireframe: false });
-        const keyNodeMaterial = new MeshBasicMaterial({ color: 0xff0000, wireframe: false });
-
-        // Material for x-ray overlay - pink, 50% transparent, only renders when behind geometry
-        const xrayMaterial = new MeshBasicMaterial({
-            color: 0xff69b4,
-            transparent: true,
-            opacity: 0.8,
-            depthFunc: GreaterDepth,
-            depthWrite: false,
-        });
-
         // Store meshes in order for orientation calculation
         const orderedMeshes: Mesh[] = [];
 
@@ -197,20 +175,15 @@ export class RouteEditor {
 
             this.nodes.set(nodeKey, nodeData);
 
-            // Create pyramid mesh - geometry is already rotated to point down
-            const mesh = new Mesh(baseConeGeometry, normalMaterial);
-            mesh.position.copy(position);
-            mesh.name = nodeKey;
-            mesh.userData.nodeKey = nodeKey;
+            // Create node indicator
+            const nodeIndicator = new NodeIndicator();
+            nodeIndicator.mesh.position.copy(position);
+            nodeIndicator.mesh.name = nodeKey;
+            nodeIndicator.mesh.userData.nodeKey = nodeKey;
 
-            // Add x-ray overlay mesh as child (renders through geometry)
-            const xrayMesh = new Mesh(baseConeGeometry, xrayMaterial);
-            xrayMesh.renderOrder = -1; // Render before main mesh
-            mesh.add(xrayMesh);
-
-            this.nodeMeshes.set(nodeKey, mesh);
-            this.routeGroup.add(mesh);
-            orderedMeshes.push(mesh);
+            this.nodeIndicators.set(nodeKey, nodeIndicator);
+            this.routeGroup.add(nodeIndicator.mesh);
+            orderedMeshes.push(nodeIndicator.mesh);
 
             // In review mode, add grey vertical line at original position
             if (this.reviewMode) {
@@ -299,28 +272,26 @@ export class RouteEditor {
 
         // Deselect previous
         if (this.selectedNode) {
-            const prevMesh = this.nodeMeshes.get(this.selectedNode);
+            const prevIndicator = this.nodeIndicators.get(this.selectedNode);
             const prevData = this.nodes.get(this.selectedNode);
-            if (prevMesh && prevData) {
-                const mat = prevData.isKeyNode
-                    ? new MeshBasicMaterial({ color: 0xff0000, wireframe: false })
-                    : new MeshBasicMaterial({ color: 0x00ff00, wireframe: false });
-                prevMesh.material = mat;
+            if (prevIndicator && prevData) {
+                const mode = prevData.isKeyNode ? 'keyNode' : 'normal';
+                prevIndicator.setMode(mode);
             }
         }
 
         this.selectedNode = nodeKey;
 
         if (nodeKey) {
-            const mesh = this.nodeMeshes.get(nodeKey);
+            const nodeIndicator = this.nodeIndicators.get(nodeKey);
             const nodeData = this.nodes.get(nodeKey);
 
-            if (mesh && nodeData) {
+            if (nodeIndicator && nodeData) {
                 // Highlight selected node
-                mesh.material = new MeshBasicMaterial({ color: 0xffff00, wireframe: false });
+                nodeIndicator.setMode('selected');
 
                 // Attach transform controls
-                this.transformControls.attach(mesh);
+                this.transformControls.attach(nodeIndicator.mesh);
 
                 // Notify callback
                 if (this.onNodeSelected) {
@@ -347,28 +318,25 @@ export class RouteEditor {
 
     public toggleKeyNode(nodeKey: string): void {
         const nodeData = this.nodes.get(nodeKey);
-        const mesh = this.nodeMeshes.get(nodeKey);
+        const nodeIndicator = this.nodeIndicators.get(nodeKey);
 
-        if (nodeData && mesh) {
+        if (nodeData && nodeIndicator) {
             nodeData.isKeyNode = !nodeData.isKeyNode;
 
-            // Update material
-            const mat = nodeData.isKeyNode
-                ? new MeshBasicMaterial({ color: 0xff0000, wireframe: false })
-                : new MeshBasicMaterial({ color: 0x00ff00, wireframe: false });
-
+            // Update mode - selected nodes stay selected
             if (nodeKey === this.selectedNode) {
-                mat.color.setHex(0xffff00);
+                nodeIndicator.setMode('selected');
+            } else {
+                const mode = nodeData.isKeyNode ? 'keyNode' : 'normal';
+                nodeIndicator.setMode(mode);
             }
-
-            mesh.material = mat;
 
             this.notifyModification();
         }
     }
 
     public raycastNodes(raycaster: Raycaster): string | null {
-        const meshArray = Array.from(this.nodeMeshes.values());
+        const meshArray = Array.from(this.nodeIndicators.values()).map(indicator => indicator.mesh);
 
         const intersects = raycaster.intersectObjects(meshArray, true);
 
@@ -448,12 +416,12 @@ export class RouteEditor {
 
     public bringNodeIntoView(nodeKey: string): void {
         const nodeData = this.nodes.get(nodeKey);
-        const mesh = this.nodeMeshes.get(nodeKey);
+        const nodeIndicator = this.nodeIndicators.get(nodeKey);
 
-        if (!nodeData || !mesh) return;
+        if (!nodeData || !nodeIndicator) return;
 
         // Get the node's world position
-        const targetPosition = mesh.position.clone();
+        const targetPosition = nodeIndicator.mesh.position.clone();
 
         // Calculate an offset position for the camera (angled view like Unity's F key)
         // Position camera at an angle: behind and above the node
@@ -481,9 +449,9 @@ export class RouteEditor {
         for (const patch of patchData) {
             const nodeKey = `${patch.segment_id}-${patch.point_index}`;
             const nodeData = this.nodes.get(nodeKey);
-            const mesh = this.nodeMeshes.get(nodeKey);
+            const nodeIndicator = this.nodeIndicators.get(nodeKey);
 
-            if (nodeData && mesh) {
+            if (nodeData && nodeIndicator) {
                 const [offsetX, offsetY, offsetZ] = patch.world_offset;
 
                 // Apply the saved world offsets
@@ -495,11 +463,11 @@ export class RouteEditor {
 
                 if (newPosition) {
                     nodeData.position.copy(newPosition);
-                    mesh.position.copy(newPosition);
+                    nodeIndicator.mesh.position.copy(newPosition);
 
-                    // Update material if it's a key node
+                    // Update mode if it's a key node
                     if (nodeData.isKeyNode) {
-                        mesh.material = new MeshBasicMaterial({ color: 0xff0000, wireframe: false });
+                        nodeIndicator.setMode('keyNode');
                     }
                 }
             }
@@ -511,21 +479,21 @@ export class RouteEditor {
     private handleNodeTransform(): void {
         if (!this.selectedNode) return;
 
-        const mesh = this.nodeMeshes.get(this.selectedNode);
+        const nodeIndicator = this.nodeIndicators.get(this.selectedNode);
         const nodeData = this.nodes.get(this.selectedNode);
 
-        if (mesh && nodeData) {
+        if (nodeIndicator && nodeData) {
             // Update node data with new position
-            nodeData.position.copy(mesh.position);
+            nodeData.position.copy(nodeIndicator.mesh.position);
 
             // Convert world position back to geographic coordinates to update world_offset
-            this.updateNodeWorldOffset(nodeData, mesh.position);
+            this.updateNodeWorldOffset(nodeData, nodeIndicator.mesh.position);
 
             // Auto-mark as key node when manually moved
             if (!nodeData.isKeyNode) {
                 nodeData.isKeyNode = true;
-                // Update material to red (key node color)
-                mesh.material = new MeshBasicMaterial({ color: 0xffff00, wireframe: false }); // Yellow for selected
+                // Keep selected mode (yellow) since it's still selected
+                nodeIndicator.setMode('selected');
             }
 
             // Interpolate nodes between key nodes
@@ -618,9 +586,9 @@ export class RouteEditor {
         for (let i = startIndex + 1; i < endIndex; i++) {
             const nodeKey = nodeKeys[i];
             const nodeData = this.nodes.get(nodeKey);
-            const mesh = this.nodeMeshes.get(nodeKey);
+            const nodeIndicator = this.nodeIndicators.get(nodeKey);
 
-            if (!nodeData || !mesh) continue;
+            if (!nodeData || !nodeIndicator) continue;
 
             // Calculate t based on distance ratio
             const distanceIndex = i - startIndex;
@@ -634,7 +602,7 @@ export class RouteEditor {
             if (nodeData.originalGeoCoords) {
                 const newPosition = applyENUOffset(nodeData.originalGeoCoords, newOffset, this.mapViewer);
                 if (newPosition) {
-                    mesh.position.copy(newPosition);
+                    nodeIndicator.mesh.position.copy(newPosition);
                     nodeData.position.copy(newPosition);
                 }
             }
@@ -674,22 +642,22 @@ export class RouteEditor {
 
         for (const [key, snapshot] of state) {
             const nodeData = this.nodes.get(key);
-            const mesh = this.nodeMeshes.get(key);
+            const nodeIndicator = this.nodeIndicators.get(key);
 
-            if (nodeData && mesh) {
+            if (nodeData && nodeIndicator) {
                 nodeData.position.copy(snapshot.position);
                 nodeData.world_offset.copy(snapshot.world_offset);
                 nodeData.isKeyNode = snapshot.isKeyNode;
 
-                mesh.position.copy(snapshot.position);
+                nodeIndicator.mesh.position.copy(snapshot.position);
 
                 const isSelected = key === this.selectedNode;
                 if (isSelected) {
-                    mesh.material = new MeshBasicMaterial({ color: 0xffff00, wireframe: false });
+                    nodeIndicator.setMode('selected');
                 } else if (nodeData.isKeyNode) {
-                    mesh.material = new MeshBasicMaterial({ color: 0xff0000, wireframe: false });
+                    nodeIndicator.setMode('keyNode');
                 } else {
-                    mesh.material = new MeshBasicMaterial({ color: 0x00ff00, wireframe: false });
+                    nodeIndicator.setMode('normal');
                 }
             }
         }
@@ -722,8 +690,13 @@ export class RouteEditor {
     }
 
     public clear(): void {
+        // Dispose node indicators
+        for (const indicator of this.nodeIndicators.values()) {
+            indicator.dispose();
+        }
+
         this.nodes.clear();
-        this.nodeMeshes.clear();
+        this.nodeIndicators.clear();
         this.offsetIndicators.clear();
         this.routeGroup.clear();
         this.transformControls.detach();
@@ -735,5 +708,8 @@ export class RouteEditor {
         this.scene.remove(this.routeGroup);
         this.scene.remove(this.transformControls.getHelper());
         this.transformControls.dispose();
+
+        // Only dispose shared resources when completely done with ALL RouteEditor instances
+        // NodeIndicator.disposeSharedResources();
     }
 }
