@@ -12,6 +12,7 @@ export interface RollingStockConfig {
     height: number; // in meters
 
     modelPath: string;
+    internal?: boolean;
     scale: number;
     modelOffset: {
         x: number;
@@ -54,6 +55,7 @@ export function getDefaultTrainConfig(): TrainConfig {
             height: 4.0,
             width: 3.0,
             modelPath: '/models/train/cab.glb',
+            internal: false,
             scale: 1.0,
             modelOffset: {
                 x: 0.0,

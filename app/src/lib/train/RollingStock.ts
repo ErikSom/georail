@@ -5,6 +5,7 @@ import type Path from '../utils/Path';
 import type { FolderApi, Pane } from 'tweakpane';
 import { dummy } from '../utils/Helper';
 import FilePicker from '../utils/FilePicker';
+import { applyDeobfuscation } from '../utils/Security';
 
 export class RollingStock {
     public group: Group;
@@ -147,6 +148,12 @@ export class RollingStock {
             (gltf: any) => {
                 if (this.model) this.group.remove(this.model);
                 this.model = gltf.scene!;
+
+                if (this.config.internal) {
+                    // Apply the GPU repair shader
+                    applyDeobfuscation(this.model);
+                }
+
                 this.updateModelTransform();
                 this.group.add(this.model!);
                 this.findBogieEntities();
@@ -425,6 +432,13 @@ export class RollingStock {
         visFolder.addBinding(targetConfig, 'modelPath', {
             label: 'Model Path'
         }).on('change', () => updateConfig(config));
+
+        visFolder.addBinding(targetConfig, 'internal', {
+            label: 'Is Obfuscated',
+        }).on('change', () => {
+            if (targetConfig.modelPath) this.loadModel(targetConfig.modelPath);
+            updateConfig(config);
+        });
 
         visFolder.addButton({ title: 'Load GLB File...' }).on('click', () => {
             FilePicker((url: string) => {

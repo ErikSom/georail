@@ -1,24 +1,24 @@
 import fs from 'fs-extra';
 import path from 'path';
-import os from 'os'; // Added for platform check
+import os from 'os';
 import { globSync } from 'glob';
 import { execFile } from 'child_process';
-import { createRequire } from 'module'; // Added to fix CommonJS import
+import { createRequire } from 'module';
 import gltfPipeline from 'gltf-pipeline';
 
-// 1. Setup 'require' for CommonJS compatibility
+// NEW: Import the library for modifying geometry
+import { NodeIO } from '@gltf-transform/core';
+
 const require = createRequire(import.meta.url);
 
-// 2. Import fbx2gltf and ensure we get the BINARY PATH (String)
+// --- SETUP EXTERNAL BINARIES ---
+
 let fbx2gltf = require('fbx2gltf');
 
-// SAFETY CHECK: If fbx2gltf is not a string path, find the binary manually
-// This fixes the "TypeError [ERR_INVALID_ARG_TYPE]"
 if (typeof fbx2gltf !== 'string') {
   const platform = os.platform() === 'darwin' ? 'Darwin' :
     os.platform() === 'win32' ? 'Windows' : 'Linux';
 
-  // Construct path manually
   fbx2gltf = path.resolve(
     process.cwd(),
     'node_modules',
@@ -29,7 +29,6 @@ if (typeof fbx2gltf !== 'string') {
   );
 }
 
-// gltf-pipeline is a CommonJS module, so we destructure it this way in ESM
 const { processGlb } = gltfPipeline;
 
 // --- CONFIGURATION ---
@@ -39,7 +38,14 @@ const BASE_DIR = './asset-pipeline';
 const CONFIG = {
   srcDir: `${BASE_DIR}/src`,
   outDir: `${BASE_DIR}/build`,
-  // Draco Compression Settings
+
+  obfuscation: {
+    enabled: true,
+    key: 123.45,
+    strength: 0.5,
+    frequency: 10.0,
+  },
+
   dracoOptions: {
     compressionLevel: 7,
     quantizePositionBits: 14,
@@ -54,21 +60,16 @@ const CONFIG = {
 
 const sanitizeName = (fileName) => {
   const nameWithoutExt = path.parse(fileName).name;
-  return nameWithoutExt
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9\-]/g, '');
+  return nameWithoutExt.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
 };
 
 const convertFbxToGlb = (srcPath, destPath) => {
   return new Promise((resolve, reject) => {
-    // We now know 'fbx2gltf' is definitely a string path
+    // --binary is crucial for the next steps
     const args = ['--binary', '--input', srcPath, '--output', destPath];
-
     execFile(fbx2gltf, args, (error, stdout, stderr) => {
       if (error) {
-        // Log stderr for clearer debugging
-        console.error(`\n⚠️  Error Output for ${path.basename(srcPath)}:\n`, stderr);
+        console.error(`\n⚠️  FBX Error ${path.basename(srcPath)}:\n`, stderr);
         reject(error);
       } else {
         resolve(destPath);
@@ -77,15 +78,58 @@ const convertFbxToGlb = (srcPath, destPath) => {
   });
 };
 
+/**
+ * 2. The Obfuscator Function
+ * Reads the GLB, scrambles vertices using the Feistel logic, saves it back.
+ */
+const obfuscateGlb = async (filePath) => {
+  try {
+    const io = new NodeIO();
+    const document = await io.read(filePath); // Read the freshly made GLB
+    const root = document.getRoot();
+
+    const { key, strength, frequency } = CONFIG.obfuscation;
+
+    // Iterate over every mesh and primitive in the file
+    for (const mesh of root.listMeshes()) {
+      for (const prim of mesh.listPrimitives()) {
+        const positionAccessor = prim.getAttribute('POSITION');
+        if (!positionAccessor) continue;
+
+        const count = positionAccessor.getCount();
+
+        for (let i = 0; i < count; i++) {
+          let [x, y, z] = positionAccessor.getElement(i, []);
+
+          // --- THE SCRAMBLE LOGIC ---
+          // Step 1: Distort X based on Y
+          x = x + Math.sin(y * frequency + key) * strength;
+
+          // Step 2: Distort Y based on NEW X
+          y = y + Math.cos(x * frequency + key) * strength;
+
+          // Step 3: Distort Z based on NEW X and NEW Y
+          z = z + Math.sin((x + y) * frequency + key) * strength;
+
+          positionAccessor.setElement(i, [x, y, z]);
+        }
+      }
+    }
+
+    // Overwrite the file with the scrambled version
+    await io.write(filePath, document);
+    return true;
+
+  } catch (err) {
+    console.error(`Error obfuscating ${filePath}:`, err);
+    throw err;
+  }
+};
+
 const compressGlb = async (filePath) => {
   try {
     const glbBuffer = await fs.readFile(filePath);
-
-    const options = {
-      dracoOptions: CONFIG.dracoOptions,
-    };
-
-    const results = await processGlb(glbBuffer, options);
+    const results = await processGlb(glbBuffer, { dracoOptions: CONFIG.dracoOptions });
     await fs.writeFile(filePath, results.glb);
     return true;
   } catch (err) {
@@ -98,8 +142,7 @@ const compressGlb = async (filePath) => {
 
 const run = async () => {
   console.log('🚀 Starting Asset Pipeline...');
-  console.log(`📂 Source: ${CONFIG.srcDir}`);
-  console.log(`📂 Output: ${CONFIG.outDir}`);
+  console.log(`🔒 Obfuscation: ${CONFIG.obfuscation.enabled ? 'ENABLED' : 'DISABLED'}`);
 
   await fs.ensureDir(CONFIG.outDir);
 
@@ -109,8 +152,6 @@ const run = async () => {
     console.log('No FBX files found.');
     return;
   }
-
-  console.log(`Found ${files.length} files. Processing...`);
 
   for (const srcPath of files) {
     const relativePath = path.relative(CONFIG.srcDir, srcPath);
@@ -125,16 +166,23 @@ const run = async () => {
     process.stdout.write(`Processing: ${path.basename(srcPath)} -> ${sanitizedName}.glb ... `);
 
     try {
+      // Step 1: Convert FBX to clean GLB
       await convertFbxToGlb(srcPath, outFilePath);
+
+      // Step 2: Obfuscate (Scramble Geometry)
+      // We do this BEFORE compression so Draco compresses the scrambled state
+      if (CONFIG.obfuscation.enabled) {
+        await obfuscateGlb(outFilePath);
+      }
+
+      // Step 3: Compress (Draco)
       await compressGlb(outFilePath);
+
       console.log('✅ Done');
     } catch (err) {
       console.log('❌ Failed');
-
-      // Permission Help Tip
       if (err.code === 'EACCES') {
-        console.error('\n🛑 PERMISSION ERROR: Run this command in your terminal to fix it:');
-        console.error(`chmod +x "${fbx2gltf}" && xattr -d com.apple.quarantine "${fbx2gltf}"\n`);
+        console.error('\n🛑 PERMISSION ERROR: Check fbx2gltf binary permissions.');
       } else {
         console.error(err);
       }
