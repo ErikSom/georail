@@ -41,14 +41,14 @@ const CONFIG = {
 
   obfuscation: {
     enabled: true,
-    key: 123.45,
+    key: 16.28,
     strength: 0.5,
     frequency: 10.0,
   },
 
   dracoOptions: {
     compressionLevel: 7,
-    quantizePositionBits: 14,
+    quantizePositionBits: 16,
     quantizeNormalBits: 10,
     quantizeTexcoordBits: 12,
     quantizeColorBits: 8,
