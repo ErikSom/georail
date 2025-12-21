@@ -53,7 +53,7 @@ export class World {
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.setSize(this.mountElement.clientWidth, this.mountElement.clientHeight);
         this.mountElement.appendChild(this.renderer.domElement);
-
+        
         this.camera = new PerspectiveCamera(60, this.mountElement.clientWidth / this.mountElement.clientHeight, 1, 1e7);
         this.camera.position.set(1e3, 1e3, 1e3).multiplyScalar(0.5);
 
@@ -218,6 +218,11 @@ export class World {
                 }
                 console.log('Free-fly camera mode enabled (right-click to move camera)');
             }
+        }
+
+        if (Input.isPressed('F1')) {
+            // Toggle Sky UI
+            this.sky.toggleUI();
         }
 
         Input.update();

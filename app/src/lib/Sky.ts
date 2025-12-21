@@ -17,7 +17,7 @@ import {
     MathUtils,
     Object3D
 } from 'three';
-import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import * as Tweakpane from 'tweakpane';
 
 
@@ -393,6 +393,9 @@ export class Sky {
     public debugLights: boolean = false;
     public timeConversionFactor = (60 * 60 * 24) / 2400; // seconds in a day divided by timeOfDay range
 
+    public sunPeakIntensity: number = 1.5; 
+    public moonPeakIntensity: number = 0.5;
+
     private pane: Tweakpane.Pane | null = null;
     private isPaneVisible: boolean = false;
 
@@ -411,7 +414,7 @@ export class Sky {
         weatherMapTex.minFilter = LinearMipMapLinearFilter;
         weatherMapTex.magFilter = LinearFilter;
 
-        const rgbeLoader = new RGBELoader();
+        const rgbeLoader = new HDRLoader();
         rgbeLoader.load(lutPath, (texture) => {
             texture.minFilter = LinearFilter;
             texture.magFilter = LinearFilter;
@@ -560,9 +563,9 @@ export class Sky {
         const cloudDamp = 1.0 - (normalizedCoverage * 0.8);
 
         this.sunLight.color.copy(preset.sunLightColor.sample(pos));
-        this.sunLight.intensity = Math.max(0, sunInt * cloudDamp * 1.5);
+        this.sunLight.intensity = Math.max(0, sunInt * cloudDamp * this.sunPeakIntensity);
         this.moonLight.color.copy(preset.moonLightColor.sample(pos));
-        this.moonLight.intensity = Math.max(0, moonInt * cloudDamp * 0.5);
+        this.moonLight.intensity = Math.max(0, moonInt * cloudDamp * this.moonPeakIntensity);
     }
 
     public cleanup(): void {
@@ -597,7 +600,9 @@ export class Sky {
     private createUI(): void {
         if (this.pane) return; // Already created
 
-        this.pane = new Tweakpane.Pane({ title: 'Sky Settings' });
+        const rootDomContainer = document.getElementById('tweakpane-container');
+
+        this.pane = new Tweakpane.Pane({ title: 'Sky Settings', container: rootDomContainer || undefined });
 
         // Time controls
         this.pane.addBinding(this, 'timeOfDay', {
@@ -668,17 +673,18 @@ export class Sky {
         this.pane.addBlade({ view: 'separator' });
 
         // Light controls
-        this.pane.addBinding(this.sunLight, 'intensity', {
+        this.pane.addBinding(this, 'sunPeakIntensity', {
+            min: 0,
+            max: 10,
+            step: 0.1,
+            label: 'Sun Intensity'
+        });
+
+        this.pane.addBinding(this, 'moonPeakIntensity', {
             min: 0,
             max: 5,
             step: 0.1,
-            label: 'sunIntensity'
-        });
-        this.pane.addBinding(this.moonLight, 'intensity', {
-            min: 0,
-            max: 2,
-            step: 0.1,
-            label: 'moonIntensity'
+            label: 'Moon Intensity'
         });
         this.pane.addBinding(this.ambientLight, 'intensity', {
             min: 0,

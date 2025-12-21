@@ -7,6 +7,7 @@ import { dummy } from '../utils/Helper';
 import FilePicker from '../utils/FilePicker';
 import { applyDeobfuscation } from '../utils/Security';
 import { glassMaterial } from './Materials';
+import { RollingStockAnimator } from './RollingStockAnimator';
 
 export class RollingStock {
     public group: Group;
@@ -14,6 +15,8 @@ export class RollingStock {
 
     protected config: RollingStockConfig;
     private model: Group | null = null;
+
+    private animator: RollingStockAnimator | null = null;
 
     private frontBogieEntity: Object3D | null = null;
     private rearBogieEntity: Object3D | null = null;
@@ -31,6 +34,7 @@ export class RollingStock {
     // Global debug visualization
     private debug: boolean = false;
     protected debugPaneName: string = 'RollingStock Debug';
+    private paneFolder: FolderApi | null = null;
 
     // Container for rotating debug parts (Box, Couplers)
     private debugAnchor: Group | null = null;
@@ -148,9 +152,27 @@ export class RollingStock {
             path,
             (gltf: any) => {
                 if (this.model) this.group.remove(this.model);
+                if (this.animator) this.animator.cleanup();
+
                 this.model = gltf.scene!;
 
                 this.setModelMaterials(this.model!);
+
+
+                // 2. Get the Animations (The movement data)
+                const animations = gltf.animations || [];
+                if (animations.length > 0) {
+                    this.animator = new RollingStockAnimator(this.model!, animations);
+                    window.trainAnimator = this.animator; // TEMP for debugging
+
+                    animations.forEach(anim => {
+                    console.log(`[RollingStock] Animation Clip Found: "${anim.name}" with ${anim.tracks.length} tracks.`);
+                    // table with all tracks;
+                    console.table(anim.tracks.map(track => ({ name: track.name, length: track.times.length })));
+                    });
+
+                    if(this.paneFolder) this.animator.createDebugUI(this.paneFolder);
+                }
 
                 if (this.config.internal) {
                     // Apply the GPU repair shader
@@ -169,26 +191,20 @@ export class RollingStock {
     private setModelMaterials(scene: Group): void {
         scene.traverse((child) => {
             if (child instanceof Mesh) {
-                // Handle possibility of material arrays (rare but possible in GLTF)
                 const materials = Array.isArray(child.material) ? child.material : [child.material];
 
                 materials.forEach((mat) => {
                     const name = mat.name?.toLowerCase() || '';
 
-                    // --- 1. GLASS (Physical Refraction) ---
-                    // Replaces the material entirely with your high-quality glass
                     if (name.includes('glass') || name.includes('window') && !name.includes('frame')) {
                         child.material = glassMaterial; 
                     }
                     else if (name.includes('frame') || name.includes('symbols')) {
                         const standardMat = mat as MeshStandardMaterial;
-
-                        // Enable "Alpha Test" (The Cutout effect)
-                        // Pixels with alpha < 0.5 are discarded. Pixels > 0.5 are perfectly opaque.
+    
                         standardMat.alphaTest = 0.5;
                         standardMat.transparent = false; 
 
-                        // Ensure we see the back of the grille/frame if it's single-sided geometry
                         // standardMat.side = DoubleSide;
 
                         standardMat.needsUpdate = true;
@@ -353,7 +369,7 @@ export class RollingStock {
 
     public createDebugUI(pane: Pane, config: TrainConfig, updateConfig: (config: TrainConfig) => void): FolderApi {
         // Main Folder
-        const rollingStockFolder = pane.addFolder({
+        this.paneFolder = pane.addFolder({
             title: this.debugPaneName,
             expanded: true
         });
@@ -366,7 +382,7 @@ export class RollingStock {
             showDebugVisuals: this.getDebugVisibility()
         };
 
-        rollingStockFolder.addBinding(debugParams, 'showDebugVisuals', {
+        this.paneFolder.addBinding(debugParams, 'showDebugVisuals', {
             label: 'Show Debug Visuals'
         }).on('change', (ev) => {
             this.setDebugVisibility(ev.value);
@@ -377,7 +393,7 @@ export class RollingStock {
         const maxWheelToBogieOffset = 4.0; // Reduced: wheels are rarely >4m from bogie center
 
         // --- 1. Physics & Dimensions ---
-        const physFolder = rollingStockFolder.addFolder({ title: 'Dimensions & Physics', expanded: false });
+        const physFolder = this.paneFolder.addFolder({ title: 'Dimensions & Physics', expanded: false });
 
         physFolder.addBinding(targetConfig, 'length', {
             label: 'Length (m)',
@@ -411,7 +427,7 @@ export class RollingStock {
 
         // --- 2. Connections (Couplers) ---
         // Added a separate folder for these as requested
-        const connFolder = rollingStockFolder.addFolder({ title: 'Connections', expanded: false });
+        const connFolder = this.paneFolder.addFolder({ title: 'Connections', expanded: false });
 
         // NEW: Coupler Front
         connFolder.addBinding(targetConfig, 'couplerLengthFront', {
@@ -430,11 +446,11 @@ export class RollingStock {
         }).on('change', () => updateConfig(config));
 
         // --- 3. Engine Configuration ---
-        const engineToggle = rollingStockFolder.addBinding(targetConfig, 'engine', {
+        const engineToggle = this.paneFolder.addBinding(targetConfig, 'engine', {
             label: 'Is Engine'
         });
 
-        const engFolder = rollingStockFolder.addFolder({
+        const engFolder = this.paneFolder.addFolder({
             title: 'Engine Specs',
             expanded: true
         });
@@ -461,7 +477,7 @@ export class RollingStock {
         }).on('change', () => updateConfig(config));
 
         // --- 4. Visuals & Model Loading ---
-        const visFolder = rollingStockFolder.addFolder({ title: 'Visuals', expanded: false });
+        const visFolder = this.paneFolder.addFolder({ title: 'Visuals', expanded: false });
 
         visFolder.addBinding(targetConfig, 'modelPath', {
             label: 'Model Path'
@@ -496,7 +512,7 @@ export class RollingStock {
         }).on('change', () => updateConfig(config));
 
         // --- 5. Bogie Configuration ---
-        const bogieMainFolder = rollingStockFolder.addFolder({ title: 'Bogie Setup', expanded: false });
+        const bogieMainFolder = this.paneFolder.addFolder({ title: 'Bogie Setup', expanded: false });
 
         // Helper to keep code dry
         const addBogieControls = (folder: any, bogie: any, isRear: boolean) => {
@@ -533,7 +549,13 @@ export class RollingStock {
         const rearBogieFolder = bogieMainFolder.addFolder({ title: 'Rear Bogie', expanded: true });
         addBogieControls(rearBogieFolder, targetConfig.rearBogie, true);
 
-        return rollingStockFolder;
+        return this.paneFolder;
+    }
+
+    public update(delta: number): void {
+        if (this.animator) {
+            this.animator.update(delta);
+        }
     }
 
     public cleanup(): void {

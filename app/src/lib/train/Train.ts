@@ -246,6 +246,12 @@ export class Train {
         }
     }
 
+    public update(delta: number): void {
+        this.cab?.update(delta);
+        this.wagons.forEach(wagon => wagon.update(delta));
+        this.rearCab?.update(delta);
+    }
+
     public cleanup(): void {
         this.cab.cleanup();
         this.wagons.forEach(wagon => wagon.cleanup());

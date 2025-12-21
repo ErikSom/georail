@@ -448,6 +448,7 @@ export class TrainEditorWorld {
 
         // Update Sky
         this.sky.update(deltaTime, this.camera);
+        this.train?.update(deltaTime);
 
         // Update Camera
         this.camera.updateMatrixWorld();
