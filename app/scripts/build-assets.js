@@ -4,15 +4,28 @@ import os from 'os';
 import { globSync } from 'glob';
 import { execFile } from 'child_process';
 import { createRequire } from 'module';
-import gltfPipeline from 'gltf-pipeline';
 
-// NEW: Import the library for modifying geometry
+// CORE LIBRARY
 import { NodeIO } from '@gltf-transform/core';
+
+// EXTENSIONS & PLUGINS
+import {
+  KHRDracoMeshCompression,
+  EXTTextureWebP
+} from '@gltf-transform/extensions';
+
+import {
+  textureCompress,
+  prune,
+  dedup
+} from '@gltf-transform/functions';
+
+import draco3d from 'draco3d';
+import sharp from 'sharp';
 
 const require = createRequire(import.meta.url);
 
 // --- SETUP EXTERNAL BINARIES ---
-
 let fbx2gltf = require('fbx2gltf');
 
 if (typeof fbx2gltf !== 'string') {
@@ -29,10 +42,7 @@ if (typeof fbx2gltf !== 'string') {
   );
 }
 
-const { processGlb } = gltfPipeline;
-
 // --- CONFIGURATION ---
-
 const BASE_DIR = './asset-pipeline';
 
 const CONFIG = {
@@ -40,19 +50,25 @@ const CONFIG = {
   outDir: `${BASE_DIR}/build`,
 
   obfuscation: {
-    enabled: true,
+    enabled: false,
     key: 16.28,
     strength: 0.5,
     frequency: 10.0,
   },
 
   dracoOptions: {
-    compressionLevel: 7,
-    quantizePositionBits: 16,
-    quantizeNormalBits: 10,
-    quantizeTexcoordBits: 12,
-    quantizeColorBits: 8,
-    quantizeGenericBits: 12,
+    method: 'sequential',
+    quantizePosition: 20,
+    quantizeNormal: 10,
+    quantizeTexcoord: 12,
+    quantizeColor: 8,
+    quantizeGeneric: 12,
+  },
+
+  textureOptions: {
+    format: 'webp',
+    quality: 100,
+    size: [4096, 4096]
   }
 };
 
@@ -63,9 +79,17 @@ const sanitizeName = (fileName) => {
   return nameWithoutExt.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
 };
 
+const formatBytes = (bytes, decimals = 2) => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+};
+
 const convertFbxToGlb = (srcPath, destPath) => {
   return new Promise((resolve, reject) => {
-    // --binary is crucial for the next steps
     const args = ['--binary', '--input', srcPath, '--output', destPath];
     execFile(fbx2gltf, args, (error, stdout, stderr) => {
       if (error) {
@@ -78,62 +102,144 @@ const convertFbxToGlb = (srcPath, destPath) => {
   });
 };
 
+const getTextureStats = (document) => {
+  const stats = [];
+  document.getRoot().listTextures().forEach((texture, index) => {
+    const image = texture.getImage();
+    if (image) {
+      stats.push({
+        name: texture.getName() || `Texture_${index}`,
+        mime: texture.getMimeType(),
+        size: image.byteLength
+      });
+    }
+  });
+  return stats;
+};
+
 /**
- * 2. The Obfuscator Function
- * Reads the GLB, scrambles vertices using the Feistel logic, saves it back.
+ * 🛠️ MANUAL FIXER
+ * Iterates over textures that gltf-transform doesn't recognize
+ * and forces them to become WebP using Sharp.
  */
-const obfuscateGlb = async (filePath) => {
+const fixUnknownTextures = async (document) => {
+  const textures = document.getRoot().listTextures();
+
+  for (const texture of textures) {
+    const mime = texture.getMimeType();
+    const name = texture.getName() || '';
+
+    // If it's "unknown" or explicitly a TIFF file
+    if (name.toLowerCase().endsWith('.tif')) {
+      const imageBuffer = texture.getImage();
+
+      if (imageBuffer) {
+        try {
+          // Force conversion to WebP
+          const newBuffer = await sharp(imageBuffer, { failOn: 'none' })
+            .resize({
+              width: CONFIG.textureOptions.size[0],
+              height: CONFIG.textureOptions.size[1],
+              fit: 'inside',
+              withoutEnlargement: true
+            })
+            .webp({ quality: CONFIG.textureOptions.quality })
+            .toBuffer();
+
+          // Update the GLTF texture object
+          texture.setImage(newBuffer);
+          texture.setMimeType('image/webp');
+        } catch (e) {
+          console.warn(`      ⚠️ Could not convert texture ${name}: ${e.message}`);
+        }
+      }
+    }
+  }
+};
+
+const processGlb = async (filePath) => {
   try {
-    const io = new NodeIO();
-    const document = await io.read(filePath); // Read the freshly made GLB
+    const io = new NodeIO()
+      .registerExtensions([KHRDracoMeshCompression, EXTTextureWebP])
+      .registerDependencies({
+        'draco3d.decoder': await draco3d.createDecoderModule(),
+        'draco3d.encoder': await draco3d.createEncoderModule(),
+      });
+
+    const document = await io.read(filePath);
     const root = document.getRoot();
 
-    const { key, strength, frequency } = CONFIG.obfuscation;
-
-    // Iterate over every mesh and primitive in the file
-    for (const mesh of root.listMeshes()) {
-      for (const prim of mesh.listPrimitives()) {
-        const positionAccessor = prim.getAttribute('POSITION');
-        if (!positionAccessor) continue;
-
-        const count = positionAccessor.getCount();
-
-        for (let i = 0; i < count; i++) {
-          let [x, y, z] = positionAccessor.getElement(i, []);
-
-          // --- THE SCRAMBLE LOGIC ---
-          // Step 1: Distort X based on Y
-          x = x + Math.sin(y * frequency + key) * strength;
-
-          // Step 2: Distort Y based on NEW X
-          y = y + Math.cos(x * frequency + key) * strength;
-
-          // Step 3: Distort Z based on NEW X and NEW Y
-          z = z + Math.sin((x + y) * frequency + key) * strength;
-
-          positionAccessor.setElement(i, [x, y, z]);
+    // --- 1. OBFUSCATION ---
+    if (CONFIG.obfuscation.enabled) {
+      const { key, strength, frequency } = CONFIG.obfuscation;
+      for (const mesh of root.listMeshes()) {
+        for (const prim of mesh.listPrimitives()) {
+          const positionAccessor = prim.getAttribute('POSITION');
+          if (!positionAccessor) continue;
+          const count = positionAccessor.getCount();
+          for (let i = 0; i < count; i++) {
+            let [x, y, z] = positionAccessor.getElement(i, []);
+            x = x + Math.sin(y * frequency + key) * strength;
+            y = y + Math.cos(x * frequency + key) * strength;
+            z = z + Math.sin((x + y) * frequency + key) * strength;
+            positionAccessor.setElement(i, [x, y, z]);
+          }
         }
       }
     }
 
-    // Overwrite the file with the scrambled version
+    // --- 2. PRE-STATS ---
+    const preStats = getTextureStats(document);
+
+    // --- 3. MANUAL TIFF FIX ---
+    // This runs BEFORE the standard pipeline to fix the "unknown" mime types
+    await fixUnknownTextures(document);
+
+    // --- 4. STANDARD OPTIMIZATION ---
+    await document.transform(
+      dedup(),
+      // We run prune here to remove the old TIFF data we just replaced
+      prune()
+    );
+
+    // --- 5. POST-STATS ---
+    const postStats = getTextureStats(document);
+
+    console.log('\n   📦 Texture Compression Report:');
+    if (preStats.length === 0) {
+      console.log('      No textures found.');
+    } else {
+      preStats.forEach((pre, i) => {
+        const post = postStats[i] || { size: 0, mime: 'deleted' };
+        const saved = pre.size - post.size;
+        const percent = pre.size > 0 ? ((saved / pre.size) * 100).toFixed(1) : 0;
+
+        console.log(`      - ${pre.name}:`);
+        console.log(`        ${pre.mime} (${formatBytes(pre.size)}) -> ${post.mime} (${formatBytes(post.size)})`);
+        console.log(`        Saved: ${formatBytes(saved)} (${percent}%)`);
+      });
+    }
+    console.log('');
+
+    // --- 6. GEOMETRY COMPRESSION ---
+    document.createExtension(KHRDracoMeshCompression)
+      .setRequired(true)
+      .setEncoderOptions({
+        method: CONFIG.dracoOptions.method === 'edgebreaker' ? 1 : 0,
+        quantizationBits: {
+          POSITION: CONFIG.dracoOptions.quantizePosition,
+          NORMAL: CONFIG.dracoOptions.quantizeNormal,
+          TEX_COORD: CONFIG.dracoOptions.quantizeTexcoord,
+          COLOR: CONFIG.dracoOptions.quantizeColor,
+          GENERIC: CONFIG.dracoOptions.quantizeGeneric,
+        }
+      });
+
     await io.write(filePath, document);
     return true;
 
   } catch (err) {
-    console.error(`Error obfuscating ${filePath}:`, err);
-    throw err;
-  }
-};
-
-const compressGlb = async (filePath) => {
-  try {
-    const glbBuffer = await fs.readFile(filePath);
-    const results = await processGlb(glbBuffer, { dracoOptions: CONFIG.dracoOptions });
-    await fs.writeFile(filePath, results.glb);
-    return true;
-  } catch (err) {
-    console.error(`Error compressing ${filePath}:`, err);
+    console.error(`Error processing ${filePath}:`, err);
     throw err;
   }
 };
@@ -160,32 +266,25 @@ const run = async () => {
 
     const outFolderPath = path.join(CONFIG.outDir, dirName);
     const outFilePath = path.join(outFolderPath, `${sanitizedName}.glb`);
+    const fbmFolderPath = srcPath.substring(0, srcPath.lastIndexOf('.')) + '.fbm';
 
     await fs.ensureDir(outFolderPath);
 
     process.stdout.write(`Processing: ${path.basename(srcPath)} -> ${sanitizedName}.glb ... `);
 
     try {
-      // Step 1: Convert FBX to clean GLB
       await convertFbxToGlb(srcPath, outFilePath);
 
-      // Step 2: Obfuscate (Scramble Geometry)
-      // We do this BEFORE compression so Draco compresses the scrambled state
-      if (CONFIG.obfuscation.enabled) {
-        await obfuscateGlb(outFilePath);
+      if (await fs.pathExists(fbmFolderPath)) {
+        await fs.remove(fbmFolderPath);
       }
 
-      // Step 3: Compress (Draco)
-      await compressGlb(outFilePath);
+      await processGlb(outFilePath);
 
       console.log('✅ Done');
     } catch (err) {
       console.log('❌ Failed');
-      if (err.code === 'EACCES') {
-        console.error('\n🛑 PERMISSION ERROR: Check fbx2gltf binary permissions.');
-      } else {
-        console.error(err);
-      }
+      console.error(err);
     }
   }
 

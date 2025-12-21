@@ -1,4 +1,4 @@
-import { Group, Mesh, Object3D, SphereGeometry, BoxGeometry, MeshBasicMaterial, Vector3 } from 'three';
+import { Group, Mesh, Object3D, SphereGeometry, BoxGeometry, MeshBasicMaterial, Vector3, MeshStandardMaterial, DoubleSide } from 'three';
 import type { BogieConfig, RollingStockConfig, TrainConfig } from './TrainConfig';
 import { getGLTFLoader } from '../utils/ModelLoader';
 import type Path from '../utils/Path';
@@ -6,6 +6,7 @@ import type { FolderApi, Pane } from 'tweakpane';
 import { dummy } from '../utils/Helper';
 import FilePicker from '../utils/FilePicker';
 import { applyDeobfuscation } from '../utils/Security';
+import { glassMaterial } from './Materials';
 
 export class RollingStock {
     public group: Group;
@@ -149,9 +150,11 @@ export class RollingStock {
                 if (this.model) this.group.remove(this.model);
                 this.model = gltf.scene!;
 
+                this.setModelMaterials(this.model!);
+
                 if (this.config.internal) {
                     // Apply the GPU repair shader
-                    applyDeobfuscation(this.model);
+                    applyDeobfuscation(this.model!);
                 }
 
                 this.updateModelTransform();
@@ -163,6 +166,37 @@ export class RollingStock {
         );
     }
 
+    private setModelMaterials(scene: Group): void {
+        scene.traverse((child) => {
+            if (child instanceof Mesh) {
+                // Handle possibility of material arrays (rare but possible in GLTF)
+                const materials = Array.isArray(child.material) ? child.material : [child.material];
+
+                materials.forEach((mat) => {
+                    const name = mat.name?.toLowerCase() || '';
+
+                    // --- 1. GLASS (Physical Refraction) ---
+                    // Replaces the material entirely with your high-quality glass
+                    if (name.includes('glass') || name.includes('window') && !name.includes('frame')) {
+                        child.material = glassMaterial; 
+                    }
+                    else if (name.includes('frame') || name.includes('symbols')) {
+                        const standardMat = mat as MeshStandardMaterial;
+
+                        // Enable "Alpha Test" (The Cutout effect)
+                        // Pixels with alpha < 0.5 are discarded. Pixels > 0.5 are perfectly opaque.
+                        standardMat.alphaTest = 0.5;
+                        standardMat.transparent = false; 
+
+                        // Ensure we see the back of the grille/frame if it's single-sided geometry
+                        // standardMat.side = DoubleSide;
+
+                        standardMat.needsUpdate = true;
+                    }
+                });
+            }
+        });
+    };
     private setDebugVisibility(visible: boolean): void {
         // Set visibility for all debug meshes in the group
         if (this.debugAnchor) {
@@ -450,7 +484,7 @@ export class RollingStock {
         visFolder.addBinding(targetConfig, 'scale', {
             label: 'Scale',
             min: 0.1,
-            max: 5.0,
+            max: 20.0,
             step: 0.01 // Finer step for precision scaling
         }).on('change', () => updateConfig(config));
 
