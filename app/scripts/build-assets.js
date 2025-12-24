@@ -251,6 +251,7 @@ const run = async () => {
   console.log(`🔒 Obfuscation: ${CONFIG.obfuscation.enabled ? 'ENABLED' : 'DISABLED'}`);
 
   await fs.ensureDir(CONFIG.outDir);
+  await fs.emptyDir(CONFIG.outDir);
 
   const files = globSync(`${CONFIG.srcDir}/**/*.fbx`);
 

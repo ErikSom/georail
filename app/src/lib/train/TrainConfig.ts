@@ -3,6 +3,7 @@ export interface BogieConfig {
     wheelOffsetFront: number;
     wheelOffsetRear: number;
     entityName?: string;
+    boneForwardAxis: { x: number; y: number; z: number };
 }
 
 export interface RollingStockConfig {
@@ -19,6 +20,8 @@ export interface RollingStockConfig {
         y: number;
         z: number;
     }
+    // Model forward axis - defines which local axis of the model should point forward along the track
+    modelForwardAxis: { x: number; y: number; z: number };
 
     frontBogie: BogieConfig;
     rearBogie: BogieConfig;
@@ -62,17 +65,20 @@ export function getDefaultTrainConfig(): TrainConfig {
                 y: 0.0,
                 z: 0.0
             },
+            modelForwardAxis: { x: 0, y: 0, z: 1 }, // Default: +Z forward
             frontBogie: {
                 zOffset: 5.0,
                 wheelOffsetFront: 1.0,
                 wheelOffsetRear: -1.0,
                 entityName: '',
+                boneForwardAxis: { x: 0, y: 0, z: 1 }, // Default: +Z forward
             },
             rearBogie: {
                 zOffset: -5.0,
                 wheelOffsetFront: 1.0,
                 wheelOffsetRear: -1.0,
                 entityName: '',
+                boneForwardAxis: { x: 0, y: 0, z: 1 }, // Default: +Z forward
             },
             couplerLengthFront: 0.0,
             couplerLengthRear: 0.5,

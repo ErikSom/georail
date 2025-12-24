@@ -115,7 +115,7 @@ export class TrainEditorWorld {
 
         // Controls - initialize before setting path
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-        this.controls.minDistance = 50;
+        this.controls.minDistance = 10;
         this.controls.maxDistance = 1000;
         this.controls.enableDamping = true;
         this.controls.target.copy(this.train.group.position);

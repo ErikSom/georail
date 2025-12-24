@@ -3,7 +3,7 @@ import type { BogieConfig, RollingStockConfig, TrainConfig } from './TrainConfig
 import { getGLTFLoader } from '../utils/ModelLoader';
 import type Path from '../utils/Path';
 import type { FolderApi, Pane } from 'tweakpane';
-import { dummy } from '../utils/Helper';
+import { dummy, dummyForward, dummyQuad, dummyVec3 } from '../utils/Helper';
 import FilePicker from '../utils/FilePicker';
 import { applyDeobfuscation } from '../utils/Security';
 import { glassMaterial } from './Materials';
@@ -144,6 +144,21 @@ export class RollingStock {
             this.config.modelOffset.y,
             this.config.modelOffset.z
         );
+
+        // Apply rotation based on model forward axis
+        if (this.config.modelForwardAxis) {
+            const modelForward = new Vector3(
+                this.config.modelForwardAxis.x,
+                this.config.modelForwardAxis.y,
+                this.config.modelForwardAxis.z
+            ).normalize();
+
+            // Default forward direction is +Z
+            const targetForward = new Vector3(0, 0, 1);
+
+            // Calculate rotation to align model's forward axis with +Z
+            this.model.quaternion.setFromUnitVectors(modelForward, targetForward);
+        }
     }
 
     private loadModel(path: string): void {
@@ -164,14 +179,13 @@ export class RollingStock {
                 if (animations.length > 0) {
                     this.animator = new RollingStockAnimator(this.model!, animations);
                     window.trainAnimator = this.animator; // TEMP for debugging
-
                     animations.forEach(anim => {
-                    console.log(`[RollingStock] Animation Clip Found: "${anim.name}" with ${anim.tracks.length} tracks.`);
-                    // table with all tracks;
-                    console.table(anim.tracks.map(track => ({ name: track.name, length: track.times.length })));
+                        console.log(`[RollingStock] Animation Clip Found: "${anim.name}" with ${anim.tracks.length} tracks.`);
+                        // table with all tracks;
+                        console.table(anim.tracks.map(track => ({ name: track.name, length: track.times.length })));
                     });
 
-                    if(this.paneFolder) this.animator.createDebugUI(this.paneFolder);
+                    if (this.paneFolder) this.animator.createDebugUI(this.paneFolder);
                 }
 
                 if (this.config.internal) {
@@ -193,17 +207,19 @@ export class RollingStock {
             if (child instanceof Mesh) {
                 const materials = Array.isArray(child.material) ? child.material : [child.material];
 
+                console.log(`[RollingStock] Processing Mesh: "${child.name}" with ${materials.length} material(s).`);
+
                 materials.forEach((mat) => {
                     const name = mat.name?.toLowerCase() || '';
 
                     if (name.includes('glass') || name.includes('window') && !name.includes('frame')) {
-                        child.material = glassMaterial; 
+                        child.material = glassMaterial;
                     }
                     else if (name.includes('frame') || name.includes('symbols')) {
                         const standardMat = mat as MeshStandardMaterial;
-    
+
                         standardMat.alphaTest = 0.5;
-                        standardMat.transparent = false; 
+                        standardMat.transparent = false;
 
                         // standardMat.side = DoubleSide;
 
@@ -268,6 +284,19 @@ export class RollingStock {
     }
 
     private updateDebugVisuals(): void {
+        // Calculate position (same logic as in orientOnRails)
+        const frontPoint = this.railPositions.bogieFront;
+        const rearPoint = this.railPositions.bogieRear;
+        const bogieMidpoint = new Vector3().addVectors(frontPoint, rearPoint).multiplyScalar(0.5);
+
+        // Calculate the train's actual position (path center + lateral offset)
+        const trackDirection = new Vector3().subVectors(frontPoint, rearPoint).normalize();
+        const offset = new Vector3().subVectors(bogieMidpoint, this.railPositions.center);
+        const longitudinalComponent = offset.dot(trackDirection);
+        offset.addScaledVector(trackDirection, -longitudinalComponent);
+
+        const trainPosition = new Vector3().copy(this.railPositions.center).add(offset);
+
         // 1. Update Spheres positions
         const map = {
             bogieFront: this.railPositions.bogieFront,
@@ -288,7 +317,7 @@ export class RollingStock {
         // 2. Update Structural Boxes
         if (this.debugAnchor && this.debugMeshes.body) {
             // Move anchor to match train center/rotation
-            this.debugAnchor.position.copy(this.railPositions.center);
+            this.debugAnchor.position.copy(trainPosition);
             this.debugAnchor.quaternion.copy(this.group.quaternion);
 
             const c = this.config;
@@ -335,6 +364,9 @@ export class RollingStock {
         if (this.config.rearBogie.entityName) {
             this.rearBogieEntity = this.model.getObjectByName(this.config.rearBogie.entityName) || null;
         }
+
+        console.log(`[RollingStock] Front Bogie Entity: ${this.frontBogieEntity ? 'Found' : 'Not Found'} (${this.config.frontBogie.entityName})`);
+        console.log(`[RollingStock] Rear Bogie Entity: ${this.rearBogieEntity ? 'Found' : 'Not Found'} (${this.config.rearBogie.entityName})`);
     }
 
     public updateConfig(config: RollingStockConfig): void {
@@ -354,13 +386,89 @@ export class RollingStock {
         const frontPoint = this.railPositions.bogieFront;
         const rearPoint = this.railPositions.bogieRear;
 
+        // Calculate the midpoint between bogies for lateral positioning
+        const bogieMidpoint = dummyVec3.addVectors(frontPoint, rearPoint).multiplyScalar(0.5);
+
+        // 1. Orient the Main Train Group (Car Body)
+        // This handles the main pitch and yaw of the train car
         dummy.position.copy(rearPoint);
         dummy.lookAt(frontPoint);
         this.group.quaternion.copy(dummy.quaternion);
 
+        // Position center of car
+        // Use the path center for longitudinal position, but apply lateral offset from bogie midpoint
         dummy.position.copy(this.railPositions.center);
+
+        // Calculate lateral offset: project the difference between path center and bogie midpoint
+        // onto the plane perpendicular to the track direction
+        const trackDirection = new Vector3().subVectors(frontPoint, rearPoint).normalize();
+        const offset = new Vector3().subVectors(bogieMidpoint, this.railPositions.center);
+
+        // Remove the component along the track direction (keep only lateral offset)
+        const longitudinalComponent = offset.dot(trackDirection);
+        offset.addScaledVector(trackDirection, -longitudinalComponent);
+
+        // Apply lateral offset to the path center
+        dummy.position.add(offset);
+
         this.group.parent!.worldToLocal(dummy.position);
         this.group.position.copy(dummy.position);
+
+        // Helper to rotate bogie using LookAt (Stable Up Vector) + Axis Correction
+        const updateBogieRotation = (
+            entity: Object3D,
+            config: BogieConfig,
+            posFront: Vector3,
+            posBack: Vector3
+        ) => {
+            // A. Calculate the direction vector in Local Space
+            // (The direction the bogie SHOULD face relative to the train car)
+            const localFront = entity.parent!.worldToLocal(posFront.clone());
+            const localBack = entity.parent!.worldToLocal(posBack.clone());
+            const localDirection = dummyVec3.subVectors(localFront, localBack).normalize();
+
+            // B. Calculate the "Ideal" Rotation (assuming +Z is forward)
+            // We use lookAt because it enforces the Y-Up constraint automatically,
+            // preventing the "sideways roll" issue.
+            dummy.position.set(0, 0, 0);
+            dummy.lookAt(localDirection);
+            const targetRotation = dummy.quaternion.clone();
+
+            // C. Calculate Axis Correction
+            // If your model uses X or Y as forward, we calculate the offset 
+            // needed to align your bone axis to the standard +Z axis.
+            const boneAxis = config.boneForwardAxis;
+            const boneForward = dummyVec3.set(boneAxis.x, boneAxis.y, boneAxis.z).normalize();
+            const standardForward = dummyForward;
+
+            // We want a rotation that takes BoneForward -> StandardForward (+Z)
+            const correctionQuat = dummyQuad.setFromUnitVectors(boneForward, standardForward);
+
+            // D. Apply: Final = Target (LookAt) * Correction
+            // 1. Correction turns your mesh so BoneForward points to Z
+            // 2. Target turns Z to face the Track
+            entity.quaternion.copy(targetRotation.multiply(correctionQuat));
+        };
+
+        // Apply to Front Bogie
+        if (this.frontBogieEntity && this.model) {
+            updateBogieRotation(
+                this.frontBogieEntity,
+                this.config.frontBogie,
+                this.railPositions.bogieFrontFront,
+                this.railPositions.bogieFrontBack
+            );
+        }
+
+        // Apply to Rear Bogie
+        if (this.rearBogieEntity && this.model) {
+            updateBogieRotation(
+                this.rearBogieEntity,
+                this.config.rearBogie,
+                this.railPositions.bogieRearFront,
+                this.railPositions.bogieRearBack
+            );
+        }
     }
 
     protected getConfigTarget(config: TrainConfig): RollingStockConfig {
@@ -511,6 +619,18 @@ export class RollingStock {
             z: { min: -maxModelOffset, max: maxModelOffset }
         }).on('change', () => updateConfig(config));
 
+        // Ensure modelForwardAxis exists
+        if (!targetConfig.modelForwardAxis) {
+            targetConfig.modelForwardAxis = { x: 0, y: 0, z: 1 };
+        }
+
+        visFolder.addBinding(targetConfig, 'modelForwardAxis', {
+            label: 'Model Forward Axis',
+            x: { min: -1, max: 1, step: 0.1 },
+            y: { min: -1, max: 1, step: 0.1 },
+            z: { min: -1, max: 1, step: 0.1 }
+        }).on('change', () => updateConfig(config));
+
         // --- 5. Bogie Configuration ---
         const bogieMainFolder = this.paneFolder.addFolder({ title: 'Bogie Setup', expanded: false });
 
@@ -540,6 +660,13 @@ export class RollingStock {
 
             folder.addBinding(bogie, 'entityName', {
                 label: 'Bone/Node Name'
+            }).on('change', () => updateConfig(config));
+
+            folder.addBinding(bogie, 'boneForwardAxis', {
+                label: 'Bone Forward Axis',
+                x: { min: -1, max: 1, step: 0.1 },
+                y: { min: -1, max: 1, step: 0.1 },
+                z: { min: -1, max: 1, step: 0.1 }
             }).on('change', () => updateConfig(config));
         };
 
