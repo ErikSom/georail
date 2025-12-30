@@ -1,7 +1,6 @@
 import { useState } from 'preact/hooks';
 import styles from './TrainControls.module.css';
 import BipolarDial from './BipolarDial';
-import InlineSVG from '../../components/InlineSVG';
 import IconButton from './IconButton';
 
 function TrainControls() {
@@ -9,19 +8,16 @@ function TrainControls() {
     const [dialValue, setDialValue] = useState(0);
 
     return (
-        <>
-            {/* Toggle Button - Bottom Right Corner */}
-            <button
-                className={styles.toggleButton}
-                onClick={() => setIsOpen(!isOpen)}
-                aria-label="Toggle train controls"
-            >
-                <InlineSVG
-                    src="/icons/gamepad.svg"
-                    width={24}
-                    height={24}
+        <div className={styles.container}>
+            {!isOpen &&
+                <IconButton
+                    icon="/icons/controls.svg"
+                    className={styles.toggleButton}
+                    onClick={() => setIsOpen(true)}
+                    ariaLabel="Toggle train controls"
+                    iconSize={24}
                 />
-            </button>
+            }
 
             {/* Control Panel - Bottom of Screen */}
             <div className={`${styles.controlPanel} ${isOpen ? styles.controlPanelOpen : ''}`}>
@@ -34,10 +30,11 @@ function TrainControls() {
                         max={100}
                         size={220}
                     />
-                    <IconButton className={styles.lightIcon} onClick={() => setDialValue(0)} />
+                    <IconButton toggle icon="/icons/lightbulb.svg" className={styles.lightIcon} onClick={() => setDialValue(0)} ariaLabel="Toggle light" />
+                    <IconButton icon="/icons/controls-off.svg" className={styles.closeControls} onClick={() => setIsOpen(false)} ariaLabel="Close train controls" />
                 </div>
             </div>
-        </>
+        </div>
     );
 }
 

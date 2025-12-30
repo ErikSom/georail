@@ -46,6 +46,7 @@ function BipolarDial({
     // --- Rendering State (parity: display is based on stepped value, not physics angle) ---
     const [displayAngle, setDisplayAngle] = useState(0); // snapped angle derived from internal value
     const [displayValue, setDisplayValue] = useState<number>(value); // internal knob value for UI
+    const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
 
     // --- Audio ---
     const audioCtxRef = useRef<AudioContext | null>(null);
@@ -221,6 +222,10 @@ function BipolarDial({
             // always update visuals/value (exact)
             updateByValue(steppedValue, false);
 
+            // update tooltip position
+            // client coords -> wrapper-local coords (control panel is transformed)
+            setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+
             // last mouse update at end (exact)
             lastMousePos.current = { x: e.clientX, y: e.clientY };
         };
@@ -230,6 +235,7 @@ function BipolarDial({
 
             isDragging.current = false;
             rollingDelta.current.length = 0;
+            setTooltipPos(null);
 
             if (Math.abs(currentAngleRef.current) < 0.1) {
                 isStuckAtZero.current = false;
@@ -249,11 +255,15 @@ function BipolarDial({
 
     // --- Pointer down ---
     const handlePointerDown = (e: JSX.TargetedPointerEvent<HTMLDivElement>) => {
+        const rect = wrapperRef.current?.getBoundingClientRect();
         if (wrapperRef.current) wrapperRef.current.setPointerCapture(e.pointerId);
 
         isDragging.current = true;
         lastMousePos.current = { x: e.clientX, y: e.clientY };
         rollingDelta.current.length = 0;
+        if (rect) {
+            setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+        }
 
         initAudio();
     };
@@ -301,22 +311,36 @@ function BipolarDial({
     const decimals = stepDecimals(step);
 
     return (
-        <div
-            className={styles.knobWrapper}
-            ref={wrapperRef}
-            style={{ width: size, height: size } as CSSProperties}
-            onPointerDown={handlePointerDown}
-        >
-            <div className={styles.knobScale}>{renderedTicks}</div>
+        <>
+            <div
+                className={styles.knobWrapper}
+                ref={wrapperRef}
+                style={{ width: size, height: size } as CSSProperties}
+                onPointerDown={handlePointerDown}
+            >
+                <div className={styles.knobScale}>{renderedTicks}</div>
 
-            <div className={styles.knobDial}>
-                <div className={styles.knobIndicator} style={{ transform: `rotate(${displayAngle}deg)` }} />
-            </div>
+                <div className={styles.knobDial}>
+                    <div className={styles.knobIndicator} style={{ transform: `rotate(${displayAngle}deg)` }} />
+                </div>
 
-            <div className={styles.knobValue}>
-                {displayValue.toFixed(decimals)}
+                <div className={styles.knobValue}>
+                    {displayValue.toFixed(decimals)}
+                </div>
+
+                {tooltipPos && (
+                    <div
+                        className={styles.tooltip}
+                        style={{
+                            left: `${tooltipPos.x}px`,
+                            top: `${tooltipPos.y - 30}px`,
+                        }}
+                    >
+                        {displayValue.toFixed(decimals)}
+                    </div>
+                )}
             </div>
-        </div>
+        </>
     );
 }
 
