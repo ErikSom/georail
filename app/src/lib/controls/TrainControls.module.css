@@ -1,0 +1,89 @@
+/* Toggle Button - Bottom Right Corner */
+.toggleButton {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #252525;
+    border: 2px solid #151515;
+    color: #888;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    transition: all 0.2s ease;
+    box-shadow:
+        4px 4px 12px #111,
+        -4px -4px 12px #333;
+}
+
+.toggleButton:hover {
+    background: #2a2a2a;
+    color: #aaa;
+    transform: scale(1.05);
+}
+
+.toggleButton:active {
+    transform: scale(0.95);
+}
+
+/* Control Panel - Bottom of Screen */
+.controlPanel {
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    height: 224px;
+    background: #1a1a1a;
+    border-top: 2px solid #252525;
+    z-index: 999;
+    transform: translate(-50%, calc(100% + 56px));
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.6);
+    border-radius: 44px;
+    margin: 20px 0;
+    border-bottom: 2px solid #161515;
+    max-width: 335px;
+}
+
+.controlPanelOpen {
+    transform: translate(-50%, 0);
+}
+
+/* Close Button - Top Right of Panel */
+.closeButton {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: transparent;
+    border: none;
+    color: #555;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    z-index: 10;
+}
+
+.closeButton:hover {
+    background: #252525;
+    color: #888;
+}
+
+.closeButton:active {
+    transform: scale(0.9);
+}
+
+.dialContainer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 20px 40px;
+}

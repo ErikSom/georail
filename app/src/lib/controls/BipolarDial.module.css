@@ -1,0 +1,102 @@
+/* BipolarDial.module.css */
+
+.knobWrapper {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    touch-action: none;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+    margin-bottom: 38px;
+    /* Space for the value below */
+}
+
+.knobWrapper:active {
+    cursor: grabbing;
+}
+
+/* --- The Scale (Ticks) --- */
+.knobScale {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 5;
+}
+
+.scalePoint {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform-origin: center center;
+    transition: all 0.1s ease;
+    opacity: 0.3;
+    width: 4px;
+    height: 12px;
+    background: #333;
+    margin-left: -2px;
+    /* Center alignment */
+    margin-top: -6px;
+    border-radius: 2px;
+}
+
+.scalePointActive {
+    opacity: 1;
+    background: var(--tick-color, #fff);
+    box-shadow: 0 0 8px var(--tick-shadow, #fff);
+}
+
+/* --- The Dial (Rotating Part) --- */
+.knobDial {
+    position: relative;
+    width: 65%;
+    height: 65%;
+    border-radius: 50%;
+    background: #252525;
+    z-index: 10;
+    box-shadow:
+        8px 8px 16px #111,
+        -8px -8px 16px #333;
+    border: 2px solid #151515;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    pointer-events: none;
+    /* Events captured by wrapper */
+}
+
+.knobIndicator {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    pointer-events: none;
+    /* Smooth visual transition for the indicator */
+    transition: transform 0.05s linear;
+}
+
+.knobIndicator::after {
+    content: '';
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ccc;
+    top: 10%;
+    left: 50%;
+    transform: translateX(-50%);
+    box-shadow: 0 0 5px rgba(255, 255, 255, 0.4);
+}
+
+/* --- Value Display --- */
+.knobValue {
+    position: absolute;
+    bottom: 12px;
+    font-family: monospace;
+    font-size: 14px;
+    font-weight: bold;
+    color: #888;
+    pointer-events: none;
+}

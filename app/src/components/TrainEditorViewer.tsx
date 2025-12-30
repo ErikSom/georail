@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'preact/hooks';
 import { TrainEditorWorld } from '../lib/TrainEditorWorld';
+import TrainControls from '../lib/controls/TrainControls';
 
 function TrainEditorViewer() {
     const mountRef = useRef<HTMLDivElement | null>(null);
@@ -22,6 +23,7 @@ function TrainEditorViewer() {
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
             <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
+            <TrainControls />
         </div>
     );
 }
