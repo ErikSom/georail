@@ -36,16 +36,22 @@
     bottom: 0;
     left: 50%;
     height: 224px;
-    background: #1a1a1a;
-    border-top: 2px solid #252525;
+    background: var(--panel-bg);
     z-index: 999;
     transform: translate(-50%, calc(100% + 56px));
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.6);
+    box-shadow: rgba(0, 0, 0, 0.5) 0px 20px 50px, rgba(255, 255, 255, 0.08) 0px 1px 1px inset;
     border-radius: 44px;
     margin: 20px 0;
-    border-bottom: 2px solid #161515;
     max-width: 335px;
+
+    --panel-bg: rgb(30 31 36);
+    --btn-bg: #2b2d33;
+    --btn-active: #222428;
+    --led-amber: #c8c8c8;
+    --led-off: #4a3b2a;
+    --text-dim: #6b7280;
+    --text-lit: #e5e7eb;
 }
 
 .controlPanelOpen {
@@ -78,6 +84,12 @@
 
 .closeButton:active {
     transform: scale(0.9);
+}
+
+.lightIcon {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
 }
 
 .dialContainer {

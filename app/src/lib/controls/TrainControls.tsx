@@ -2,6 +2,7 @@ import { useState } from 'preact/hooks';
 import styles from './TrainControls.module.css';
 import BipolarDial from './BipolarDial';
 import InlineSVG from '../../components/InlineSVG';
+import IconButton from './IconButton';
 
 function TrainControls() {
     const [isOpen, setIsOpen] = useState(false);
@@ -33,6 +34,7 @@ function TrainControls() {
                         max={100}
                         size={220}
                     />
+                    <IconButton className={styles.lightIcon} onClick={() => setDialValue(0)} />
                 </div>
             </div>
         </>
