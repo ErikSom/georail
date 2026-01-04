@@ -223,7 +223,13 @@ export class Train {
         miscButtons.on('click', (ev: any) => {
             const [x] = ev.index;
             if (x === 0) {
-                const configJson = JSON.stringify(this.config, null, 2);
+                // Export config with animation groups
+                const exportedConfig: TrainConfig = {
+                    cab: this.cab.exportConfig(),
+                    wagons: this.wagons.map(wagon => wagon.exportConfig()),
+                    rearCab: this.rearCab ? this.rearCab.exportConfig() : undefined
+                };
+                const configJson = JSON.stringify(exportedConfig, null, 2);
                 navigator.clipboard.writeText(configJson).then(() => {
                     console.log('Configuration copied to clipboard:', configJson);
                     alert('Configuration copied to clipboard!');
@@ -282,6 +288,7 @@ export class Train {
             engine: false,
             enginePower: 0.0,
             brakingPower: 0.0,
+            animationGroups: [],
         };
 
         this.config.wagons.push(defaultWagon);

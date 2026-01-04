@@ -174,19 +174,23 @@ export class RollingStock {
                 this.setModelMaterials(this.model!);
 
 
-                // 2. Get the Animations (The movement data)
+                // 2. Get the Animations (The movement data) and create animator
                 const animations = gltf.animations || [];
-                if (animations.length > 0) {
-                    this.animator = new RollingStockAnimator(this.model!, animations);
-                    window.trainAnimator = this.animator; // TEMP for debugging
-                    animations.forEach(anim => {
-                        console.log(`[RollingStock] Animation Clip Found: "${anim.name}" with ${anim.tracks.length} tracks.`);
-                        // table with all tracks;
-                        console.table(anim.tracks.map(track => ({ name: track.name, length: track.times.length })));
-                    });
 
-                    if (this.paneFolder) this.animator.createDebugUI(this.paneFolder);
+                this.animator = new RollingStockAnimator(this.model!, animations);
+                window.trainAnimator = this.animator; // TEMP for debugging
+                animations.forEach(anim => {
+                    console.log(`[RollingStock] Animation Clip Found: "${anim.name}" with ${anim.tracks.length} tracks.`);
+                    // table with all tracks;
+                    console.table(anim.tracks.map(track => ({ name: track.name, length: track.times.length })));
+                });
+
+                // Import animation groups from config
+                if (this.config.animationGroups.length > 0) {
+                    this.animator.importGroups(this.config.animationGroups);
                 }
+
+                if (this.paneFolder) this.animator.createDebugUI(this.paneFolder);
 
                 if (this.config.internal) {
                     // Apply the GPU repair shader
@@ -677,6 +681,17 @@ export class RollingStock {
         addBogieControls(rearBogieFolder, targetConfig.rearBogie, true);
 
         return this.paneFolder;
+    }
+
+    /**
+     * Exports the current config with animation groups included.
+     */
+    public exportConfig(): RollingStockConfig {
+        const exported = { ...this.config };
+        if (this.animator) {
+            exported.animationGroups = this.animator.exportGroups();
+        }
+        return exported;
     }
 
     public update(delta: number): void {

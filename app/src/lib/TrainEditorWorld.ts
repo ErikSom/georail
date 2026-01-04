@@ -18,9 +18,11 @@ import { getDefaultTrainConfig } from './train/TrainConfig';
 import Path from './utils/Path';
 import { Pane } from 'tweakpane';
 import { dummyQuad, dummyVec3 } from './utils/Helper';
+import { FlightControls } from './utils/FlightControls';
+import { Input } from './utils/Input';
 
 export type PathType = 'straight' | 'circle' | 'oval' | 'figure8' | 'spiral';
-export type CameraMode = 'free' | 'side' | 'top' | 'cinematic';
+export type CameraMode = 'free' | 'side' | 'top' | 'cinematic' | 'fly';
 
 export class TrainEditorWorld {
     private scene!: Scene;
@@ -29,6 +31,7 @@ export class TrainEditorWorld {
     private clock!: Clock;
 
     private controls!: OrbitControls;
+    private flightControls: FlightControls | null = null;
     private train!: Train;
     private sky!: Sky;
     private gridHelper!: GridHelper;
@@ -124,6 +127,9 @@ export class TrainEditorWorld {
         // Set initial path (after controls are initialized)
         this.setPath(this.currentPathType);
 
+        // Initialize Input system (needed for FlightControls)
+        Input.init(this.renderer.domElement);
+
         // Add scroll wheel zoom handler
         this.renderer.domElement.addEventListener('wheel', this.boundOnWheel, { passive: false });
 
@@ -201,6 +207,7 @@ export class TrainEditorWorld {
             label: 'Camera Mode',
             options: {
                 'Free': 'free',
+                'Fly': 'fly',
                 'Side View': 'side',
                 'Top View': 'top',
                 'Cinematic': 'cinematic',
@@ -334,7 +341,23 @@ export class TrainEditorWorld {
     }
 
     private updateCameraMode(): void {
+        // Blur any active element to prevent Tweakpane inputs from capturing keyboard events
+        if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+        }
+
+        // Enable OrbitControls only in 'free' mode
         this.controls.enabled = this.cameraParams.mode === 'free';
+
+        if (this.cameraParams.mode === 'fly') {
+            // Initialize FlightControls if not already created
+            if (!this.flightControls) {
+                this.flightControls = new FlightControls(this.camera, this.renderer.domElement);
+                this.flightControls.init();
+            }
+            // Disable OrbitControls when in fly mode
+            this.controls.enabled = false;
+        }
     }
 
     private onWindowResize(): void {
@@ -377,6 +400,13 @@ export class TrainEditorWorld {
                 this.controls.target.add(dummyVec3);
                 this.camera.position.add(dummyVec3);
                 this.controls.update();
+                break;
+
+            case 'fly':
+                // Flight controls handle camera updates
+                if (this.flightControls) {
+                    this.flightControls.update(deltaTime);
+                }
                 break;
 
             case 'side':
@@ -469,6 +499,11 @@ export class TrainEditorWorld {
         this.sky.cleanup();
         this.train.cleanup();
         this.controls.dispose();
+
+        if (this.flightControls) {
+            this.flightControls.cleanup();
+            this.flightControls = null;
+        }
 
         if (this.pane) {
             this.pane.dispose();

@@ -1,0 +1,193 @@
+{
+    "cab": {
+        "length": 25,
+        "weight": 40,
+        "height": 3.8,
+        "width": 2.8,
+        "modelPath": "blob:http://localhost:4321/1ff788b6-7a0a-462f-b1dd-bd5ceabdb94c",
+        "internal": false,
+        "scale": 1,
+        "modelOffset": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+        },
+        "modelForwardAxis": {
+            "x": 0,
+            "y": 0,
+            "z": -1
+        },
+        "frontBogie": {
+            "zOffset": 8.5,
+            "wheelOffsetFront": 1.2000000000000002,
+            "wheelOffsetRear": -1.4000000000000001,
+            "entityName": "",
+            "boneForwardAxis": {
+                "x": 0,
+                "y": 0,
+                "z": 1
+            }
+        },
+        "rearBogie": {
+            "zOffset": -9.3,
+            "wheelOffsetFront": 1.1500000000000001,
+            "wheelOffsetRear": -1.35,
+            "entityName": "",
+            "boneForwardAxis": {
+                "x": 0,
+                "y": 0,
+                "z": 1
+            }
+        },
+        "couplerLengthFront": 0,
+        "couplerLengthRear": 0.5,
+        "engine": false,
+        "enginePower": 0,
+        "brakingPower": 0,
+        "animationGroups": [
+            {
+                "name": "doors",
+                "pattern": "door",
+                "speed": 1,
+                "reverse": false,
+                "autoPlay": false,
+                "loop": false,
+                "alternate": false
+            },
+            {
+                "name": "misc",
+                "pattern": "fan",
+                "speed": 1,
+                "reverse": false,
+                "autoPlay": true,
+                "loop": true,
+                "alternate": false
+            }
+        ]
+    },
+    "wagons": [
+        {
+            "length": 25.8,
+            "weight": 30,
+            "height": 3.8,
+            "width": 2.8,
+            "modelPath": "blob:http://localhost:4321/59d442fb-3446-4200-a55d-2e373cf0adcc",
+            "internal": false,
+            "scale": 1,
+            "modelOffset": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+            },
+            "modelForwardAxis": {
+                "x": 0,
+                "y": 0,
+                "z": 1
+            },
+            "frontBogie": {
+                "zOffset": 9.4,
+                "wheelOffsetFront": 1.2500000000000002,
+                "wheelOffsetRear": -1.1500000000000001,
+                "entityName": "",
+                "boneForwardAxis": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 1
+                }
+            },
+            "rearBogie": {
+                "zOffset": -9.3,
+                "wheelOffsetFront": 1.2000000000000002,
+                "wheelOffsetRear": -1.2000000000000002,
+                "entityName": "",
+                "boneForwardAxis": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 1
+                }
+            },
+            "couplerLengthFront": 0.5,
+            "couplerLengthRear": 0.5,
+            "engine": false,
+            "enginePower": 0,
+            "brakingPower": 0,
+            "animationGroups": [
+                {
+                    "name": "doors",
+                    "pattern": "door",
+                    "speed": 1,
+                    "reverse": false,
+                    "autoPlay": false,
+                    "loop": false,
+                    "alternate": false
+                }
+            ]
+        }
+    ],
+    "rearCab": {
+        "length": 25,
+        "weight": 40,
+        "height": 3.8,
+        "width": 2.8,
+        "modelPath": "blob:http://localhost:4321/9315719d-36fc-4a5b-8b8b-ae4c3ee5c728",
+        "internal": false,
+        "scale": 1,
+        "modelOffset": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+        },
+        "modelForwardAxis": {
+            "x": 0,
+            "y": 0,
+            "z": 1
+        },
+        "frontBogie": {
+            "zOffset": 8.5,
+            "wheelOffsetFront": 1.2000000000000002,
+            "wheelOffsetRear": -1.4000000000000001,
+            "entityName": "",
+            "boneForwardAxis": {
+                "x": 0,
+                "y": 0,
+                "z": 1
+            }
+        },
+        "rearBogie": {
+            "zOffset": -9.3,
+            "wheelOffsetFront": 1.1500000000000001,
+            "wheelOffsetRear": -1.35,
+            "entityName": "",
+            "boneForwardAxis": {
+                "x": 0,
+                "y": 0,
+                "z": 1
+            }
+        },
+        "couplerLengthFront": 0,
+        "couplerLengthRear": 0.5,
+        "engine": false,
+        "enginePower": 0,
+        "brakingPower": 0,
+        "animationGroups": [
+            {
+                "name": "doors",
+                "pattern": "door",
+                "speed": 1,
+                "reverse": false,
+                "autoPlay": false,
+                "loop": false,
+                "alternate": false
+            },
+            {
+                "name": "misc",
+                "pattern": "fan",
+                "speed": 1,
+                "reverse": false,
+                "autoPlay": true,
+                "loop": true,
+                "alternate": false
+            }
+        ]
+    }
+}

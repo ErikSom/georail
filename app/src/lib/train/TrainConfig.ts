@@ -6,6 +6,16 @@ export interface BogieConfig {
     boneForwardAxis: { x: number; y: number; z: number };
 }
 
+export interface AnimationGroupConfig {
+    name: string;
+    pattern: string;
+    speed: number;
+    reverse: boolean;
+    autoPlay: boolean;
+    loop: boolean;
+    alternate: boolean;
+}
+
 export interface RollingStockConfig {
     length: number; // in meters
     weight: number; // in metric tons
@@ -33,6 +43,9 @@ export interface RollingStockConfig {
     engine: boolean;
     enginePower: number; // in kW
     brakingPower: number; // in kN
+
+    // Animation groups
+    animationGroups: AnimationGroupConfig[];
 }
 
 export interface CabConfig extends RollingStockConfig {
@@ -85,6 +98,7 @@ export function getDefaultTrainConfig(): TrainConfig {
             engine: false,
             enginePower: 0.0,
             brakingPower: 0.0,
+            animationGroups: [],
         },
         wagons: []
     };
