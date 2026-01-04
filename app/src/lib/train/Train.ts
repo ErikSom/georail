@@ -4,6 +4,7 @@ import type { TrainConfig, WagonConfig } from './TrainConfig';
 import { Cab } from './Cab';
 import { Wagon } from './Wagon';
 import type Path from '../utils/Path';
+import * as EssentialsPlugin from '@tweakpane/plugin-essentials';
 
 export class Train {
     public group: Group;
@@ -72,6 +73,25 @@ export class Train {
             wagon.updateConfig(structuredClone(this.config.wagons[index]));
         });
 
+        // Update rear cab - remove if not in config, add if in config, update if exists
+        if (this.config.rearCab) {
+            if (!this.rearCab) {
+                // Add rear cab
+                this.rearCab = new Cab(structuredClone(this.config.rearCab), true, this.debug);
+                this.group.add(this.rearCab.group);
+                this.globalDebugGroup.add(this.rearCab.globalDebugGroup);
+            } else {
+                // Update existing rear cab
+                this.rearCab.updateConfig(structuredClone(this.config.rearCab));
+            }
+        } else if (this.rearCab) {
+            // Remove rear cab
+            this.group.remove(this.rearCab.group);
+            this.globalDebugGroup.remove(this.rearCab.globalDebugGroup);
+            this.rearCab.cleanup();
+            this.rearCab = null;
+        }
+
         if (this.path && this.path.points.length > 0) {
             this.positionOnPath();
         }
@@ -131,6 +151,13 @@ export class Train {
             currentDistance -= wagonConfig.length / 2;
             currentDistance -= wagonConfig.couplerLengthRear;
         }
+
+        // Position rear cab behind all wagons
+        if (this.rearCab && this.config.rearCab) {
+            currentDistance -= this.config.rearCab.couplerLengthFront;
+            currentDistance -= this.config.rearCab.length / 2;
+            this.rearCab.positionOnPath(currentDistance, this.path!);
+        }
     }
 
     private createDebugUI(): void {
@@ -141,16 +168,20 @@ export class Train {
         const rootDomContainer = document.getElementById('tweakpane-container');
 
         this.pane = new Pane({ title: 'Train Configuration', container: rootDomContainer || undefined });
+        this.pane.registerPlugin(EssentialsPlugin);
 
         // Cab
         this.cab.createDebugUI(this.pane, this.config, (updatedConfig: TrainConfig) => {
             this.updateConfig(updatedConfig);
         });
 
-        // Wagons
+        // Wagons folder
+        const wagonsFolder = this.pane.addFolder({ title: 'Wagons', expanded: true });
+
+        // Individual wagons
         this.wagons.forEach((wagon, index) => {
             wagon.createDebugUI(
-                this.pane!,
+                wagonsFolder,
                 this.config,
                 (updatedConfig: TrainConfig) => {
                     this.updateConfig(updatedConfig);
@@ -161,19 +192,47 @@ export class Train {
         });
 
         // Add Wagon button
-        this.pane.addButton({ title: 'Add Wagon' }).on('click', () => {
+        wagonsFolder.addButton({ title: 'Add Wagon' }).on('click', () => {
             this.addWagon();
         });
 
-        // Add button to copy configuration as JSON
-        this.pane.addButton({ title: 'Copy Config JSON' }).on('click', () => {
-            const configJson = JSON.stringify(this.config, null, 2);
-            navigator.clipboard.writeText(configJson).then(() => {
-                console.log('Configuration copied to clipboard:', configJson);
-                alert('Configuration copied to clipboard!');
-            }).catch(err => {
-                console.error('Failed to copy configuration:', err);
+        // Rear Cab
+        if (this.rearCab && this.config.rearCab) {
+            this.rearCab.createDebugUI(this.pane, this.config, (updatedConfig: TrainConfig) => {
+                this.updateConfig(updatedConfig);
             });
+        }
+
+        // Add/Remove Rear Cab button
+        const rearCabButtonTitle = this.config.rearCab ? 'Remove Rear Cab' : 'Add Rear Cab';
+        this.pane.addButton({ title: rearCabButtonTitle }).on('click', () => {
+            this.toggleRearCab();
+        });
+
+        // Add button to copy and paste configuration as JSON
+        const miscButtons = this.pane.addBlade({
+            view: 'buttongrid',
+            size: [2, 1],
+            cells: (x: number, y: number) => ({
+                title: [
+                    ['Copy JSON', 'Paste JSON'],
+                ][y][x],
+            }),
+        }) as any;
+
+        miscButtons.on('click', (ev: any) => {
+            const [x] = ev.index;
+            if (x === 0) {
+                const configJson = JSON.stringify(this.config, null, 2);
+                navigator.clipboard.writeText(configJson).then(() => {
+                    console.log('Configuration copied to clipboard:', configJson);
+                    alert('Configuration copied to clipboard!');
+                }).catch(err => {
+                    console.error('Failed to copy configuration:', err);
+                });
+            } else if (x === 1) {
+                this.importConfig();
+            }
         });
 
         // Add path index slider if we have a path
@@ -247,6 +306,152 @@ export class Train {
             this.updateConfig(this.config);
             this.createDebugUI();
         }
+    }
+
+    private toggleRearCab(): void {
+        if (this.config.rearCab) {
+            // Remove rear cab
+            if (this.rearCab) {
+                this.group.remove(this.rearCab.group);
+                this.globalDebugGroup.remove(this.rearCab.globalDebugGroup);
+                this.rearCab.cleanup();
+                this.rearCab = null;
+            }
+            this.config.rearCab = undefined;
+        } else {
+            // Add rear cab - create a default rear cab config based on the front cab
+            this.config.rearCab = structuredClone(this.config.cab);
+        }
+        this.updateConfig(this.config);
+        this.createDebugUI();
+    }
+
+    private importConfig(): void {
+        // Create overlay
+        const overlay = document.createElement('div');
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100%';
+        overlay.style.height = '100%';
+        overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        overlay.style.display = 'flex';
+        overlay.style.alignItems = 'center';
+        overlay.style.justifyContent = 'center';
+        overlay.style.zIndex = '10000';
+
+        // Create dialog
+        const dialog = document.createElement('div');
+        dialog.style.backgroundColor = '#2a2a2a';
+        dialog.style.padding = '20px';
+        dialog.style.borderRadius = '8px';
+        dialog.style.maxWidth = '600px';
+        dialog.style.width = '90%';
+        dialog.style.maxHeight = '80vh';
+        dialog.style.display = 'flex';
+        dialog.style.flexDirection = 'column';
+        dialog.style.gap = '10px';
+
+        // Title
+        const title = document.createElement('h3');
+        title.textContent = 'Import Train Configuration';
+        title.style.margin = '0';
+        title.style.color = '#ffffff';
+
+        // Text area
+        const textarea = document.createElement('textarea');
+        textarea.placeholder = 'Paste your train configuration JSON here...';
+        textarea.style.width = '100%';
+        textarea.style.minHeight = '300px';
+        textarea.style.fontFamily = 'monospace';
+        textarea.style.fontSize = '12px';
+        textarea.style.padding = '10px';
+        textarea.style.backgroundColor = '#1a1a1a';
+        textarea.style.color = '#ffffff';
+        textarea.style.border = '1px solid #444';
+        textarea.style.borderRadius = '4px';
+        textarea.style.resize = 'vertical';
+
+        // Button container
+        const buttonContainer = document.createElement('div');
+        buttonContainer.style.display = 'flex';
+        buttonContainer.style.gap = '10px';
+        buttonContainer.style.justifyContent = 'flex-end';
+
+        // Import button
+        const importButton = document.createElement('button');
+        importButton.textContent = 'Import';
+        importButton.style.padding = '8px 16px';
+        importButton.style.backgroundColor = '#4CAF50';
+        importButton.style.color = 'white';
+        importButton.style.border = 'none';
+        importButton.style.borderRadius = '4px';
+        importButton.style.cursor = 'pointer';
+
+        // Cancel button
+        const cancelButton = document.createElement('button');
+        cancelButton.textContent = 'Cancel';
+        cancelButton.style.padding = '8px 16px';
+        cancelButton.style.backgroundColor = '#666';
+        cancelButton.style.color = 'white';
+        cancelButton.style.border = 'none';
+        cancelButton.style.borderRadius = '4px';
+        cancelButton.style.cursor = 'pointer';
+
+        // Event handlers
+        const closeDialog = () => {
+            document.body.removeChild(overlay);
+        };
+
+        importButton.onclick = () => {
+            try {
+                const jsonString = textarea.value.trim();
+                if (!jsonString) {
+                    alert('Please paste a train configuration JSON');
+                    return;
+                }
+
+                const trainConfig: TrainConfig = JSON.parse(jsonString);
+
+                // Validate the basic structure
+                if (!trainConfig.cab) {
+                    throw new Error('Invalid train configuration: missing cab');
+                }
+
+                // Update the train with the new configuration
+                this.updateConfig(trainConfig);
+                this.createDebugUI();
+
+                console.log('Train configuration imported successfully');
+                closeDialog();
+            } catch (error) {
+                console.error('Error importing train configuration:', error);
+                alert(`Failed to import train configuration: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
+        };
+
+        cancelButton.onclick = closeDialog;
+
+        // Close on overlay click
+        overlay.onclick = (e) => {
+            if (e.target === overlay) {
+                closeDialog();
+            }
+        };
+
+        // Assemble dialog
+        buttonContainer.appendChild(cancelButton);
+        buttonContainer.appendChild(importButton);
+        dialog.appendChild(title);
+        dialog.appendChild(textarea);
+        dialog.appendChild(buttonContainer);
+        overlay.appendChild(dialog);
+
+        // Add to document
+        document.body.appendChild(overlay);
+
+        // Focus the textarea
+        textarea.focus();
     }
 
     public update(delta: number): void {

@@ -20,7 +20,7 @@ export class Wagon extends RollingStock {
     }
 
     public override createDebugUI(
-        pane: Pane,
+        pane: Pane | FolderApi,
         config: TrainConfig,
         updateConfig: (config: TrainConfig) => void,
         onDelete?: () => void,

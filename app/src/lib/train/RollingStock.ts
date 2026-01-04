@@ -475,7 +475,7 @@ export class RollingStock {
         return {} as RollingStockConfig; // Placeholder, to be overridden in subclasses
     }
 
-    public createDebugUI(pane: Pane, config: TrainConfig, updateConfig: (config: TrainConfig) => void): FolderApi {
+    public createDebugUI(pane: Pane | FolderApi, config: TrainConfig, updateConfig: (config: TrainConfig) => void): FolderApi {
         // Main Folder
         this.paneFolder = pane.addFolder({
             title: this.debugPaneName,

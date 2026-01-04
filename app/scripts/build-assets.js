@@ -4,6 +4,7 @@ import os from 'os';
 import { globSync } from 'glob';
 import { execFile } from 'child_process';
 import { createRequire } from 'module';
+import crypto from 'crypto';
 
 // CORE LIBRARY
 import { NodeIO } from '@gltf-transform/core';
@@ -48,6 +49,7 @@ const BASE_DIR = './asset-pipeline';
 const CONFIG = {
   srcDir: `${BASE_DIR}/src`,
   outDir: `${BASE_DIR}/build`,
+  publicDir: `./public/models`,
 
   obfuscation: {
     enabled: false,
@@ -244,6 +246,56 @@ const processGlb = async (filePath) => {
   }
 };
 
+const copyBuildAssets = async (srcDir, outDir) => {
+  await fs.emptyDir(outDir);
+  await fs.ensureDir(outDir);
+
+  const assetFiles = globSync(`${srcDir}/**/*.*`, {
+    ignore: [`${srcDir}/**/*.fbx`],
+    windowsPathsNoEscape: true
+  });
+
+  const manifest = {};
+
+  for (const srcPath of assetFiles) {
+    // 1. Get Normalized Path (e.g. "textures/hero.png")
+    // We force forward slashes so the key is the same on Windows & Mac
+    const relativePath = path.relative(srcDir, srcPath).split(path.sep).join('/');
+
+    // 2. Prepare Key (The Path is the Key!)
+    const keyBuffer = Buffer.from(relativePath);
+    const keyLen = keyBuffer.length;
+
+    // 3. Read & Encrypt
+    const fileBuffer = await fs.readFile(srcPath);
+
+    // XOR Encryption
+    for (let i = 0; i < fileBuffer.length; i++) {
+      fileBuffer[i] = fileBuffer[i] ^ keyBuffer[i % keyLen];
+    }
+
+    // 4. Generate Filename (Hash the PATH, not the content)
+    // This ensures consistent naming across builds
+    const pathHash = crypto.createHash('md5').update(relativePath).digest('hex').slice(0, 12);
+    const mangledFileName = `${pathHash}.bin`;
+
+    // 5. Write to output
+    const outFilePath = path.join(outDir, mangledFileName);
+    await fs.writeFile(outFilePath, fileBuffer);
+
+    // 6. Add to Manifest
+    manifest[relativePath] = mangledFileName;
+  }
+
+  // --- OUTPUT ---
+  console.log('\n// ----------------------------------------------------');
+  console.log('// ✂️  COPY BELOW THIS LINE');
+  console.log('// ----------------------------------------------------');
+  console.log(`export const assets = ${JSON.stringify(manifest, null, 2)};`);
+  console.log('// ----------------------------------------------------');
+  console.log(`\n✅ Encrypted ${assetFiles.length} files using path keys.`);
+};
+
 // --- MAIN PIPELINE ---
 
 const run = async () => {
@@ -290,6 +342,9 @@ const run = async () => {
   }
 
   console.log('✨ Build Complete.');
+
+  await copyBuildAssets(CONFIG.outDir, CONFIG.publicDir);
+  console.log('🎉 All assets are ready in the public directory.');
 };
 
 run();

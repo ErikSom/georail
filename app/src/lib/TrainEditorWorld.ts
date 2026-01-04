@@ -208,6 +208,7 @@ export class TrainEditorWorld {
         }).on('change', (ev) => {
             this.updateCameraMode();
         });
+
     }
 
     private setPath(pathType: PathType): void {
