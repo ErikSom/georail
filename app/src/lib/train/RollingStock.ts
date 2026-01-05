@@ -178,12 +178,6 @@ export class RollingStock {
                 const animations = gltf.animations || [];
 
                 this.animator = new RollingStockAnimator(this.model!, animations);
-                window.trainAnimator = this.animator; // TEMP for debugging
-                animations.forEach(anim => {
-                    console.log(`[RollingStock] Animation Clip Found: "${anim.name}" with ${anim.tracks.length} tracks.`);
-                    // table with all tracks;
-                    console.table(anim.tracks.map(track => ({ name: track.name, length: track.times.length })));
-                });
 
                 // Import animation groups from config
                 if (this.config.animationGroups.length > 0) {
@@ -578,14 +572,14 @@ export class RollingStock {
             label: 'Power (kW)',
             min: 0,
             max: 12000, // Modern heavy electric locos can hit 8-10MW
-            step: 50
+            step: 10
         }).on('change', () => updateConfig(config));
 
         engFolder.addBinding(targetConfig, 'brakingPower', {
             label: 'Brakes (kN)',
             min: 0,
-            max: 2000,
-            step: 10
+            max: 500,
+            step: 1
         }).on('change', () => updateConfig(config));
 
         // --- 4. Visuals & Model Loading ---

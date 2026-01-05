@@ -5,8 +5,9 @@ import { Cab } from './Cab';
 import { Wagon } from './Wagon';
 import type Path from '../utils/Path';
 import * as EssentialsPlugin from '@tweakpane/plugin-essentials';
+import { TrainPhysics, type IPhysicsTarget } from './TrainPhysics';
 
-export class Train {
+export class Train implements IPhysicsTarget {
     public group: Group;
     public globalDebugGroup: Group;
 
@@ -16,7 +17,9 @@ export class Train {
     private rearCab: Cab | null = null;
 
     private path: Path | null = null;
-    private distanceTraveled: number = 0;
+    public distanceTraveled: number = 0; // Public so physics can control it
+
+    private physics: TrainPhysics;
 
     private debug: boolean;
     private pane: Pane | null = null;
@@ -33,6 +36,9 @@ export class Train {
         this.cab = new Cab(structuredClone(config.cab), false, debug);
         this.group.add(this.cab.group);
         this.globalDebugGroup.add(this.cab.globalDebugGroup);
+
+        // Initialize physics system with reference to this train
+        this.physics = new TrainPhysics(this, config);
 
         // sets train on track;
         this.updateConfig(config);
@@ -91,6 +97,9 @@ export class Train {
             this.rearCab.cleanup();
             this.rearCab = null;
         }
+
+        // Update physics with new configuration
+        this.physics.updateConfiguration(this.config);
 
         if (this.path && this.path.points.length > 0) {
             this.positionOnPath();
@@ -461,7 +470,45 @@ export class Train {
         textarea.focus();
     }
 
+    /**
+     * Set train power control
+     * @param power -1 to 1 where 1 is full forward, 0 is brake, -1 is full reverse
+     */
+    public setPower(power: number): void {
+        this.physics.setPower(power);
+    }
+
+    /**
+     * Get current power setting
+     */
+    public getPower(): number {
+        return this.physics.getPower();
+    }
+
+    /**
+     * Get current velocity in m/s
+     */
+    public getVelocity(): number {
+        return this.physics.getVelocity();
+    }
+
+    /**
+     * Get current velocity in km/h
+     */
+    public getVelocityKmh(): number {
+        return this.physics.getVelocityKmh();
+    }
+
     public update(delta: number): void {
+        // Update physics simulation (this will directly update distanceTraveled)
+        this.physics.update(delta);
+
+        // Update position on path based on physics-driven distanceTraveled
+        if (this.path && this.path.points.length > 0) {
+            this.positionOnPath();
+        }
+
+        // Update rolling stock animations
         this.cab?.update(delta);
         this.wagons.forEach(wagon => wagon.update(delta));
         this.rearCab?.update(delta);

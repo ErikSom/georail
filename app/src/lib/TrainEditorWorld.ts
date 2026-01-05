@@ -20,6 +20,7 @@ import { Pane } from 'tweakpane';
 import { dummyQuad, dummyVec3 } from './utils/Helper';
 import { FlightControls } from './utils/FlightControls';
 import { Input } from './utils/Input';
+import { trainInstance, updateTrainState } from '../store/train';
 
 export type PathType = 'straight' | 'circle' | 'oval' | 'figure8' | 'spiral';
 export type CameraMode = 'free' | 'side' | 'top' | 'cinematic' | 'fly';
@@ -44,6 +45,11 @@ export class TrainEditorWorld {
         isAnimating: false,
         animationSpeed: 20, // meters per second
         pathProgress: 0,
+    };
+    private trainControlParams = {
+        usePhysics: true,
+        power: 0,
+        velocityKmh: 0,
     };
     private cameraParams = {
         mode: 'free' as CameraMode,
@@ -116,6 +122,9 @@ export class TrainEditorWorld {
         this.scene.add(this.train.group);
         this.scene.add(this.train.globalDebugGroup);
 
+        // Set train instance in store for controls to use
+        trainInstance.value = this.train;
+
         // Controls - initialize before setting path
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
         this.controls.minDistance = 10;
@@ -175,8 +184,38 @@ export class TrainEditorWorld {
             this.animParams.pathProgress = 0;
         });
 
-        // Animation controls
-        const animFolder = this.pane.addFolder({ title: 'Animation' });
+        // Train Controls
+        const trainFolder = this.pane.addFolder({ title: 'Train Controls' });
+
+        trainFolder.addBinding(this.trainControlParams, 'usePhysics', {
+            label: 'Use Physics',
+        });
+
+        trainFolder.addBinding(this.trainControlParams, 'power', {
+            label: 'Power',
+            min: -1,
+            max: 1,
+            step: 0.01,
+        }).on('change', (ev) => {
+            if (this.trainControlParams.usePhysics) {
+                this.train.setPower(ev.value);
+            }
+        });
+
+        trainFolder.addBinding(this.trainControlParams, 'velocityKmh', {
+            label: 'Speed (km/h)',
+            readonly: true,
+        });
+
+        trainFolder.addButton({ title: 'Reset Physics' }).on('click', () => {
+            this.trainControlParams.power = 0;
+            this.train.setPower(0);
+        });
+
+        trainFolder.addBlade({ view: 'separator' });
+
+        // Animation controls (legacy)
+        const animFolder = this.pane.addFolder({ title: 'Animation (Legacy)' });
 
         animFolder.addBinding(this.animParams, 'isAnimating', {
             label: 'Animate Train',
@@ -374,8 +413,18 @@ export class TrainEditorWorld {
         this.rafId = requestAnimationFrame(this.animate);
         const deltaTime = this.clock.getDelta();
 
-        // Update animation
-        if (this.animParams.isAnimating) {
+        // Update train state and trigger React component updates
+        updateTrainState();
+
+        // Update train physics or legacy animation
+        if (this.trainControlParams.usePhysics) {
+            // Physics mode - train updates itself via store
+            // Update display values for debug pane
+            this.trainControlParams.velocityKmh = this.train.getVelocityKmh();
+            this.trainControlParams.power = this.train.getPower();
+            this.pane?.refresh();
+        } else if (this.animParams.isAnimating) {
+            // Legacy animation mode
             const path = this.train['path'];
             if (path) {
                 const totalLength = path.getTotalLength();
@@ -486,6 +535,10 @@ export class TrainEditorWorld {
 
         // Render
         this.renderer.render(this.scene, this.camera);
+
+        // Update Input system for pressed/released detection
+        Input.update();
+
     }
 
     public cleanup(): void {
@@ -495,6 +548,9 @@ export class TrainEditorWorld {
 
         window.removeEventListener('resize', this.onWindowResize);
         this.renderer.domElement.removeEventListener('wheel', this.boundOnWheel);
+
+        // Clear train instance from store
+        trainInstance.value = null;
 
         this.sky.cleanup();
         this.train.cleanup();
