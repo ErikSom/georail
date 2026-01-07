@@ -277,7 +277,7 @@ const copyBuildAssets = async (srcDir, outDir) => {
     // 4. Generate Filename (Hash the PATH, not the content)
     // This ensures consistent naming across builds
     const pathHash = crypto.createHash('md5').update(relativePath).digest('hex').slice(0, 12);
-    const mangledFileName = `${pathHash}.bin`;
+    const mangledFileName = `${pathHash}.clt`;
 
     // 5. Write to output
     const outFilePath = path.join(outDir, mangledFileName);

@@ -49,7 +49,7 @@ export function applyDeobfuscation(scene: Object3D) {
 
 export const blobString = 'blob:';
 
-export const loadEncryptedAsset = async (mangledUrl: string, originalPath: string) => {
+export const loadEncryptedAsset = async (mangledUrl: string, originalPath: string): Promise<ArrayBuffer> => {
     const response = await fetch(mangledUrl);
 
     if (!response.ok) {
@@ -57,20 +57,19 @@ export const loadEncryptedAsset = async (mangledUrl: string, originalPath: strin
     }
 
     const buffer = await response.arrayBuffer();
-
-    const data = new Uint8Array(buffer);
+    const data = new Uint8Array(buffer); // Create a view to edit bytes
     const key = new TextEncoder().encode(originalPath);
     const keyLen = key.length;
 
+    // Decrypt in place (modifies the underlying buffer)
     for (let i = 0; i < data.length; i++) {
         data[i] = data[i] ^ key[i % keyLen];
     }
 
-    const blob = new Blob([data]);
-    return URL.createObjectURL(blob);
+    return buffer; // Return the raw, decrypted ArrayBuffer
 };
 
-const protectedAssetLookup = JSON.parse("{\"train/NS-SGM/ns-sgmm3-bk2.glb\":\"39b0d1cdd747.bin\",\"train/NS-SGM/ns-sgmm3-bk1.glb\":\"0c60cdca95c9.bin\",\"train/NS-SGM/ns-sgmm3-ab.glb\":\"b1a564823b8b.bin\",\"train/APT/apt-wip.glb\":\"1a446d6f930f.bin\",\"train/APT/apt-std-carriage.glb\":\"419d3af46833.bin\"}");
+const protectedAssetLookup = JSON.parse("{\"train/NS-SGM/ns-sgmm3-bk2.glb\":\"39b0d1cdd747.clt\",\"train/NS-SGM/ns-sgmm3-bk1.glb\":\"0c60cdca95c9.clt\",\"train/NS-SGM/ns-sgmm3-ab.glb\":\"b1a564823b8b.clt\",\"train/APT/apt-wip.glb\":\"1a446d6f930f.clt\",\"train/APT/apt-std-carriage.glb\":\"419d3af46833.clt\"}");
 
 export function getModelAssetPath(modelFileName: string) {
     return protectedAssetLookup[modelFileName] || modelFileName;

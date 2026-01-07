@@ -162,77 +162,6 @@ export class RollingStock {
         }
     }
 
-    private async loadModel(path: string, isInternal: boolean = false): Promise<void> {
-        const loader = getGLTFLoader();
-
-        // Default: use the raw path
-        let resourceUrl = path;
-        let isEncryptedBlob = false;
-
-        // 1. Handle Internal / Encrypted Assets
-        if (isInternal && !path.startsWith(blobString)) {
-            try {
-                // A. Lookup the mangled filename (e.g. "a1b2c3.bin")
-                const mangledFileName = getModelAssetPath(path);
-
-                // B. Construct fetch URL (adjust '/assets/' if needed)
-                const fetchUrl = `${trainAssetsPath}/${mangledFileName}`;
-
-                console.log(`[RollingStock] Loading secured asset: ${path} -> ${fetchUrl}`);
-
-                // C. Decrypt logic (XOR using 'path' as key)
-                resourceUrl = await loadEncryptedAsset(fetchUrl, path);
-                isEncryptedBlob = true;
-            } catch (err) {
-                console.error(`[RollingStock] Failed to decrypt asset: ${path}`, err);
-                return;
-            }
-        }
-
-        // 2. Load the Model
-        loader.load(
-            resourceUrl,
-            (gltf: any) => {
-                if (this.model) this.group.remove(this.model);
-                if (this.animator) this.animator.cleanup();
-
-                this.model = gltf.scene!;
-
-                this.setModelMaterials(this.model!);
-
-                const animations = gltf.animations || [];
-                this.animator = new RollingStockAnimator(this.model!, animations);
-
-                if (this.config.animationGroups.length > 0) {
-                    this.animator.importGroups(this.config.animationGroups);
-                }
-
-                if (this.paneFolder) this.animator.createDebugUI(this.paneFolder);
-
-                // 3. Apply Geometry Shader Fix if it was an internal asset
-                if (isInternal) {
-                    applyDeobfuscation(this.model!);
-                }
-
-                this.updateModelTransform();
-                this.group.add(this.model!);
-                this.findBogieEntities();
-
-                // 4. Memory Cleanup
-                if (isEncryptedBlob) {
-                    URL.revokeObjectURL(resourceUrl);
-                }
-            },
-            undefined,
-            (error: any) => {
-                console.warn('Failed to load model:', path, error);
-                if (isEncryptedBlob) {
-                    URL.revokeObjectURL(resourceUrl);
-                }
-            }
-        );
-    }
-
     private setModelMaterials(scene: Group): void {
         scene.traverse((child) => {
             if (child instanceof Mesh) {
@@ -260,6 +189,82 @@ export class RollingStock {
             }
         });
     };
+
+    private setupLoadedModel(gltf: any, isInternal: boolean): void {
+        if (this.model) this.group.remove(this.model);
+        if (this.animator) this.animator.cleanup();
+
+        this.model = gltf.scene!;
+
+        this.setModelMaterials(this.model!);
+
+        const animations = gltf.animations || [];
+        this.animator = new RollingStockAnimator(this.model!, animations);
+
+        if (this.config.animationGroups.length > 0) {
+            this.animator.importGroups(this.config.animationGroups);
+        }
+
+        if (this.paneFolder) this.animator.createDebugUI(this.paneFolder);
+
+        // Apply shader fix if internal
+        if (isInternal) {
+            applyDeobfuscation(this.model!);
+        }
+
+        this.updateModelTransform();
+        this.group.add(this.model!);
+        this.findBogieEntities();
+    }
+
+    private async loadModel(path: string, isInternal: boolean = false): Promise<void> {
+        const loader = getGLTFLoader();
+
+        // PATH A: Secure / Internal (Use .parse)
+        if (isInternal && !path.startsWith(blobString)) {
+            try {
+                const mangledFileName = getModelAssetPath(path);
+                const fetchUrl = `${trainAssetsPath}/${mangledFileName}`;
+
+                console.log(`[RollingStock] Fetching secure buffer: ${fetchUrl}`);
+
+                // 1. Get Decrypted Buffer directly
+                const buffer = await loadEncryptedAsset(fetchUrl, path);
+
+                // 2. Parse the Buffer
+                // The second argument './' is the path to resolve external resources. 
+                // For GLB files (which embed textures), './' is standard.
+                loader.parse(
+                    buffer,
+                    './',
+                    (gltf) => {
+                        this.setupLoadedModel(gltf, true);
+                    },
+                    (error) => {
+                        console.error('[RollingStock] Parse error:', error);
+                    }
+                );
+
+            } catch (err) {
+                console.error(`[RollingStock] Failed to load secure asset: ${path}`, err);
+            }
+        }
+
+        // PATH B: Standard / External (Use .load)
+        else {
+            loader.load(
+                path,
+                (gltf) => {
+                    this.setupLoadedModel(gltf, isInternal);
+                },
+                undefined, // Progress callback
+                (error) => {
+                    console.warn('Failed to load model:', path, error);
+                }
+            );
+        }
+    }
+
     private setDebugVisibility(visible: boolean): void {
         // Set visibility for all debug meshes in the group
         if (this.debugAnchor) {
