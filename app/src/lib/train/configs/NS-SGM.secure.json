@@ -1,11 +1,11 @@
 {
     "cab": {
         "length": 25,
-        "weight": 40,
+        "weight": 37.5,
         "height": 3.8,
         "width": 2.8,
-        "modelPath": "blob:http://localhost:4321/1ff788b6-7a0a-462f-b1dd-bd5ceabdb94c",
-        "internal": false,
+        "modelPath": "train/NS-SGM/ns-sgmm3-bk1.glb",
+        "internal": true,
         "scale": 1,
         "modelOffset": {
             "x": 0,
@@ -41,9 +41,9 @@
         },
         "couplerLengthFront": 0,
         "couplerLengthRear": 0.5,
-        "engine": false,
-        "enginePower": 0,
-        "brakingPower": 0,
+        "engine": true,
+        "enginePower": 1320,
+        "brakingPower": 88,
         "animationGroups": [
             {
                 "name": "doors",
@@ -71,8 +71,8 @@
             "weight": 30,
             "height": 3.8,
             "width": 2.8,
-            "modelPath": "blob:http://localhost:4321/59d442fb-3446-4200-a55d-2e373cf0adcc",
-            "internal": false,
+            "modelPath": "train/NS-SGM/ns-sgmm3-ab.glb",
+            "internal": true,
             "scale": 1,
             "modelOffset": {
                 "x": 0,
@@ -126,11 +126,11 @@
     ],
     "rearCab": {
         "length": 25,
-        "weight": 40,
+        "weight": 37.5,
         "height": 3.8,
         "width": 2.8,
-        "modelPath": "blob:http://localhost:4321/9315719d-36fc-4a5b-8b8b-ae4c3ee5c728",
-        "internal": false,
+        "modelPath": "train/NS-SGM/ns-sgmm3-bk2.glb",
+        "internal": true,
         "scale": 1,
         "modelOffset": {
             "x": 0,

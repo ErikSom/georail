@@ -5,9 +5,10 @@ import type Path from '../utils/Path';
 import type { FolderApi, Pane } from 'tweakpane';
 import { dummy, dummyForward, dummyQuad, dummyVec3 } from '../utils/Helper';
 import FilePicker from '../utils/FilePicker';
-import { applyDeobfuscation, isDebugAdmin } from '../utils/Security.secure';
+import { applyDeobfuscation, isDebugAdmin, loadEncryptedAsset, getModelAssetPath, blobString } from '../utils/Security.secure';
 import { glassMaterial } from './Materials';
 import { RollingStockAnimator } from './RollingStockAnimator';
+import { trainAssetsPath } from './configs/TrainConfigurations.secure';
 
 export class RollingStock {
     public group: Group;
@@ -78,7 +79,7 @@ export class RollingStock {
 
         // Load model if path is provided
         if (config.modelPath) {
-            this.loadModel(config.modelPath);
+            this.loadModel(config.modelPath, config.internal);
         }
 
         if (debug) {
@@ -161,10 +162,36 @@ export class RollingStock {
         }
     }
 
-    private loadModel(path: string): void {
+    private async loadModel(path: string, isInternal: boolean = false): Promise<void> {
         const loader = getGLTFLoader();
+
+        // Default: use the raw path
+        let resourceUrl = path;
+        let isEncryptedBlob = false;
+
+        // 1. Handle Internal / Encrypted Assets
+        if (isInternal && !path.startsWith(blobString)) {
+            try {
+                // A. Lookup the mangled filename (e.g. "a1b2c3.bin")
+                const mangledFileName = getModelAssetPath(path);
+
+                // B. Construct fetch URL (adjust '/assets/' if needed)
+                const fetchUrl = `${trainAssetsPath}/${mangledFileName}`;
+
+                console.log(`[RollingStock] Loading secured asset: ${path} -> ${fetchUrl}`);
+
+                // C. Decrypt logic (XOR using 'path' as key)
+                resourceUrl = await loadEncryptedAsset(fetchUrl, path);
+                isEncryptedBlob = true;
+            } catch (err) {
+                console.error(`[RollingStock] Failed to decrypt asset: ${path}`, err);
+                return;
+            }
+        }
+
+        // 2. Load the Model
         loader.load(
-            path,
+            resourceUrl,
             (gltf: any) => {
                 if (this.model) this.group.remove(this.model);
                 if (this.animator) this.animator.cleanup();
@@ -173,30 +200,36 @@ export class RollingStock {
 
                 this.setModelMaterials(this.model!);
 
-
-                // 2. Get the Animations (The movement data) and create animator
                 const animations = gltf.animations || [];
-
                 this.animator = new RollingStockAnimator(this.model!, animations);
 
-                // Import animation groups from config
                 if (this.config.animationGroups.length > 0) {
                     this.animator.importGroups(this.config.animationGroups);
                 }
 
                 if (this.paneFolder) this.animator.createDebugUI(this.paneFolder);
 
-                if (this.config.internal) {
-                    // Apply the GPU repair shader
+                // 3. Apply Geometry Shader Fix if it was an internal asset
+                if (isInternal) {
                     applyDeobfuscation(this.model!);
                 }
 
                 this.updateModelTransform();
                 this.group.add(this.model!);
                 this.findBogieEntities();
+
+                // 4. Memory Cleanup
+                if (isEncryptedBlob) {
+                    URL.revokeObjectURL(resourceUrl);
+                }
             },
             undefined,
-            (error: any) => console.warn('Failed to load cab model:', path, error)
+            (error: any) => {
+                console.warn('Failed to load model:', path, error);
+                if (isEncryptedBlob) {
+                    URL.revokeObjectURL(resourceUrl);
+                }
+            }
         );
     }
 
@@ -377,7 +410,7 @@ export class RollingStock {
         this.updateModelTransform();
 
         if (bogieNamesChanged && this.model) this.findBogieEntities();
-        if (modelChanged && config.modelPath) this.loadModel(config.modelPath);
+        if (modelChanged && config.modelPath) this.loadModel(config.modelPath, config.internal);
     }
 
     public orientOnRails(): void {

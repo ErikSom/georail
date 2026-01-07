@@ -47,24 +47,34 @@ export function applyDeobfuscation(scene: Object3D) {
     });
 }
 
+export const blobString = 'blob:';
+
 export const loadEncryptedAsset = async (mangledUrl: string, originalPath: string) => {
     const response = await fetch(mangledUrl);
+
+    if (!response.ok) {
+        throw new Error(`Asset not found: ${mangledUrl} (${response.status})`);
+    }
+
     const buffer = await response.arrayBuffer();
 
     const data = new Uint8Array(buffer);
-    const key = new TextEncoder().encode(originalPath); // originalPath is the key
+    const key = new TextEncoder().encode(originalPath);
     const keyLen = key.length;
 
-    // 3. Decrypt (XOR)
     for (let i = 0; i < data.length; i++) {
         data[i] = data[i] ^ key[i % keyLen];
     }
 
-    // 4. Create Object URL
     const blob = new Blob([data]);
     return URL.createObjectURL(blob);
 };
 
+const protectedAssetLookup = JSON.parse("{\"train/NS-SGM/ns-sgmm3-bk2.glb\":\"39b0d1cdd747.bin\",\"train/NS-SGM/ns-sgmm3-bk1.glb\":\"0c60cdca95c9.bin\",\"train/NS-SGM/ns-sgmm3-ab.glb\":\"b1a564823b8b.bin\",\"train/APT/apt-wip.glb\":\"1a446d6f930f.bin\",\"train/APT/apt-std-carriage.glb\":\"419d3af46833.bin\"}");
+
+export function getModelAssetPath(modelFileName: string) {
+    return protectedAssetLookup[modelFileName] || modelFileName;
+}
 
 export const isDebugAdmin = (): boolean => {
     // Simple check for debug admin mode via URL parameter
