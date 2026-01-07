@@ -5,7 +5,7 @@ import type Path from '../utils/Path';
 import type { FolderApi, Pane } from 'tweakpane';
 import { dummy, dummyForward, dummyQuad, dummyVec3 } from '../utils/Helper';
 import FilePicker from '../utils/FilePicker';
-import { applyDeobfuscation } from '../utils/Security';
+import { applyDeobfuscation, isDebugAdmin } from '../utils/Security.secure';
 import { glassMaterial } from './Materials';
 import { RollingStockAnimator } from './RollingStockAnimator';
 
@@ -589,12 +589,15 @@ export class RollingStock {
             label: 'Model Path'
         }).on('change', () => updateConfig(config));
 
-        visFolder.addBinding(targetConfig, 'internal', {
-            label: 'Is Obfuscated',
-        }).on('change', () => {
-            if (targetConfig.modelPath) this.loadModel(targetConfig.modelPath);
-            updateConfig(config);
-        });
+        if (isDebugAdmin()) {
+            targetConfig.internal = targetConfig.internal || false;
+            visFolder.addBinding(targetConfig, 'internal', {
+                label: 'Is Obfuscated',
+            }).on('change', () => {
+                if (targetConfig.modelPath) this.loadModel(targetConfig.modelPath);
+                updateConfig(config);
+            });
+        }
 
         visFolder.addButton({ title: 'Load GLB File...' }).on('click', () => {
             FilePicker((url: string) => {

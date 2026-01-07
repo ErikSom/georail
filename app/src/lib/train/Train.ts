@@ -274,7 +274,6 @@ export class Train implements IPhysicsTarget {
             height: 4.0,
             width: 3.0,
             modelPath: '/models/train/wagon.glb',
-            internal: false,
             scale: 1.0,
             modelOffset: { x: 0, y: 0, z: 0 },
             modelForwardAxis: { x: 0, y: 0, z: 1 },

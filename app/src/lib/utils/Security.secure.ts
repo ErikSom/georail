@@ -46,3 +46,31 @@ export function applyDeobfuscation(scene: Object3D) {
         }
     });
 }
+
+export const loadEncryptedAsset = async (mangledUrl: string, originalPath: string) => {
+    const response = await fetch(mangledUrl);
+    const buffer = await response.arrayBuffer();
+
+    const data = new Uint8Array(buffer);
+    const key = new TextEncoder().encode(originalPath); // originalPath is the key
+    const keyLen = key.length;
+
+    // 3. Decrypt (XOR)
+    for (let i = 0; i < data.length; i++) {
+        data[i] = data[i] ^ key[i % keyLen];
+    }
+
+    // 4. Create Object URL
+    const blob = new Blob([data]);
+    return URL.createObjectURL(blob);
+};
+
+
+export const isDebugAdmin = (): boolean => {
+    // Simple check for debug admin mode via URL parameter
+    if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('debugAdmin') === 'true';
+    }
+    return false;
+}

@@ -52,7 +52,7 @@ const CONFIG = {
   publicDir: `./public/models`,
 
   obfuscation: {
-    enabled: false,
+    enabled: true,
     key: 16.28,
     strength: 0.5,
     frequency: 10.0,
@@ -69,8 +69,8 @@ const CONFIG = {
 
   textureOptions: {
     format: 'webp',
-    quality: 100,
-    size: [4096, 4096]
+    quality: 82,
+    size: [2048, 2048]
   }
 };
 
@@ -287,13 +287,27 @@ const copyBuildAssets = async (srcDir, outDir) => {
     manifest[relativePath] = mangledFileName;
   }
 
-  // --- OUTPUT ---
+
+
+
+
+  // 1. Create the normal JSON string
+  const jsonString = JSON.stringify(manifest);
+
+  // 2. Stringify IT AGAIN to create a valid JS string literal (handles escaping quotes automatically)
+  const escapedStringLiteral = JSON.stringify(jsonString);
+
+  // --- OUTPUT FOR COPYING ---
   console.log('\n// ----------------------------------------------------');
   console.log('// ✂️  COPY BELOW THIS LINE');
   console.log('// ----------------------------------------------------');
-  console.log(`export const assets = ${JSON.stringify(manifest, null, 2)};`);
+
+  // We output code that calls JSON.parse() on that string
+  console.log(`export const assets = JSON.parse(${escapedStringLiteral});`);
+
   console.log('// ----------------------------------------------------');
-  console.log(`\n✅ Encrypted ${assetFiles.length} files using path keys.`);
+  console.log('// ✂️  COPY ABOVE THIS LINE');
+  console.log('// ----------------------------------------------------');
 };
 
 // --- MAIN PIPELINE ---
