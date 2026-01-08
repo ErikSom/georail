@@ -16,6 +16,9 @@ import { getDefaultTrainConfig } from './train/TrainConfig';
 import { Input } from './utils/Input';
 import { FlightControls } from './utils/FlightControls';
 import Path from './utils/Path';
+import { getTrainConfiguration, nssgmTrainType } from './train/configs/TrainConfigurations.secure';
+import { ThreePerf } from 'three-perf';
+import { trainInstance, updateTrainState } from '../store/train';
 
 export class World {
     private scene!: Scene;
@@ -28,6 +31,7 @@ export class World {
     private train!: Train;
     private mapViewer!: MapViewer;
     private sky!: Sky;
+    private perf!: any;
     private tmp = new Vector3();
 
     private rafId: number | null = null;
@@ -53,7 +57,7 @@ export class World {
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.setSize(this.mountElement.clientWidth, this.mountElement.clientHeight);
         this.mountElement.appendChild(this.renderer.domElement);
-        
+
         this.camera = new PerspectiveCamera(60, this.mountElement.clientWidth / this.mountElement.clientHeight, 1, 1e7);
         this.camera.position.set(1e3, 1e3, 1e3).multiplyScalar(0.5);
 
@@ -63,10 +67,13 @@ export class World {
         this.sky = new Sky(this.scene);
 
         // Initialize Train with debug mode enabled
-        const trainConfig = getDefaultTrainConfig();
+        const trainConfig = getTrainConfiguration(nssgmTrainType);
         this.train = new Train(trainConfig, true);
         this.scene.add(this.train.group);
         this.scene.add(this.train.globalDebugGroup);
+
+        // Set train instance in store for controls to use
+        trainInstance.value = this.train;
 
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
         this.controls.minDistance = 100;
@@ -81,6 +88,14 @@ export class World {
 
         // Initialize Input system
         Input.init(this.renderer.domElement);
+
+        // Initialize three-perf
+        this.perf = new ThreePerf({
+            anchorX: 'left',
+            anchorY: 'top',
+            domElement: this.mountElement,
+            renderer: this.renderer,
+        });
 
         window.addEventListener('resize', this.onWindowResize, false);
 
@@ -100,6 +115,9 @@ export class World {
         window.removeEventListener('resize', this.onWindowResize);
         Input.cleanup();
 
+        // Clear train instance from store
+        trainInstance.value = null;
+
         this.sky.cleanup();
         this.mapViewer.cleanup();
         this.train.cleanup();
@@ -107,6 +125,10 @@ export class World {
 
         if (this.flightControls) {
             this.flightControls.cleanup();
+        }
+
+        if (this.perf) {
+            this.perf.destroy();
         }
 
         this.renderer.dispose();
@@ -236,6 +258,9 @@ export class World {
         // Update Input
         this.handleInput();
 
+        // Update train state and trigger React component updates
+        updateTrainState();
+
         // 1. Update Sky
         this.sky.update(deltaTime, this.camera);
 
@@ -256,11 +281,16 @@ export class World {
             this.controls.update();
         }
 
-        // 5. Update Camera
+        // 5. Update Train
+        this.train.update(deltaTime);
+
+        // 6. Update Camera
         this.camera.updateMatrixWorld();
 
         // 6. Render
+        this.perf.begin();
         this.renderer.render(this.scene, this.camera);
+        this.perf.end();
 
         // 7. Update UI - only if MapViewer is initialized
         if (this.mapViewer.initialized) {

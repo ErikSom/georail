@@ -14,13 +14,14 @@ import {
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { Sky } from './Sky';
 import { Train } from './train/Train';
-import { getDefaultTrainConfig } from './train/TrainConfig';
+import { getDefaultTrainConfig, type TrainConfig } from './train/TrainConfig';
 import Path from './utils/Path';
 import { Pane } from 'tweakpane';
 import { dummyQuad, dummyVec3 } from './utils/Helper';
 import { FlightControls } from './utils/FlightControls';
 import { Input } from './utils/Input';
 import { trainInstance, updateTrainState } from '../store/train';
+import { getTrainConfiguration } from './train/configs/TrainConfigurations.secure';
 
 export type PathType = 'straight' | 'circle' | 'oval' | 'figure8' | 'spiral';
 export type CameraMode = 'free' | 'side' | 'top' | 'cinematic' | 'fly';
@@ -116,8 +117,19 @@ export class TrainEditorWorld {
         // Debug UI
         this.createDebugUI();
 
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlTrain = urlParams.get('train');
+
+        let trainConfig: TrainConfig = getDefaultTrainConfig();
+        if (urlTrain) {
+            try {
+                trainConfig = getTrainConfiguration(urlTrain);
+            } catch (e) {
+                console.error(`Failed to load train configuration for type "${urlTrain}". Using default configuration.`, e);
+            }
+        }
+
         // Initialize Train with debug mode enabled
-        const trainConfig = getDefaultTrainConfig();
         this.train = new Train(trainConfig, true);
         this.scene.add(this.train.group);
         this.scene.add(this.train.globalDebugGroup);

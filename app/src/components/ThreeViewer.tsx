@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { World } from '../lib/World';
 import TravelPicker from './TravelPicker';
+import TrainControls from '../lib/controls/TrainControls';
 import type { RouteData } from '../lib/Georail';
 
 function ThreeViewer() {
@@ -34,6 +35,8 @@ function ThreeViewer() {
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
             <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
+
+            {!showPicker && <TrainControls />}
 
             <div style={{
                 position: 'absolute',

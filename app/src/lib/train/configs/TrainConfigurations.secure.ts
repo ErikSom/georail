@@ -1,7 +1,9 @@
 import NSSGMRaw from './NS-SGM.secure.json?raw';
 
+export const nssgmTrainType = 'nssgm';
+
 const rawConfigurations = {
-    NSSGM: NSSGMRaw
+    [nssgmTrainType]: NSSGMRaw
 } as Record<string, string>;
 
 export const trainAssetsPath = '/models';
