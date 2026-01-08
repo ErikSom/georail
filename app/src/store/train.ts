@@ -5,6 +5,7 @@ import type { Train } from "../lib/train/Train";
 export const trainPower = signal(0); // -1 to 1
 export const trainVelocityKmh = signal(0);
 export const trainInstance = signal<Train | null>(null);
+export const trainDebugMode = signal(false); // Enable debug visualization
 
 // Update tick signal - increment this to trigger React components to update
 export const updateTick = signal(0);

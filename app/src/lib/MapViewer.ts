@@ -21,6 +21,7 @@ import {
     Quaternion
 } from 'three';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+import { type PerformanceConfig } from './utils/PerformanceConfig';
 
 const getDracoDecoderPath = (): string => {
     return 'https://unpkg.com/three@0.180.0/examples/jsm/libs/draco/gltf/';
@@ -30,6 +31,7 @@ export class MapViewer {
     private scene: Scene | null = null;
     private camera: PerspectiveCamera | null = null;
     private renderer: WebGLRenderer | null = null;
+    private perfConfig: PerformanceConfig | null = null;
 
     public tiles: TilesRenderer | null = null;
     private reorientationPlugin: ReorientationPlugin | null = null;
@@ -48,11 +50,13 @@ export class MapViewer {
         renderer: WebGLRenderer,
         lat?: number,
         lon?: number,
-        height?: number
+        height?: number,
+        perfConfig?: PerformanceConfig
     ): void {
         this.scene = scene;
         this.camera = camera;
         this.renderer = renderer;
+        this.perfConfig = perfConfig || null;
 
         this.reinstantiateTiles(lat, lon, height);
         // Don't set initialized here - wait for tiles to load
@@ -108,6 +112,16 @@ export class MapViewer {
             lon: finalLon * MathUtils.DEG2RAD,
         });
         this.tiles.registerPlugin(this.reorientationPlugin);
+
+        // Apply performance config to tiles
+        if (this.perfConfig) {
+            console.log("default error target:", this.tiles.errorTarget, "default max depth:", this.tiles.maxDepth);
+
+
+            this.tiles.errorTarget = this.perfConfig.tilesErrorTarget;
+            this.tiles.maxDepth = this.perfConfig.tilesMaxDepth;
+            // this.tiles.displayActiveTiles = false;
+        }
 
         // Replace unlit materials with lit materials to enable sun/moon lighting
         this.tiles.addEventListener('load-model', ({ scene }) => {

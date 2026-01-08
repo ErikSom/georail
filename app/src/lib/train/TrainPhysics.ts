@@ -76,12 +76,6 @@ export class TrainPhysics {
                 this.totalBrakingForce += config.rearCab.brakingPower;
             }
         }
-
-        console.log(`[TrainPhysics] Configuration updated:`, {
-            totalMass: `${(this.totalMass / 1000).toFixed(1)} tons`,
-            totalEnginePower: `${this.totalEnginePower.toFixed(0)} kW`,
-            totalBrakingForce: `${this.totalBrakingForce.toFixed(0)} kN`
-        });
     }
 
     public setPower(value: number): void {
@@ -197,8 +191,6 @@ export class TrainPhysics {
         } else {
             const targetSpeed = this.getTargetSpeedForPower();
             const speedError = Math.abs(this.velocity) - Math.abs(targetSpeed);
-
-            console.log(`[TrainPhysics] Speed: ${this.getVelocityKmh().toFixed(1)} km/h, Target: ${(targetSpeed * 3.6).toFixed(1)} km/h, Error: ${speedError.toFixed(2)} m/s`);
 
             if (speedError > 1.0) {
                 brakeApplication = Math.min(speedError / 10, 0.5);

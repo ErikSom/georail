@@ -167,8 +167,6 @@ export class RollingStock {
             if (child instanceof Mesh) {
                 const materials = Array.isArray(child.material) ? child.material : [child.material];
 
-                console.log(`[RollingStock] Processing Mesh: "${child.name}" with ${materials.length} material(s).`);
-
                 materials.forEach((mat) => {
                     const name = mat.name?.toLowerCase() || '';
 
@@ -185,6 +183,10 @@ export class RollingStock {
 
                         standardMat.needsUpdate = true;
                     }
+                    // disable receiving and casting shadows for performance
+                    child.castShadow = false;
+                    child.receiveShadow = false;
+
                 });
             }
         });

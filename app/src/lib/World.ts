@@ -18,7 +18,8 @@ import { FlightControls } from './utils/FlightControls';
 import Path from './utils/Path';
 import { getTrainConfiguration, nssgmTrainType } from './train/configs/TrainConfigurations.secure';
 import { ThreePerf } from 'three-perf';
-import { trainInstance, updateTrainState } from '../store/train';
+import { trainInstance, updateTrainState, trainDebugMode } from '../store/train';
+import { getPerformanceConfig, type PerformanceConfig } from './utils/PerformanceConfig';
 
 export class World {
     private scene!: Scene;
@@ -33,6 +34,7 @@ export class World {
     private sky!: Sky;
     private perf!: any;
     private tmp = new Vector3();
+    private perfConfig: PerformanceConfig;
 
     private rafId: number | null = null;
     private mountElement: HTMLDivElement;
@@ -46,6 +48,10 @@ export class World {
         this.setCreditsCallback = setCreditsCallback;
         this.routeData = routeData || null;
 
+        // Get performance config (defaults to MEDIUM, can override with ?perf=low/high/etc)
+        this.perfConfig = getPerformanceConfig();
+        console.log('Performance preset:', this.perfConfig);
+
         this.animate = this.animate.bind(this);
         this.onWindowResize = this.onWindowResize.bind(this);
     }
@@ -53,12 +59,22 @@ export class World {
     public init(): void {
         this.scene = new Scene();
         this.clock = new Clock();
-        this.renderer = new WebGLRenderer({ antialias: true });
-        this.renderer.setPixelRatio(window.devicePixelRatio);
+
+        // Apply performance config
+        this.renderer = new WebGLRenderer({
+            antialias: this.perfConfig.antialias,
+            powerPreference: 'high-performance'
+        });
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.perfConfig.pixelRatio));
         this.renderer.setSize(this.mountElement.clientWidth, this.mountElement.clientHeight);
         this.mountElement.appendChild(this.renderer.domElement);
 
-        this.camera = new PerspectiveCamera(60, this.mountElement.clientWidth / this.mountElement.clientHeight, 1, 1e7);
+        this.camera = new PerspectiveCamera(
+            60,
+            this.mountElement.clientWidth / this.mountElement.clientHeight,
+            1,
+            this.perfConfig.farPlane
+        );
         this.camera.position.set(1e3, 1e3, 1e3).multiplyScalar(0.5);
 
         // Initialize MapViewer but don't call init() yet - wait for route data
@@ -66,11 +82,15 @@ export class World {
 
         this.sky = new Sky(this.scene);
 
-        // Initialize Train with debug mode enabled
+        // Initialize Train
         const trainConfig = getTrainConfiguration(nssgmTrainType);
-        this.train = new Train(trainConfig, true);
+        this.train = new Train(trainConfig, trainDebugMode.value);
         this.scene.add(this.train.group);
-        this.scene.add(this.train.globalDebugGroup);
+
+        // Only add debug group if debug mode is enabled
+        if (trainDebugMode.value) {
+            this.scene.add(this.train.globalDebugGroup);
+        }
 
         // Set train instance in store for controls to use
         trainInstance.value = this.train;
@@ -191,8 +211,8 @@ export class World {
             // Initialize or reorient MapViewer at the starting location (ground level - height 0)
             // Always reorient to ground level to keep coordinate system consistent
             if (!this.mapViewer.initialized) {
-                // First time: initialize MapViewer
-                this.mapViewer.init(this.scene, this.camera, this.renderer, startLat, startLon, 0);
+                // First time: initialize MapViewer with performance config
+                this.mapViewer.init(this.scene, this.camera, this.renderer, startLat, startLon, 0, this.perfConfig);
             }
             this.mapViewer.reorient(startLat, startLon, 0);
 
@@ -267,8 +287,8 @@ export class World {
         // 2. Update MapViewer (tiles) - always update to allow tiles to load
         this.mapViewer.update();
 
-        // 3. Follow the train without fighting controls (only if initialized and not in free-fly mode)
-        if (this.mapViewer.initialized && !this.freeFlyCameraMode) {
+        // 3. Follow the train without fighting controls (not in free-fly mode)
+        if (!this.freeFlyCameraMode) {
             this.tmp.copy(this.train.group.position).sub(this.controls.target);
             this.controls.target.add(this.tmp);
             this.camera.position.add(this.tmp);
