@@ -23,27 +23,31 @@ export class Wagon extends RollingStock {
         pane: Pane | FolderApi,
         config: TrainConfig,
         updateConfig: (config: TrainConfig) => void,
-        onDelete?: () => void,
-        onDuplicate?: () => void
+        onDelete: () => void,
+        onDuplicate: () => void,
+        registerFolder: (folder: FolderApi, key: string) => void,
+        folderPath: string[],
+        getFolderExpanded: (key: string, fallback: boolean) => boolean
     ): FolderApi {
         // Call parent createDebugUI
-        const folder = super.createDebugUI(pane, config, updateConfig);
+        const folder = super.createDebugUI(
+            pane,
+            config,
+            updateConfig,
+            registerFolder,
+            folderPath,
+            getFolderExpanded
+        );
 
-        // Add duplicate button if callback provided
-        if (onDuplicate) {
-            folder.addButton({ title: 'Duplicate Wagon' }).on('click', () => {
-                onDuplicate();
-            });
-        }
+        folder.addButton({ title: 'Duplicate Wagon' }).on('click', () => {
+            onDuplicate();
+        });
 
-        // Add delete button if callback provided
-        if (onDelete) {
-            folder.addButton({ title: 'Delete Wagon' }).on('click', () => {
-                if (confirm(`Are you sure you want to delete ${this.debugPaneName}?`)) {
-                    onDelete();
-                }
-            });
-        }
+        folder.addButton({ title: 'Delete Wagon' }).on('click', () => {
+            if (confirm(`Are you sure you want to delete ${this.debugPaneName}?`)) {
+                onDelete();
+            }
+        });
 
         return folder;
     }

@@ -11,7 +11,7 @@ export class Cab extends RollingStock {
         this.config = config;
         this.rearCab = rearCab;
 
-        this.debugPaneName = this.rearCab ? 'Rear Cab Config' : 'Front Cab Config';
+        this.debugPaneName = this.rearCab ? 'Rear Cab' : 'Front Cab';
     }
 
     protected getConfigTarget(config: TrainConfig): RollingStockConfig {

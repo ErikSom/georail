@@ -9,6 +9,7 @@ import { applyDeobfuscation, isDebugAdmin, loadEncryptedAsset, getModelAssetPath
 import { glassMaterial } from './Materials';
 import { RollingStockAnimator } from './RollingStockAnimator';
 import { trainAssetsPath } from './configs/TrainConfigurations.secure';
+import { getFolderKey } from './TrainUiUtils';
 
 export class RollingStock {
     public group: Group;
@@ -513,12 +514,23 @@ export class RollingStock {
         return {} as RollingStockConfig; // Placeholder, to be overridden in subclasses
     }
 
-    public createDebugUI(pane: Pane | FolderApi, config: TrainConfig, updateConfig: (config: TrainConfig) => void): FolderApi {
+    public createDebugUI(
+        pane: Pane | FolderApi,
+        config: TrainConfig,
+        updateConfig: (config: TrainConfig) => void,
+        registerFolder: (folder: FolderApi, key: string) => void,
+        folderPath: string[],
+        getFolderExpanded: (key: string, fallback: boolean) => boolean
+    ): FolderApi {
+        const basePath = [...folderPath, this.debugPaneName];
+
         // Main Folder
+        const baseKey = getFolderKey(basePath);
         this.paneFolder = pane.addFolder({
             title: this.debugPaneName,
-            expanded: true
+            expanded: getFolderExpanded(baseKey, false)
         });
+        registerFolder(this.paneFolder, baseKey);
 
         // Get the correct config target (cab or specific wagon)
         const targetConfig = this.getConfigTarget(config);
@@ -539,7 +551,12 @@ export class RollingStock {
         const maxWheelToBogieOffset = 4.0; // Reduced: wheels are rarely >4m from bogie center
 
         // --- 1. Physics & Dimensions ---
-        const physFolder = this.paneFolder.addFolder({ title: 'Dimensions & Physics', expanded: false });
+        const physKey = getFolderKey([...basePath, 'Dimensions & Physics']);
+        const physFolder = this.paneFolder.addFolder({
+            title: 'Dimensions & Physics',
+            expanded: getFolderExpanded(physKey, false)
+        });
+        registerFolder(physFolder, physKey);
 
         physFolder.addBinding(targetConfig, 'length', {
             label: 'Length (m)',
@@ -573,7 +590,12 @@ export class RollingStock {
 
         // --- 2. Connections (Couplers) ---
         // Added a separate folder for these as requested
-        const connFolder = this.paneFolder.addFolder({ title: 'Connections', expanded: false });
+        const connKey = getFolderKey([...basePath, 'Connections']);
+        const connFolder = this.paneFolder.addFolder({
+            title: 'Connections',
+            expanded: getFolderExpanded(connKey, false)
+        });
+        registerFolder(connFolder, connKey);
 
         // NEW: Coupler Front
         connFolder.addBinding(targetConfig, 'couplerLengthFront', {
@@ -596,10 +618,12 @@ export class RollingStock {
             label: 'Is Engine'
         });
 
+        const engKey = getFolderKey([...basePath, 'Engine Specs']);
         const engFolder = this.paneFolder.addFolder({
             title: 'Engine Specs',
-            expanded: true
+            expanded: getFolderExpanded(engKey, true)
         });
+        registerFolder(engFolder, engKey);
         // Set initial visibility
         engFolder.hidden = !targetConfig.engine;
 
@@ -623,7 +647,12 @@ export class RollingStock {
         }).on('change', () => updateConfig(config));
 
         // --- 4. Visuals & Model Loading ---
-        const visFolder = this.paneFolder.addFolder({ title: 'Visuals', expanded: false });
+        const visKey = getFolderKey([...basePath, 'Visuals']);
+        const visFolder = this.paneFolder.addFolder({
+            title: 'Visuals',
+            expanded: getFolderExpanded(visKey, false)
+        });
+        registerFolder(visFolder, visKey);
 
         visFolder.addBinding(targetConfig, 'modelPath', {
             label: 'Model Path'
@@ -673,7 +702,12 @@ export class RollingStock {
         }).on('change', () => updateConfig(config));
 
         // --- 5. Bogie Configuration ---
-        const bogieMainFolder = this.paneFolder.addFolder({ title: 'Bogie Setup', expanded: false });
+        const bogieKey = getFolderKey([...basePath, 'Bogie Setup']);
+        const bogieMainFolder = this.paneFolder.addFolder({
+            title: 'Bogie Setup',
+            expanded: getFolderExpanded(bogieKey, false)
+        });
+        registerFolder(bogieMainFolder, bogieKey);
 
         // Helper to keep code dry
         const addBogieControls = (folder: any, bogie: any, isRear: boolean) => {
@@ -711,10 +745,20 @@ export class RollingStock {
             }).on('change', () => updateConfig(config));
         };
 
-        const frontBogieFolder = bogieMainFolder.addFolder({ title: 'Front Bogie', expanded: true });
+        const frontBogieKey = getFolderKey([...basePath, 'Bogie Setup', 'Front Bogie']);
+        const frontBogieFolder = bogieMainFolder.addFolder({
+            title: 'Front Bogie',
+            expanded: getFolderExpanded(frontBogieKey, true)
+        });
+        registerFolder(frontBogieFolder, frontBogieKey);
         addBogieControls(frontBogieFolder, targetConfig.frontBogie, false);
 
-        const rearBogieFolder = bogieMainFolder.addFolder({ title: 'Rear Bogie', expanded: true });
+        const rearBogieKey = getFolderKey([...basePath, 'Bogie Setup', 'Rear Bogie']);
+        const rearBogieFolder = bogieMainFolder.addFolder({
+            title: 'Rear Bogie',
+            expanded: getFolderExpanded(rearBogieKey, true)
+        });
+        registerFolder(rearBogieFolder, rearBogieKey);
         addBogieControls(rearBogieFolder, targetConfig.rearBogie, true);
 
         return this.paneFolder;

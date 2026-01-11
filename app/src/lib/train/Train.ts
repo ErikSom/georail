@@ -1,11 +1,12 @@
 import { Group, Scene } from 'three';
-import { Pane } from 'tweakpane';
+import { Pane, type FolderApi } from 'tweakpane';
 import type { TrainConfig, WagonConfig } from './TrainConfig';
 import { Cab } from './Cab';
 import { Wagon } from './Wagon';
 import type Path from '../utils/Path';
 import * as EssentialsPlugin from '@tweakpane/plugin-essentials';
 import { TrainPhysics, type IPhysicsTarget } from './TrainPhysics';
+import { getFolderKey } from './TrainUiUtils';
 
 export class Train implements IPhysicsTarget {
     public group: Group;
@@ -23,6 +24,7 @@ export class Train implements IPhysicsTarget {
 
     private debug: boolean;
     private pane: Pane | null = null;
+    private readonly paneFolderExpandedState = new Map<string, boolean>();
 
     constructor(config: TrainConfig, debug: boolean = false) {
 
@@ -179,13 +181,28 @@ export class Train implements IPhysicsTarget {
         this.pane = new Pane({ title: 'Train Configuration', container: rootDomContainer || undefined });
         this.pane.registerPlugin(EssentialsPlugin);
 
-        // Cab
-        this.cab.createDebugUI(this.pane, this.config, (updatedConfig: TrainConfig) => {
-            this.updateConfig(updatedConfig);
+        const rootPath = ['Train Configuration'];
+        const physicalKey = getFolderKey([...rootPath, 'Visual & Physics']);
+
+        // changing physical and visual parameters
+        const physical = this.pane.addFolder({
+            title: 'Visual & Physics',
+            expanded: this.getFolderExpanded(physicalKey, false)
         });
+        this.registerFolder(physical, physicalKey);
+
+        // Cab
+        this.cab.createDebugUI(physical, this.config, (updatedConfig: TrainConfig) => {
+            this.updateConfig(updatedConfig);
+        }, this.registerFolder.bind(this), [...rootPath, 'Visual & Physics'], this.getFolderExpanded.bind(this));
 
         // Wagons folder
-        const wagonsFolder = this.pane.addFolder({ title: 'Wagons', expanded: true });
+        const wagonsKey = getFolderKey([...rootPath, 'Visual & Physics', 'Wagons']);
+        const wagonsFolder = physical.addFolder({
+            title: 'Wagons',
+            expanded: this.getFolderExpanded(wagonsKey, true)
+        });
+        this.registerFolder(wagonsFolder, wagonsKey);
 
         // Individual wagons
         this.wagons.forEach((wagon, index) => {
@@ -196,7 +213,10 @@ export class Train implements IPhysicsTarget {
                     this.updateConfig(updatedConfig);
                 },
                 () => this.deleteWagon(index),
-                () => this.duplicateWagon(index)
+                () => this.duplicateWagon(index),
+                this.registerFolder.bind(this),
+                [...rootPath, 'Visual & Physics', 'Wagons'],
+                this.getFolderExpanded.bind(this)
             );
         });
 
@@ -207,16 +227,17 @@ export class Train implements IPhysicsTarget {
 
         // Rear Cab
         if (this.rearCab && this.config.rearCab) {
-            this.rearCab.createDebugUI(this.pane, this.config, (updatedConfig: TrainConfig) => {
+            this.rearCab.createDebugUI(physical, this.config, (updatedConfig: TrainConfig) => {
                 this.updateConfig(updatedConfig);
-            });
+            }, this.registerFolder.bind(this), [...rootPath, 'Visual & Physics'], this.getFolderExpanded.bind(this));
         }
 
         // Add/Remove Rear Cab button
         const rearCabButtonTitle = this.config.rearCab ? 'Remove Rear Cab' : 'Add Rear Cab';
-        this.pane.addButton({ title: rearCabButtonTitle }).on('click', () => {
+        physical.addButton({ title: rearCabButtonTitle }).on('click', () => {
             this.toggleRearCab();
         });
+
 
         // Add button to copy and paste configuration as JSON
         const miscButtons = this.pane.addBlade({
@@ -522,5 +543,21 @@ export class Train implements IPhysicsTarget {
             this.pane.dispose();
             this.pane = null;
         }
+    }
+
+    private registerFolder(folder: FolderApi, key: string): void {
+        const stored = this.paneFolderExpandedState.get(key);
+        if (stored !== undefined) {
+            folder.expanded = stored;
+        }
+
+        this.paneFolderExpandedState.set(key, folder.expanded);
+        folder.on('fold', (ev) => {
+            this.paneFolderExpandedState.set(key, ev.expanded);
+        });
+    }
+
+    private getFolderExpanded(key: string, fallback: boolean): boolean {
+        return this.paneFolderExpandedState.get(key) ?? fallback;
     }
 }
