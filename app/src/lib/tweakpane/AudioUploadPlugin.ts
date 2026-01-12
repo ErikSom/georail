@@ -38,6 +38,11 @@ interface AudioItem {
     created: boolean;
 }
 
+export type AudioUploadFile = {
+    name: string;
+    url: string;
+};
+
 const cn = ClassName('audio');
 const STYLE_ID = 'tp-audio-upload-style';
 const DEFAULT_MAX_HEIGHT = 200;
@@ -289,6 +294,13 @@ class AudioUploadController implements ValueController<string[], AudioUploadView
         });
     }
 
+    public getFiles(): AudioUploadFile[] {
+        return this.items.map((item) => ({
+            name: item.name,
+            url: item.url,
+        }));
+    }
+
     private dispose(): void {
         this.value.emitter.off('change', this.onValueChange);
         this.items.forEach((item) => {
@@ -500,6 +512,9 @@ class AudioUploadController implements ValueController<string[], AudioUploadView
     }
 
     private removeItem(item: AudioItem): void {
+        if (!window.confirm(`Delete "${item.name}"?`)) {
+            return;
+        }
         const index = this.items.findIndex((entry) => entry.id === item.id);
         if (index === -1) {
             return;
@@ -537,6 +552,10 @@ export class AudioUploadBladeApi extends BladeApi<
 
     set value(value: string[]) {
         this.controller.valueController.value.rawValue = value;
+    }
+
+    get files(): AudioUploadFile[] {
+        return this.controller.valueController.getFiles();
     }
 
     on<EventName extends keyof AudioUploadBladeApiEvents>(

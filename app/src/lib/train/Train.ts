@@ -5,10 +5,9 @@ import { Cab } from './Cab';
 import { Wagon } from './Wagon';
 import type Path from '../utils/Path';
 import * as EssentialsPlugin from '@tweakpane/plugin-essentials';
-import { CurveBladePlugin, type CurveBladeApi, type CurvePoint } from '../tweakpane/CurvePlugin';
-import { AudioUploadBladePlugin, type AudioUploadBladeApi } from '../tweakpane/AudioUploadPlugin';
 import { TrainPhysics, type IPhysicsTarget } from './TrainPhysics';
 import { getFolderKey } from './TrainUiUtils';
+import { TrainAudio } from './TrainAudio';
 
 export class Train implements IPhysicsTarget {
     public group: Group;
@@ -22,18 +21,14 @@ export class Train implements IPhysicsTarget {
     private path: Path | null = null;
     public distanceTraveled: number = 0; // Public so physics can control it
 
-    private physics: TrainPhysics;
 
     private debug: boolean;
     private pane: Pane | null = null;
+
     private readonly paneFolderExpandedState = new Map<string, boolean>();
-    private audioCurve: CurvePoint[] = [
-        { x: 0, y: 0 },
-        { x: 0.3, y: 25 },
-        { x: 0.7, y: -10 },
-        { x: 1, y: 0 },
-    ];
-    private audioFiles: string[] = [];
+    private audio: TrainAudio;
+    private physics: TrainPhysics;
+
 
     constructor(config: TrainConfig, debug: boolean = false) {
 
@@ -50,6 +45,9 @@ export class Train implements IPhysicsTarget {
 
         // Initialize physics system with reference to this train
         this.physics = new TrainPhysics(this, config);
+
+        // Initialize audio system
+        this.audio = new TrainAudio();
 
         // sets train on track;
         this.updateConfig(config);
@@ -189,8 +187,7 @@ export class Train implements IPhysicsTarget {
 
         this.pane = new Pane({ title: 'Train Configuration', container: rootDomContainer || undefined });
         this.pane.registerPlugin(EssentialsPlugin);
-        this.pane.registerPlugin({ id: 'curve', plugin: CurveBladePlugin });
-        this.pane.registerPlugin({ id: 'audiofiles', plugin: AudioUploadBladePlugin });
+        this.audio.registerPlugins(this.pane);
 
         const rootPath = ['Train Configuration'];
         const physicalKey = getFolderKey([...rootPath, 'Visual & Physics']);
@@ -282,41 +279,12 @@ export class Train implements IPhysicsTarget {
             }
         });
 
-        const audioKey = getFolderKey([...rootPath, 'Audio']);
-        const audioFolder = this.pane.addFolder({
-            title: 'Audio',
-            expanded: this.getFolderExpanded(audioKey, false)
-        });
-        this.registerFolder(audioFolder, audioKey);
-
-        const audioCurveBlade = audioFolder.addBlade({
-            view: 'curve',
-            label: 'Pitch Curve',
-            target: 'pitch',
-            grid: { x: 6, y: 4 },
-            value: this.audioCurve
-        }) as CurveBladeApi;
-
-        audioCurveBlade.on('change', (ev) => {
-            this.audioCurve = ev.value;
-        });
-
-        const audioFilesKey = getFolderKey([...rootPath, 'Audio', 'Files']);
-        const audioFilesFolder = audioFolder.addFolder({
-            title: 'Files',
-            expanded: this.getFolderExpanded(audioFilesKey, false)
-        });
-        this.registerFolder(audioFilesFolder, audioFilesKey);
-
-        const audioFilesBlade = audioFilesFolder.addBlade({
-            view: 'audiofiles',
-            maxHeight: 200,
-            value: this.audioFiles
-        }) as AudioUploadBladeApi;
-
-        audioFilesBlade.on('change', (ev) => {
-            this.audioFiles = ev.value;
-        });
+        this.audio.createDebugUI(
+            this.pane,
+            rootPath,
+            this.registerFolder.bind(this),
+            this.getFolderExpanded.bind(this)
+        );
 
         // Add path index slider if we have a path
         const pathPoints = this.path?.points || [];
