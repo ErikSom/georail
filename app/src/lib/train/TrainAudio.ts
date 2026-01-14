@@ -54,6 +54,7 @@ export class TrainAudio {
     private trainGroup: Group | null = null;
     private isEnabled: boolean = false;
     private currentInitializationId: number = 0;
+    private opusSupported: boolean = true;
 
     constructor() {
         this.audioLoader = new AudioLoader();
@@ -435,6 +436,14 @@ export class TrainAudio {
             const mangledFileName = getProtectedAssetPath(filePath);
             const fetchUrl = `${trainAssetsPath}/${mangledFileName}`;
 
+            // If opus support is already known to be false, go directly to MP3 fallback
+            if (this.opusSupported === false) {
+                console.log(`[TrainAudio] Loading MP3 fallback (opus not supported): ${fetchUrl}.fb`);
+                const fallbackBuffer = await loadEncryptedAsset(`${fetchUrl}.fb`, filePath);
+                const audioBuffer = await audioContext.decodeAudioData(fallbackBuffer.slice(0));
+                return audioBuffer;
+            }
+
             console.log(`[TrainAudio] Loading encrypted audio: ${fetchUrl}`);
 
             // Load and decrypt the buffer
@@ -446,8 +455,9 @@ export class TrainAudio {
                 console.log(`[TrainAudio] Successfully decoded opus audio: ${filePath}`);
                 return audioBuffer;
             } catch (decodeError) {
-                // Opus not supported, try fallback MP3
-                console.log(`[TrainAudio] Opus decode failed, trying MP3 fallback for: ${filePath}`);
+                // Opus not supported, mark flag and try fallback MP3
+                this.opusSupported = false;
+                console.log(`[TrainAudio] Opus not supported, using MP3 fallback for all files`);
                 const fallbackUrl = `${fetchUrl}.fb`;
                 const fallbackBuffer = await loadEncryptedAsset(fallbackUrl, filePath);
                 const audioBuffer = await audioContext.decodeAudioData(fallbackBuffer.slice(0));
