@@ -46,7 +46,7 @@ export class Train implements IPhysicsTarget {
         // Initialize physics system with reference to this train
         this.physics = new TrainPhysics(this, config);
 
-        // Initialize audio system
+        // Initialize audio system (stateless, just for UI)
         this.audio = new TrainAudio();
 
         // sets train on track;
@@ -246,6 +246,18 @@ export class Train implements IPhysicsTarget {
             this.toggleRearCab();
         });
 
+        this.audio.createDebugUI(
+            this.pane,
+            rootPath,
+            this.registerFolder.bind(this),
+            this.getFolderExpanded.bind(this),
+            this.config.audio,
+            (updatedAudioConfig) => {
+                // Update audio in config and refresh UI without circular updates
+                this.config.audio = updatedAudioConfig;
+                this.pane?.refresh();
+            }
+        );
 
         // Add button to copy and paste configuration as JSON
         const miscButtons = this.pane.addBlade({
@@ -261,11 +273,12 @@ export class Train implements IPhysicsTarget {
         miscButtons.on('click', (ev: any) => {
             const [x] = ev.index;
             if (x === 0) {
-                // Export config with animation groups
+                // Export config with animation groups and audio
                 const exportedConfig: TrainConfig = {
                     cab: this.cab.exportConfig(),
                     wagons: this.wagons.map(wagon => wagon.exportConfig()),
-                    rearCab: this.rearCab ? this.rearCab.exportConfig() : undefined
+                    rearCab: this.rearCab ? this.rearCab.exportConfig() : undefined,
+                    audio: this.config.audio
                 };
                 const configJson = JSON.stringify(exportedConfig, null, 2);
                 navigator.clipboard.writeText(configJson).then(() => {
@@ -278,13 +291,6 @@ export class Train implements IPhysicsTarget {
                 this.importConfig();
             }
         });
-
-        this.audio.createDebugUI(
-            this.pane,
-            rootPath,
-            this.registerFolder.bind(this),
-            this.getFolderExpanded.bind(this)
-        );
 
         // Add path index slider if we have a path
         const pathPoints = this.path?.points || [];

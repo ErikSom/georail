@@ -16,6 +16,26 @@ export interface AnimationGroupConfig {
     alternate: boolean;
 }
 
+export type AudioCurvePoint = { x: number; y: number };
+export type AudioCurveAxis = { min: number; max: number; label?: string };
+export type AudioCurveAxes = { x: AudioCurveAxis; y: AudioCurveAxis };
+export interface AudioCurve {
+    points: AudioCurvePoint[];
+    axis?: AudioCurveAxes;
+}
+export interface AudioSound {
+    file: string;
+    curves: AudioCurve[];
+}
+export interface AudioComposition {
+    title: string;
+    sounds: AudioSound[];
+}
+export interface AudioConfig {
+    files: string[];
+    compositions: AudioComposition[];
+}
+
 export interface RollingStockConfig {
     length: number; // in meters
     weight: number; // in metric tons
@@ -60,6 +80,7 @@ export interface TrainConfig {
     cab: CabConfig;
     wagons: WagonConfig[];
     rearCab?: CabConfig;
+    audio: AudioConfig;
 }
 
 // Default configuration
@@ -99,6 +120,10 @@ export function getDefaultTrainConfig(): TrainConfig {
             brakingPower: 0.0,
             animationGroups: [],
         },
-        wagons: []
+        wagons: [],
+        audio: {
+            files: [],
+            compositions: []
+        }
     };
 }
