@@ -42,13 +42,7 @@ export class TrainEditorWorld {
     private rafId: number | null = null;
     private mountElement: HTMLDivElement;
     private pane: Pane | null = null;
-    private animParams = {
-        isAnimating: false,
-        animationSpeed: 20, // meters per second
-        pathProgress: 0,
-    };
     private trainControlParams = {
-        usePhysics: true,
         power: 0,
         velocityKmh: 0,
     };
@@ -193,15 +187,10 @@ export class TrainEditorWorld {
         }).on('change', (ev) => {
             this.currentPathType = ev.value as PathType;
             this.setPath(this.currentPathType);
-            this.animParams.pathProgress = 0;
         });
 
         // Train Controls
         const trainFolder = this.pane.addFolder({ title: 'Train Controls' });
-
-        trainFolder.addBinding(this.trainControlParams, 'usePhysics', {
-            label: 'Use Physics',
-        });
 
         trainFolder.addBinding(this.trainControlParams, 'power', {
             label: 'Power',
@@ -209,9 +198,7 @@ export class TrainEditorWorld {
             max: 1,
             step: 0.01,
         }).on('change', (ev) => {
-            if (this.trainControlParams.usePhysics) {
-                this.train.setPower(ev.value);
-            }
+            this.train.setPower(ev.value);
         });
 
         trainFolder.addBinding(this.trainControlParams, 'velocityKmh', {
@@ -219,36 +206,9 @@ export class TrainEditorWorld {
             readonly: true,
         });
 
-        trainFolder.addButton({ title: 'Reset Physics' }).on('click', () => {
+        trainFolder.addButton({ title: 'Reset' }).on('click', () => {
             this.trainControlParams.power = 0;
             this.train.setPower(0);
-        });
-
-        trainFolder.addBlade({ view: 'separator' });
-
-        // Animation controls (legacy)
-        const animFolder = this.pane.addFolder({ title: 'Animation (Legacy)' });
-
-        animFolder.addBinding(this.animParams, 'isAnimating', {
-            label: 'Animate Train',
-        });
-
-        animFolder.addBinding(this.animParams, 'animationSpeed', {
-            label: 'Speed (m/s)',
-            min: 1,
-            max: 100,
-            step: 1,
-        });
-
-        animFolder.addBinding(this.animParams, 'pathProgress', {
-            label: 'Position',
-            min: 0,
-            max: 1,
-            step: 0.001,
-        }).on('change', () => {
-            if (!this.animParams.isAnimating) {
-                this.updateTrainPosition();
-            }
         });
 
         // Camera controls
@@ -379,18 +339,6 @@ export class TrainEditorWorld {
         return points;
     }
 
-    private updateTrainPosition(): void {
-        const path = this.train['path']; // Access private property for this specific case
-        if (!path) return;
-
-        const totalLength = path.getTotalLength();
-        const distance = this.animParams.pathProgress * totalLength;
-
-        // Update distance traveled on train (accessing private property)
-        (this.train as any).distanceTraveled = distance;
-        this.train.positionOnPath();
-    }
-
     private updateCameraMode(): void {
         // Blur any active element to prevent Tweakpane inputs from capturing keyboard events
         if (document.activeElement instanceof HTMLElement) {
@@ -428,26 +376,10 @@ export class TrainEditorWorld {
         // Update train state and trigger React component updates
         updateTrainState();
 
-        // Update train physics or legacy animation
-        if (this.trainControlParams.usePhysics) {
-            // Physics mode - train updates itself via store
-            // Update display values for debug pane
-            this.trainControlParams.velocityKmh = this.train.getVelocityKmh();
-            this.trainControlParams.power = this.train.getPower();
-            this.pane?.refresh();
-        } else if (this.animParams.isAnimating) {
-            // Legacy animation mode
-            const path = this.train['path'];
-            if (path) {
-                const totalLength = path.getTotalLength();
-                const distanceIncrement = this.animParams.animationSpeed * deltaTime;
-                const progressIncrement = distanceIncrement / totalLength;
-
-                this.animParams.pathProgress = (this.animParams.pathProgress + progressIncrement) % 1;
-                this.updateTrainPosition();
-                this.pane?.refresh();
-            }
-        }
+        // Update display values for debug pane
+        this.trainControlParams.velocityKmh = this.train.getVelocityKmh();
+        this.trainControlParams.power = this.train.getPower();
+        this.pane?.refresh();
 
         // Update camera based on mode
         const targetRollingStock = this.train.getRollingStockTransform();
