@@ -31,8 +31,13 @@ export interface AudioComposition {
     title: string;
     sounds: AudioSound[];
 }
+export interface AudioFile {
+    name: string;
+    url: string;
+}
+
 export interface AudioConfig {
-    files: string[];
+    files: AudioFile[];
     compositions: AudioComposition[];
 }
 

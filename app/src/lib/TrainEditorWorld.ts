@@ -10,6 +10,7 @@ import {
     MeshStandardMaterial,
     AmbientLight,
     DirectionalLight,
+    AudioListener,
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { Sky } from './Sky';
@@ -21,6 +22,7 @@ import { dummyQuad, dummyVec3 } from './utils/Helper';
 import { FlightControls } from './utils/FlightControls';
 import { Input } from './utils/Input';
 import { trainInstance, updateTrainState } from '../store/train';
+import { audioListener } from '../store/globals';
 import { getTrainConfiguration } from './train/configs/TrainConfigurations.secure';
 
 export type PathType = 'straight' | 'circle' | 'oval' | 'figure8' | 'spiral';
@@ -31,6 +33,7 @@ export class TrainEditorWorld {
     private camera!: PerspectiveCamera;
     private renderer!: WebGLRenderer;
     private clock!: Clock;
+    private audioListener!: AudioListener;
 
     private controls!: OrbitControls;
     private flightControls: FlightControls | null = null;
@@ -78,6 +81,11 @@ export class TrainEditorWorld {
             10000
         );
         this.camera.position.set(300, 200, 300);
+
+        // Audio listener attached to camera for positional audio
+        this.audioListener = new AudioListener();
+        this.camera.add(this.audioListener);
+        audioListener.value = this.audioListener;
 
         // Lighting
         const ambientLight = new AmbientLight(0xffffff, 0.6);

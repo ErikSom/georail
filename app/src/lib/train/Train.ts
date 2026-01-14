@@ -8,6 +8,7 @@ import * as EssentialsPlugin from '@tweakpane/plugin-essentials';
 import { TrainPhysics, type IPhysicsTarget } from './TrainPhysics';
 import { getFolderKey } from './TrainUiUtils';
 import { TrainAudio } from './TrainAudio';
+import { trainPower } from '../../store/train';
 
 export class Train implements IPhysicsTarget {
     public group: Group;
@@ -46,11 +47,17 @@ export class Train implements IPhysicsTarget {
         // Initialize physics system with reference to this train
         this.physics = new TrainPhysics(this, config);
 
-        // Initialize audio system (stateless, just for UI)
+        // Initialize audio system
         this.audio = new TrainAudio();
+        this.audio.setTrainGroup(this.group);
 
         // sets train on track;
         this.updateConfig(config);
+
+        // Initialize audio engine with configuration
+        this.audio.initialize(config.audio).catch((error) => {
+            console.error('Failed to initialize train audio:', error);
+        });
 
         if (this.debug) {
             this.createDebugUI();
@@ -256,6 +263,10 @@ export class Train implements IPhysicsTarget {
                 // Update audio in config and refresh UI without circular updates
                 this.config.audio = updatedAudioConfig;
                 this.pane?.refresh();
+                // Re-initialize audio with new configuration
+                this.audio.initialize(updatedAudioConfig).catch((error) => {
+                    console.error('Failed to re-initialize train audio:', error);
+                });
             }
         );
 
@@ -517,6 +528,8 @@ export class Train implements IPhysicsTarget {
      */
     public setPower(power: number): void {
         this.physics.setPower(power);
+        // Sync with global store for audio and UI
+        trainPower.value = power;
     }
 
     /**
@@ -553,12 +566,16 @@ export class Train implements IPhysicsTarget {
         this.cab?.update(delta);
         this.wagons.forEach(wagon => wagon.update(delta));
         this.rearCab?.update(delta);
+
+        // Update audio engine (evaluates curves and updates audio properties)
+        this.audio.update();
     }
 
     public cleanup(): void {
         this.cab.cleanup();
         this.wagons.forEach(wagon => wagon.cleanup());
         this.path?.cleanup();
+        this.audio.cleanup();
 
         if (this.pane) {
             this.pane.dispose();
