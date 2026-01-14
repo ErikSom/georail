@@ -6,10 +6,12 @@ import {
     type AudioUploadFile,
 } from '../tweakpane/AudioUploadPlugin';
 import { getFolderKey } from './TrainUiUtils';
-import type { AudioConfig, AudioComposition, AudioSound, AudioCurve } from './TrainConfig';
+import type { AudioConfig, AudioSound, AudioCurve } from './TrainConfig';
 import { AudioLoader, PositionalAudio, Group } from 'three';
 import { trainPower, trainVelocityKmh } from '../../store/train';
 import { audioListener } from '../../store/globals';
+import { loadEncryptedAsset, getProtectedAssetPath, blobString } from '../utils/Security.secure';
+import { trainAssetsPath } from './configs/TrainConfigurations.secure';
 
 function getCurveTitle(curveBlade: CurveBladeApi): string {
     const axis = curveBlade.axis;
@@ -405,16 +407,57 @@ export class TrainAudio {
 
     /**
      * Load an audio file and return its AudioBuffer
+     * Handles both blob URLs and encrypted audio files
+     * For encrypted files, tries opus/webm first, falls back to .fb (MP3) if opus not supported
      */
-    private loadAudioFile(filePath: string): Promise<AudioBuffer> {
-        return new Promise((resolve, reject) => {
-            this.audioLoader.load(
-                filePath,
-                (buffer) => resolve(buffer),
-                undefined,
-                (error) => reject(error)
-            );
-        });
+    private async loadAudioFile(filePath: string): Promise<AudioBuffer> {
+        const listener = audioListener.value;
+        if (!listener) {
+            throw new Error('No AudioListener available');
+        }
+        const audioContext = listener.context;
+
+        // Path A: Blob URLs - use standard loader
+        if (filePath.startsWith(blobString)) {
+            return new Promise((resolve, reject) => {
+                this.audioLoader.load(
+                    filePath,
+                    (buffer) => resolve(buffer),
+                    undefined,
+                    (error) => reject(error)
+                );
+            });
+        }
+
+        // Path B: Internal encrypted files
+        try {
+            // Get the mangled/encrypted filename
+            const mangledFileName = getProtectedAssetPath(filePath);
+            const fetchUrl = `${trainAssetsPath}/${mangledFileName}`;
+
+            console.log(`[TrainAudio] Loading encrypted audio: ${fetchUrl}`);
+
+            // Load and decrypt the buffer
+            const buffer = await loadEncryptedAsset(fetchUrl, filePath);
+
+            // Try to decode the audio buffer (opus/webm)
+            try {
+                const audioBuffer = await audioContext.decodeAudioData(buffer.slice(0));
+                console.log(`[TrainAudio] Successfully decoded opus audio: ${filePath}`);
+                return audioBuffer;
+            } catch (decodeError) {
+                // Opus not supported, try fallback MP3
+                console.log(`[TrainAudio] Opus decode failed, trying MP3 fallback for: ${filePath}`);
+                const fallbackUrl = `${fetchUrl}.fb`;
+                const fallbackBuffer = await loadEncryptedAsset(fallbackUrl, filePath);
+                const audioBuffer = await audioContext.decodeAudioData(fallbackBuffer.slice(0));
+                console.log(`[TrainAudio] Successfully decoded MP3 fallback: ${filePath}`);
+                return audioBuffer;
+            }
+        } catch (error) {
+            console.error(`[TrainAudio] Failed to load encrypted audio: ${filePath}`, error);
+            throw error;
+        }
     }
 
 
@@ -494,11 +537,6 @@ export class TrainAudio {
             velocity: velocity,
             brakePower: brakePower
         };
-
-        // Debug logging (remove after testing)
-        if (Math.random() < 0.01) { // Log 1% of frames to avoid spam
-            console.log('TrainAudio state:', state, 'raw power:', power);
-        }
 
         return state;
     }

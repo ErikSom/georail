@@ -71,7 +71,7 @@ export const loadEncryptedAsset = async (mangledUrl: string, originalPath: strin
 
 const protectedAssetLookup = JSON.parse("{\"train/NS-SGM/train-track.mp3\":\"31cff89427f7.wav\",\"train/NS-SGM/electric.mp3\":\"7657ac70a636.wav\",\"train/NS-SGM/buzz.mp3\":\"2dd2f2899049.wav\",\"train/NS-SGM/ns-sgmm3-bk2.glb\":\"39b0d1cdd747.clt\",\"train/NS-SGM/ns-sgmm3-bk1.glb\":\"0c60cdca95c9.clt\",\"train/NS-SGM/ns-sgmm3-ab.glb\":\"b1a564823b8b.clt\",\"train/APT/apt-wip.glb\":\"1a446d6f930f.clt\",\"train/APT/apt-std-carriage.glb\":\"419d3af46833.clt\"}");
 
-export function getModelAssetPath(modelFileName: string) {
+export function getProtectedAssetPath(modelFileName: string) {
     return protectedAssetLookup[modelFileName] || modelFileName;
 }
 

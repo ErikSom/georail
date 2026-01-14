@@ -5,7 +5,7 @@ import type Path from '../utils/Path';
 import type { FolderApi, Pane } from 'tweakpane';
 import { dummy, dummyForward, dummyQuad, dummyVec3 } from '../utils/Helper';
 import FilePicker from '../utils/FilePicker';
-import { applyDeobfuscation, isDebugAdmin, loadEncryptedAsset, getModelAssetPath, blobString } from '../utils/Security.secure';
+import { applyDeobfuscation, isDebugAdmin, loadEncryptedAsset, getProtectedAssetPath, blobString } from '../utils/Security.secure';
 import { glassMaterial } from './Materials';
 import { RollingStockAnimator } from './RollingStockAnimator';
 import { trainAssetsPath } from './configs/TrainConfigurations.secure';
@@ -226,7 +226,7 @@ export class RollingStock {
         // PATH A: Secure / Internal (Use .parse)
         if (isInternal && !path.startsWith(blobString)) {
             try {
-                const mangledFileName = getModelAssetPath(path);
+                const mangledFileName = getProtectedAssetPath(path);
                 const fetchUrl = `${trainAssetsPath}/${mangledFileName}`;
 
                 console.log(`[RollingStock] Fetching secure buffer: ${fetchUrl}`);
