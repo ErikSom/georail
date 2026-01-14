@@ -1,6 +1,7 @@
 import {
     BladeApi,
     ClassName,
+    Emitter,
     LabeledValueBladeController,
     TpChangeEvent,
     ValueMap,
@@ -18,14 +19,25 @@ import type {
 } from '@tweakpane/core';
 
 export type CurvePoint = { x: number; y: number };
-export type CurveAxis = { min: number; max: number };
+export type CurveAxis = { min: number; max: number; label?: string };
 export type CurveAxes = { x: CurveAxis; y: CurveAxis };
 export type CurveGrid = { x: number; y: number };
 export type CurveTargetMap = Record<string, CurveAxes>;
 
-type PartialAxis = { min?: number; max?: number };
+type PartialAxis = { min?: number; max?: number; label?: string };
 type PartialAxes = { x?: PartialAxis; y?: PartialAxis };
 type PartialGrid = { x?: number; y?: number };
+
+export type VerticalAxisType = 'Volume' | 'Pitch';
+export type HorizontalAxisType = 'Throttle Power' | 'Velocity (m/s)' | 'Brake Power';
+
+const AXIS_DEFAULTS: Record<VerticalAxisType | HorizontalAxisType, { min: number; max: number }> = {
+    'Volume': { min: 0, max: 1 },
+    'Pitch': { min: 0.5, max: 2 },
+    'Throttle Power': { min: 0, max: 1 },
+    'Velocity (m/s)': { min: 0, max: 30 },
+    'Brake Power': { min: 0, max: 1 },
+};
 
 export interface CurveBladeParams extends BaseBladeParams {
     value: CurvePoint[];
@@ -51,11 +63,12 @@ interface CurveEditorElements {
     panel: HTMLDivElement;
     canvas: HTMLCanvasElement;
     closeButton: HTMLButtonElement;
-    targetSelect: HTMLSelectElement | null;
-    xMinInput: HTMLInputElement;
-    xMaxInput: HTMLInputElement;
+    yAxisTypeSelect: HTMLSelectElement;
+    xAxisTypeSelect: HTMLSelectElement;
     yMinInput: HTMLInputElement;
     yMaxInput: HTMLInputElement;
+    xMinInput: HTMLInputElement;
+    xMaxInput: HTMLInputElement;
     selectedXInput: HTMLInputElement;
     selectedYInput: HTMLInputElement;
     hint: HTMLParagraphElement;
@@ -63,10 +76,11 @@ interface CurveEditorElements {
 
 const cn = ClassName('curve');
 const STYLE_ID = 'tp-curve-plugin-style';
+const CANVAS_PADDING = 12; // Padding in pixels for grid edges
 
 const DEFAULT_AXIS: CurveAxes = {
-    x: { min: 0, max: 1 },
-    y: { min: 0, max: 1 },
+    x: { min: 0, max: 1, label: 'Throttle Power' },
+    y: { min: 0, max: 1, label: 'Volume' },
 };
 
 const DEFAULT_GRID: CurveGrid = {
@@ -211,15 +225,21 @@ function ensureCurveStyles(doc: Document): void {
 }
 .tp-curve-overlay__controls {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px 10px;
+}
+.tp-curve-overlay__controls > label:nth-child(1),
+.tp-curve-overlay__controls > label:nth-child(2) {
+    grid-column: span 2;
 }
 .tp-curve-overlay__field {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.7);
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.75);
+    letter-spacing: 0.01em;
 }
 .tp-curve-overlay__field input,
 .tp-curve-overlay__field select {
@@ -227,8 +247,18 @@ function ensureCurveStyles(doc: Document): void {
     border: 1px solid rgba(255, 255, 255, 0.16);
     background: rgba(15, 19, 26, 0.9);
     color: #f0f4f8;
-    padding: 6px 10px;
+    padding: 7px 10px;
     font-size: 12px;
+    transition: border-color 0.15s ease;
+}
+.tp-curve-overlay__field input:focus,
+.tp-curve-overlay__field select:focus {
+    outline: none;
+    border-color: rgba(99, 213, 255, 0.5);
+}
+.tp-curve-overlay__field select {
+    cursor: pointer;
+    font-weight: 500;
 }
 .tp-curve-overlay__hint {
     margin: 0;
@@ -263,10 +293,11 @@ function parseAxisRange(value: unknown): PartialAxis | undefined {
     }
     const min = typeof value.min === 'number' ? value.min : undefined;
     const max = typeof value.max === 'number' ? value.max : undefined;
-    if (min === undefined && max === undefined) {
+    const label = typeof value.label === 'string' ? value.label : undefined;
+    if (min === undefined && max === undefined && label === undefined) {
         return undefined;
     }
-    return { min, max };
+    return { min, max, label };
 }
 
 function parseAxes(value: unknown): PartialAxes | undefined {
@@ -338,10 +369,12 @@ function parseTargets(value: unknown): CurveTargetMap | undefined {
             x: {
                 min: axes.x.min ?? DEFAULT_AXIS.x.min,
                 max: axes.x.max ?? DEFAULT_AXIS.x.max,
+                label: axes.x.label,
             },
             y: {
                 min: axes.y.min ?? DEFAULT_AXIS.y.min,
                 max: axes.y.max ?? DEFAULT_AXIS.y.max,
+                label: axes.y.label,
             },
         };
     }
@@ -361,7 +394,7 @@ function normalizeAxisRange(axis: CurveAxis): CurveAxis {
     if (min > max) {
         [min, max] = [max, min];
     }
-    return { min, max };
+    return { min, max, label: axis.label };
 }
 
 function normalizeAxes(axes: CurveAxes): CurveAxes {
@@ -391,11 +424,17 @@ function resolveAxis(
     if (axis?.x?.max !== undefined) {
         merged.x.max = axis.x.max;
     }
+    if (axis?.x?.label !== undefined) {
+        merged.x.label = axis.x.label;
+    }
     if (axis?.y?.min !== undefined) {
         merged.y.min = axis.y.min;
     }
     if (axis?.y?.max !== undefined) {
         merged.y.max = axis.y.max;
+    }
+    if (axis?.y?.label !== undefined) {
+        merged.y.label = axis.y.label;
     }
     return normalizeAxes(merged);
 }
@@ -546,10 +585,15 @@ class CurveView implements View {
     }
 }
 
+type AxisEmitterEvents = {
+    change: { axis: CurveAxes };
+};
+
 class CurveController implements ValueController<CurvePoint[], CurveView> {
     public readonly value: Value<CurvePoint[]>;
     public readonly view: CurveView;
     public readonly viewProps: ViewProps;
+    public readonly axisEmitter = new Emitter<AxisEmitterEvents>();
 
     private axis: CurveAxes;
     private grid: CurveGrid;
@@ -637,6 +681,7 @@ class CurveController implements ValueController<CurvePoint[], CurveView> {
     public setAxis(axis: CurveAxes): void {
         this.axis = normalizeAxes(axis);
         this.applyAxisUpdate();
+        this.axisEmitter.emit('change', { axis: this.axis });
     }
 
     public setTarget(target: string | undefined): void {
@@ -648,9 +693,6 @@ class CurveController implements ValueController<CurvePoint[], CurveView> {
             this.syncAxisLabels();
             this.renderPreview();
             this.renderEditor();
-        }
-        if (this.editor?.targetSelect) {
-            this.editor.targetSelect.value = target && this.targets[target] ? target : 'custom';
         }
         this.updateEditorTitle();
     }
@@ -675,13 +717,17 @@ class CurveController implements ValueController<CurvePoint[], CurveView> {
         this.syncAxisLabels();
         this.syncEditorInputs();
         this.value.rawValue = normalizePoints(this.value.rawValue, this.axis);
+        this.renderPreview();
+        this.renderEditor();
     }
 
     private syncAxisLabels(): void {
-        this.view.axisLabels.xMin.textContent = formatAxisValue(this.axis.x.min);
-        this.view.axisLabels.xMax.textContent = formatAxisValue(this.axis.x.max);
-        this.view.axisLabels.yMin.textContent = formatAxisValue(this.axis.y.min);
-        this.view.axisLabels.yMax.textContent = formatAxisValue(this.axis.y.max);
+        const xLabel = this.axis.x.label ? `${this.axis.x.label}: ` : '';
+        const yLabel = this.axis.y.label ? `${this.axis.y.label}: ` : '';
+        this.view.axisLabels.xMin.textContent = `${xLabel}${formatAxisValue(this.axis.x.min)}`;
+        this.view.axisLabels.xMax.textContent = `${xLabel}${formatAxisValue(this.axis.x.max)}`;
+        this.view.axisLabels.yMin.textContent = `${yLabel}${formatAxisValue(this.axis.y.min)}`;
+        this.view.axisLabels.yMax.textContent = `${yLabel}${formatAxisValue(this.axis.y.max)}`;
     }
 
     private syncEditorInputs(): void {
@@ -692,8 +738,11 @@ class CurveController implements ValueController<CurvePoint[], CurveView> {
         this.editor.xMaxInput.value = `${this.axis.x.max}`;
         this.editor.yMinInput.value = `${this.axis.y.min}`;
         this.editor.yMaxInput.value = `${this.axis.y.max}`;
-        if (this.editor.targetSelect) {
-            this.editor.targetSelect.value = this.target ?? 'custom';
+        if (this.axis.x.label) {
+            this.editor.xAxisTypeSelect.value = this.axis.x.label;
+        }
+        if (this.axis.y.label) {
+            this.editor.yAxisTypeSelect.value = this.axis.y.label;
         }
         this.syncSelectedInputs();
     }
@@ -713,8 +762,9 @@ class CurveController implements ValueController<CurvePoint[], CurveView> {
         }
         this.editor.selectedXInput.disabled = false;
         this.editor.selectedYInput.disabled = false;
-        this.editor.selectedXInput.value = `${points[index].x}`;
-        this.editor.selectedYInput.value = `${points[index].y}`;
+        // Round to 2 decimal places for display
+        this.editor.selectedXInput.value = `${Math.round(points[index].x * 100) / 100}`;
+        this.editor.selectedYInput.value = `${Math.round(points[index].y * 100) / 100}`;
     }
 
     private openEditor(doc: Document): void {
@@ -779,14 +829,16 @@ class CurveController implements ValueController<CurvePoint[], CurveView> {
         controls.classList.add('tp-curve-overlay__controls');
         panel.appendChild(controls);
 
-        const targetSelect = this.createTargetSelect(doc, controls);
+        const yAxisTypeSelect = this.createAxisTypeSelect(doc, controls, 'Target (Y)', ['Volume', 'Pitch']);
+        const xAxisTypeSelect = this.createAxisTypeSelect(doc, controls, 'Input (X)', ['Throttle Power', 'Velocity (m/s)', 'Brake Power']);
 
-        const xMinInput = this.createNumberField(doc, controls, 'X min');
-        const xMaxInput = this.createNumberField(doc, controls, 'X max');
-        const yMinInput = this.createNumberField(doc, controls, 'Y min');
-        const yMaxInput = this.createNumberField(doc, controls, 'Y max');
-        const selectedXInput = this.createNumberField(doc, controls, 'Point X');
-        const selectedYInput = this.createNumberField(doc, controls, 'Point Y');
+        const yMinInput = this.createNumberField(doc, controls, 'Y Min', '0.01');
+        const yMaxInput = this.createNumberField(doc, controls, 'Y Max', '0.01');
+        const xMinInput = this.createNumberField(doc, controls, 'X Min', '0.01');
+        const xMaxInput = this.createNumberField(doc, controls, 'X Max', '0.01');
+
+        const selectedYInput = this.createNumberField(doc, controls, 'Selected Point Y', '0.01');
+        const selectedXInput = this.createNumberField(doc, controls, 'Selected Point X', '0.01');
 
         const hint = doc.createElement('p');
         hint.classList.add('tp-curve-overlay__hint');
@@ -839,17 +891,17 @@ class CurveController implements ValueController<CurvePoint[], CurveView> {
         yMinInput.addEventListener('change', onAxisInput);
         yMaxInput.addEventListener('change', onAxisInput);
 
+        const onAxisTypeChange = () => {
+            this.onAxisTypeChange();
+        };
+        xAxisTypeSelect.addEventListener('change', onAxisTypeChange);
+        yAxisTypeSelect.addEventListener('change', onAxisTypeChange);
+
         const onSelectedInput = () => {
             this.onSelectedInputChange();
         };
         selectedXInput.addEventListener('change', onSelectedInput);
         selectedYInput.addEventListener('change', onSelectedInput);
-
-        if (targetSelect) {
-            targetSelect.addEventListener('change', () => {
-                this.onTargetSelectChange(targetSelect.value);
-            });
-        }
 
         doc.body.appendChild(root);
 
@@ -858,65 +910,45 @@ class CurveController implements ValueController<CurvePoint[], CurveView> {
             panel,
             canvas,
             closeButton,
-            targetSelect,
-            xMinInput,
-            xMaxInput,
+            yAxisTypeSelect,
+            xAxisTypeSelect,
             yMinInput,
             yMaxInput,
+            xMinInput,
+            xMaxInput,
             selectedXInput,
             selectedYInput,
             hint,
         };
     }
 
-    private createTargetSelect(doc: Document, controls: HTMLElement): HTMLSelectElement | null {
-        const targetNames = Object.keys(this.targets);
-        if (targetNames.length === 0) {
-            return null;
-        }
+    private createAxisTypeSelect(doc: Document, controls: HTMLElement, label: string, options: string[]): HTMLSelectElement {
         const field = doc.createElement('label');
         field.classList.add('tp-curve-overlay__field');
-        field.textContent = 'Target';
+        field.textContent = label;
         const select = doc.createElement('select');
-        const customOption = doc.createElement('option');
-        customOption.value = 'custom';
-        customOption.textContent = 'Custom';
-        select.appendChild(customOption);
-        targetNames.forEach((target) => {
-            const option = doc.createElement('option');
-            option.value = target;
-            option.textContent = target;
-            select.appendChild(option);
+        options.forEach((option) => {
+            const optionEl = doc.createElement('option');
+            optionEl.value = option;
+            optionEl.textContent = option;
+            select.appendChild(optionEl);
         });
         field.appendChild(select);
         controls.appendChild(field);
         return select;
     }
 
-    private createNumberField(doc: Document, controls: HTMLElement, label: string): HTMLInputElement {
+    private createNumberField(doc: Document, controls: HTMLElement, label: string, step: string = '0.01'): HTMLInputElement {
         const field = doc.createElement('label');
         field.classList.add('tp-curve-overlay__field');
         field.textContent = label;
         const input = doc.createElement('input');
         input.type = 'number';
-        input.step = '0.01';
+        input.step = step;
         input.inputMode = 'decimal';
         field.appendChild(input);
         controls.appendChild(field);
         return input;
-    }
-
-    private onTargetSelectChange(value: string): void {
-        if (value === 'custom') {
-            this.target = undefined;
-            this.updateEditorTitle();
-            this.syncAxisLabels();
-            this.renderPreview();
-            this.renderEditor();
-            return;
-        }
-        this.setTarget(value);
-        this.updateEditorTitle();
     }
 
     private onAxisInputChange(): void {
@@ -945,10 +977,30 @@ class CurveController implements ValueController<CurvePoint[], CurveView> {
             axis.y.max = yMax;
         }
         this.target = undefined;
-        if (this.editor.targetSelect) {
-            this.editor.targetSelect.value = 'custom';
-        }
         this.updateEditorTitle();
+        this.setAxis(axis);
+    }
+
+    private onAxisTypeChange(): void {
+        if (!this.editor) {
+            return;
+        }
+        const axis = this.getAxis();
+        const xAxisType = this.editor.xAxisTypeSelect.value as HorizontalAxisType;
+        const yAxisType = this.editor.yAxisTypeSelect.value as VerticalAxisType;
+
+        // Apply default ranges when axis type changes
+        const xDefaults = AXIS_DEFAULTS[xAxisType];
+        const yDefaults = AXIS_DEFAULTS[yAxisType];
+
+        axis.x.label = xAxisType;
+        axis.x.min = xDefaults.min;
+        axis.x.max = xDefaults.max;
+
+        axis.y.label = yAxisType;
+        axis.y.min = yDefaults.min;
+        axis.y.max = yDefaults.max;
+
         this.setAxis(axis);
     }
 
@@ -1007,7 +1059,9 @@ class CurveController implements ValueController<CurvePoint[], CurveView> {
         }
         const title = this.editor.panel.querySelector('.tp-curve-overlay__title');
         if (title) {
-            title.textContent = this.target ? `Curve Editor · ${this.target}` : 'Curve Editor';
+            const yLabel = this.axis.y.label || 'Target';
+            const xLabel = this.axis.x.label || 'Input';
+            title.textContent = `Curve Editor · ${yLabel} vs ${xLabel}`;
         }
     }
 
@@ -1129,8 +1183,11 @@ class CurveController implements ValueController<CurvePoint[], CurveView> {
 
     private canvasToValue(pos: { x: number; y: number }, canvas: HTMLCanvasElement): CurvePoint {
         const rect = canvas.getBoundingClientRect();
-        const normX = clamp(pos.x / rect.width, 0, 1);
-        const normY = clamp(pos.y / rect.height, 0, 1);
+        const padding = CANVAS_PADDING;
+        const gridWidth = rect.width - padding * 2;
+        const gridHeight = rect.height - padding * 2;
+        const normX = clamp((pos.x - padding) / gridWidth, 0, 1);
+        const normY = clamp((pos.y - padding) / gridHeight, 0, 1);
         return {
             x: fromNormalized(normX, this.axis.x),
             y: fromNormalized(1 - normY, this.axis.y),
@@ -1155,9 +1212,12 @@ class CurveController implements ValueController<CurvePoint[], CurveView> {
         radius: number
     ): number | null {
         const rect = canvas.getBoundingClientRect();
+        const padding = CANVAS_PADDING;
+        const gridWidth = rect.width - padding * 2;
+        const gridHeight = rect.height - padding * 2;
         for (let i = 0; i < points.length; i += 1) {
-            const x = toNormalized(points[i].x, this.axis.x) * rect.width;
-            const y = (1 - toNormalized(points[i].y, this.axis.y)) * rect.height;
+            const x = padding + toNormalized(points[i].x, this.axis.x) * gridWidth;
+            const y = padding + (1 - toNormalized(points[i].y, this.axis.y)) * gridHeight;
             if (Math.hypot(pos.x - x, pos.y - y) <= radius) {
                 return i;
             }
@@ -1175,11 +1235,14 @@ class CurveController implements ValueController<CurvePoint[], CurveView> {
             return false;
         }
         const rect = canvas.getBoundingClientRect();
+        const padding = CANVAS_PADDING;
+        const gridWidth = rect.width - padding * 2;
+        const gridHeight = rect.height - padding * 2;
         for (let i = 0; i < points.length - 1; i += 1) {
-            const ax = toNormalized(points[i].x, this.axis.x) * rect.width;
-            const ay = (1 - toNormalized(points[i].y, this.axis.y)) * rect.height;
-            const bx = toNormalized(points[i + 1].x, this.axis.x) * rect.width;
-            const by = (1 - toNormalized(points[i + 1].y, this.axis.y)) * rect.height;
+            const ax = padding + toNormalized(points[i].x, this.axis.x) * gridWidth;
+            const ay = padding + (1 - toNormalized(points[i].y, this.axis.y)) * gridHeight;
+            const bx = padding + toNormalized(points[i + 1].x, this.axis.x) * gridWidth;
+            const by = padding + (1 - toNormalized(points[i + 1].y, this.axis.y)) * gridHeight;
             if (distanceToSegment(pos.x, pos.y, ax, ay, bx, by) <= threshold) {
                 return true;
             }
@@ -1241,18 +1304,22 @@ class CurveController implements ValueController<CurvePoint[], CurveView> {
         labelColor?: string,
         fontFamily?: string
     ): void {
+        const padding = CANVAS_PADDING;
+        const gridWidth = width - padding * 2;
+        const gridHeight = height - padding * 2;
+
         ctx.strokeStyle = color;
         ctx.lineWidth = 1;
         ctx.beginPath();
         for (let i = 1; i < columns; i += 1) {
-            const x = (width / columns) * i;
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, height);
+            const x = padding + (gridWidth / columns) * i;
+            ctx.moveTo(x, padding);
+            ctx.lineTo(x, height - padding);
         }
         for (let i = 1; i < rows; i += 1) {
-            const y = (height / rows) * i;
-            ctx.moveTo(0, y);
-            ctx.lineTo(width, y);
+            const y = padding + (gridHeight / rows) * i;
+            ctx.moveTo(padding, y);
+            ctx.lineTo(width - padding, y);
         }
         ctx.stroke();
 
@@ -1267,14 +1334,14 @@ class CurveController implements ValueController<CurvePoint[], CurveView> {
         for (let i = 0; i <= columns; i += 1) {
             const value = axis.x.min + ((axis.x.max - axis.x.min) * i) / columns;
             const text = formatAxisValue(value);
-            const x = (width / columns) * i;
+            const x = padding + (gridWidth / columns) * i;
             ctx.textBaseline = 'bottom';
             if (i === 0) {
                 ctx.textAlign = 'left';
-                ctx.fillText(text, 4, height - 4);
+                ctx.fillText(text, x, height - 4);
             } else if (i === columns) {
                 ctx.textAlign = 'right';
-                ctx.fillText(text, width - 4, height - 4);
+                ctx.fillText(text, x, height - 4);
             } else {
                 ctx.textAlign = 'center';
                 ctx.fillText(text, x, height - 4);
@@ -1284,15 +1351,15 @@ class CurveController implements ValueController<CurvePoint[], CurveView> {
         for (let i = 0; i <= rows; i += 1) {
             const value = axis.y.max - ((axis.y.max - axis.y.min) * i) / rows;
             const text = formatAxisValue(value);
-            const y = (height / rows) * i;
+            const y = padding + (gridHeight / rows) * i;
             if (i === 0) {
                 ctx.textBaseline = 'top';
                 ctx.textAlign = 'left';
-                ctx.fillText(text, 4, 4);
+                ctx.fillText(text, 4, y);
             } else if (i === rows) {
                 ctx.textBaseline = 'bottom';
                 ctx.textAlign = 'left';
-                ctx.fillText(text, 4, height - 16);
+                ctx.fillText(text, 4, y);
             } else {
                 ctx.textBaseline = 'middle';
                 ctx.textAlign = 'left';
@@ -1319,28 +1386,34 @@ class CurveController implements ValueController<CurvePoint[], CurveView> {
         if (points.length === 0) {
             return;
         }
+
+        const padding = CANVAS_PADDING;
+        const gridWidth = width - padding * 2;
+        const gridHeight = height - padding * 2;
+
         const first = points[0];
         const last = points[points.length - 1];
-        const firstX = toNormalized(first.x, this.axis.x) * width;
-        const firstY = (1 - toNormalized(first.y, this.axis.y)) * height;
-        const lastX = toNormalized(last.x, this.axis.x) * width;
-        const lastY = (1 - toNormalized(last.y, this.axis.y)) * height;
+        const firstX = padding + toNormalized(first.x, this.axis.x) * gridWidth;
+        const firstY = padding + (1 - toNormalized(first.y, this.axis.y)) * gridHeight;
+        const lastX = padding + toNormalized(last.x, this.axis.x) * gridWidth;
+        const lastY = padding + (1 - toNormalized(last.y, this.axis.y)) * gridHeight;
+
         ctx.strokeStyle = colors.line;
         ctx.lineWidth = 2;
         ctx.beginPath();
-        if (firstX > 0) {
-            ctx.moveTo(0, firstY);
+        if (firstX > padding) {
+            ctx.moveTo(padding, firstY);
             ctx.lineTo(firstX, firstY);
         } else {
             ctx.moveTo(firstX, firstY);
         }
         for (let i = 1; i < points.length; i += 1) {
-            const x = toNormalized(points[i].x, this.axis.x) * width;
-            const y = (1 - toNormalized(points[i].y, this.axis.y)) * height;
+            const x = padding + toNormalized(points[i].x, this.axis.x) * gridWidth;
+            const y = padding + (1 - toNormalized(points[i].y, this.axis.y)) * gridHeight;
             ctx.lineTo(x, y);
         }
-        if (lastX < width) {
-            ctx.lineTo(width, lastY);
+        if (lastX < width - padding) {
+            ctx.lineTo(width - padding, lastY);
         }
         ctx.stroke();
 
@@ -1349,8 +1422,8 @@ class CurveController implements ValueController<CurvePoint[], CurveView> {
         }
         const activeIndex = this.dragIndex ?? this.selectedIndex;
         points.forEach((point, index) => {
-            const x = toNormalized(point.x, this.axis.x) * width;
-            const y = (1 - toNormalized(point.y, this.axis.y)) * height;
+            const x = padding + toNormalized(point.x, this.axis.x) * gridWidth;
+            const y = padding + (1 - toNormalized(point.y, this.axis.y)) * gridHeight;
             ctx.fillStyle = index === activeIndex ? colors.pointActive : colors.point;
             ctx.beginPath();
             ctx.arc(x, y, 5, 0, Math.PI * 2);
@@ -1373,24 +1446,27 @@ class CurveController implements ValueController<CurvePoint[], CurveView> {
             fontFamily: string;
         }
     ): void {
-        const x = toNormalized(point.x, this.axis.x) * width;
-        const y = (1 - toNormalized(point.y, this.axis.y)) * height;
+        const padding = CANVAS_PADDING;
+        const gridWidth = width - padding * 2;
+        const gridHeight = height - padding * 2;
+
+        const x = padding + toNormalized(point.x, this.axis.x) * gridWidth;
+        const y = padding + (1 - toNormalized(point.y, this.axis.y)) * gridHeight;
         const text = `x: ${formatAxisValue(point.x)}, y: ${formatAxisValue(point.y)}`;
         ctx.font = `11px ${colors.fontFamily}`;
         const metrics = ctx.measureText(text);
-        const paddingX = 6;
-        const paddingY = 4;
-        const boxWidth = metrics.width + paddingX * 2;
+        const labelPadding = 6;
+        const boxWidth = metrics.width + labelPadding * 2;
         const boxHeight = 18;
         let boxX = x - boxWidth / 2;
         let boxY = y - boxHeight - 10;
-        if (boxX < 6) {
-            boxX = 6;
+        if (boxX < padding) {
+            boxX = padding;
         }
-        if (boxX + boxWidth > width - 6) {
-            boxX = width - boxWidth - 6;
+        if (boxX + boxWidth > width - padding) {
+            boxX = width - boxWidth - padding;
         }
-        if (boxY < 6) {
+        if (boxY < padding) {
             boxY = y + 12;
         }
         ctx.fillStyle = colors.pointLabelBg;
@@ -1459,6 +1535,9 @@ export interface CurveBladeApiEvents {
     change: {
         event: TpChangeEvent<CurvePoint[]>;
     };
+    axischange: {
+        axis: CurveAxes;
+    };
 }
 
 export class CurveBladeApi extends BladeApi<LabeledValueBladeController<CurvePoint[], CurveController>> {
@@ -1496,12 +1575,24 @@ export class CurveBladeApi extends BladeApi<LabeledValueBladeController<CurvePoi
 
     on<EventName extends keyof CurveBladeApiEvents>(
         eventName: EventName,
-        handler: (ev: CurveBladeApiEvents[EventName]['event']) => void
+        handler: EventName extends 'change'
+            ? (ev: CurveBladeApiEvents[EventName]['event']) => void
+            : (ev: CurveBladeApiEvents[EventName]) => void
     ): this {
         const boundHandler = handler.bind(this);
-        this.controller.valueController.value.emitter.on(eventName, (ev) => {
-            boundHandler(new TpChangeEvent(this, ev.rawValue, ev.options.last));
-        });
+
+        if (eventName === 'change') {
+            this.controller.valueController.value.emitter.on(eventName as 'change', (ev) => {
+                if ('rawValue' in ev && 'options' in ev) {
+                    boundHandler(new TpChangeEvent(this, ev.rawValue, ev.options.last) as any);
+                }
+            });
+        } else if (eventName === 'axischange') {
+            this.controller.valueController.axisEmitter.on('change', (ev) => {
+                boundHandler(ev as any);
+            });
+        }
+
         return this;
     }
 }
@@ -1538,7 +1629,7 @@ export const CurveBladePlugin: BladePlugin<CurveBladeParams> = createPlugin({
         return new LabeledValueBladeController(args.document, {
             blade: args.blade,
             props: ValueMap.fromObject({
-                label: args.params.label,
+                label: args.params.label ?? undefined,
             }),
             value,
             valueController: vc,

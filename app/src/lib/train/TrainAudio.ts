@@ -17,6 +17,13 @@ type AudioComposition = {
     sounds: AudioSound[];
 };
 
+function getCurveTitle(curveBlade: CurveBladeApi): string {
+    const axis = curveBlade.axis;
+    const yLabel = axis.y.label || 'Target';
+    const xLabel = axis.x.label || 'Input';
+    return `${yLabel} vs ${xLabel}`;
+}
+
 type RegisterFolder = (folder: FolderApi, key: string) => void;
 type GetFolderExpanded = (key: string, fallback: boolean) => boolean;
 
@@ -114,16 +121,6 @@ export class TrainAudio {
             renderCompositions();
         });
 
-        compositionsFolder.addButton({ title: 'Copy JSON' }).on('click', () => {
-            const json = JSON.stringify(this.audioCompositions, null, 2);
-            navigator.clipboard.writeText(json).then(() => {
-                console.log('Audio compositions copied to clipboard:', json);
-                alert('Audio compositions copied to clipboard!');
-            }).catch(err => {
-                console.error('Failed to copy audio compositions:', err);
-            });
-        });
-
         const renderCompositions = () => {
             compositionFolders.forEach((folder) => folder.dispose());
             compositionFolders.length = 0;
@@ -144,13 +141,6 @@ export class TrainAudio {
                 registerFolder(compFolder, compKey);
                 compositionFolders.push(compFolder);
 
-                compFolder.addButton({ title: 'Delete Composition' }).on('click', () => {
-                    if (!window.confirm(`Delete composition "${compositionTitle}"?`)) {
-                        return;
-                    }
-                    this.audioCompositions.splice(compositionIndex, 1);
-                    renderCompositions();
-                });
 
                 compFolder.addButton({ title: 'Add Sound' }).on('click', () => {
                     const defaultFile = this.audioFileNames[0] ?? '';
@@ -186,31 +176,30 @@ export class TrainAudio {
 
                     soundBindings.push({ binding: soundBinding, sound });
 
-                    soundFolder.addButton({ title: 'Remove Sound' }).on('click', () => {
-                        const label = sound.file || `Sound ${soundIndex + 1}`;
-                        if (!window.confirm(`Delete sound "${label}"?`)) {
-                            return;
-                        }
-                        composition.sounds.splice(soundIndex, 1);
-                        renderCompositions();
-                    });
-
                     soundFolder.addButton({ title: 'Add Curve' }).on('click', () => {
                         sound.curves.push(defaultCurve());
                         renderCompositions();
                     });
 
                     sound.curves.forEach((curve, curveIndex) => {
+                        // Create a temporary blade to get initial axis info
+                        const tempBlade = soundFolder.addBlade({
+                            view: 'curve',
+                            value: curve,
+                        }) as CurveBladeApi;
+                        const initialTitle = getCurveTitle(tempBlade);
+                        tempBlade.dispose();
+
                         const curveKey = getFolderKey([
                             ...rootPath,
                             'Audio',
                             'Compositions',
                             compositionTitle,
                             soundTitle,
-                            `Curve ${curveIndex + 1}`,
+                            initialTitle,
                         ]);
                         const curveFolder = soundFolder.addFolder({
-                            title: `Curve ${curveIndex + 1}`,
+                            title: initialTitle,
                             expanded: getFolderExpanded(curveKey, false)
                         });
                         registerFolder(curveFolder, curveKey);
@@ -224,14 +213,38 @@ export class TrainAudio {
                             sound.curves[curveIndex] = ev.value;
                         });
 
+                        curveBlade.on('axischange', () => {
+                            // Update folder title when axis changes
+                            const newTitle = getCurveTitle(curveBlade);
+                            curveFolder.title = newTitle;
+                        });
+
                         curveFolder.addButton({ title: 'Remove Curve' }).on('click', () => {
-                            if (!window.confirm(`Delete Curve ${curveIndex + 1}?`)) {
+                            const confirmTitle = getCurveTitle(curveBlade);
+                            if (!window.confirm(`Delete curve "${confirmTitle}"?`)) {
                                 return;
                             }
                             sound.curves.splice(curveIndex, 1);
                             renderCompositions();
                         });
                     });
+
+                    soundFolder.addButton({ title: 'Remove Sound' }).on('click', () => {
+                        const label = sound.file || `Sound ${soundIndex + 1}`;
+                        if (!window.confirm(`Delete sound "${label}"?`)) {
+                            return;
+                        }
+                        composition.sounds.splice(soundIndex, 1);
+                        renderCompositions();
+                    });
+                });
+
+                compFolder.addButton({ title: 'Delete Composition' }).on('click', () => {
+                    if (!window.confirm(`Delete composition "${compositionTitle}"?`)) {
+                        return;
+                    }
+                    this.audioCompositions.splice(compositionIndex, 1);
+                    renderCompositions();
                 });
             });
 
@@ -239,5 +252,15 @@ export class TrainAudio {
         };
 
         renderCompositions();
+
+        audioFolder.addButton({ title: 'Copy JSON' }).on('click', () => {
+            const json = JSON.stringify(this.audioCompositions, null, 2);
+            navigator.clipboard.writeText(json).then(() => {
+                console.log('Audio compositions copied to clipboard:', json);
+                alert('Audio compositions copied to clipboard!');
+            }).catch(err => {
+                console.error('Failed to copy audio compositions:', err);
+            });
+        });
     }
 }
