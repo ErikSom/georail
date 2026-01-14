@@ -189,5 +189,9 @@
                 "alternate": false
             }
         ]
+    },
+    "audio": {
+        "files": [],
+        "compositions": []
     }
 }

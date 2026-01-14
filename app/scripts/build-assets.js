@@ -6,6 +6,10 @@ import { execFile } from 'child_process';
 import { createRequire } from 'module';
 import crypto from 'crypto';
 
+// --- AUDIO DEPENDENCIES ---
+// We now only use the static binary, no wrapper library
+import ffmpegPath from 'ffmpeg-static';
+
 // CORE LIBRARY
 import { NodeIO } from '@gltf-transform/core';
 
@@ -71,6 +75,12 @@ const CONFIG = {
     format: 'webp',
     quality: 82,
     size: [2048, 2048]
+  },
+
+  audioOptions: {
+    extensions: ['.wav', '.mp3', '.ogg', '.flac', '.aiff'],
+    opusBitrate: '64k', // Target bitrate for Opus
+    mp3Quality: '4',    // LAME VBR Quality (0=best, 9=worst)
   }
 };
 
@@ -119,25 +129,145 @@ const getTextureStats = (document) => {
   return stats;
 };
 
+// --- AUDIO UTILITIES ---
+
 /**
- * 🛠️ MANUAL FIXER
- * Iterates over textures that gltf-transform doesn't recognize
- * and forces them to become WebP using Sharp.
+ * 🎵 TRANSCODER (Native FFmpeg)
+ * Uses child_process.execFile to run ffmpeg-static directly.
  */
+const transcodeAudio = (src, dest, format, options) => {
+  return new Promise((resolve, reject) => {
+
+    // Base arguments: Overwrite output (-y), Input file (-i src)
+    const args = ['-y', '-i', src];
+
+    if (format === 'webm') {
+      // OPUS settings
+      args.push(
+        '-c:a', 'libopus',
+        '-b:a', options.opusBitrate,
+        '-f', 'webm' // force format
+      );
+    } else {
+      // MP3 settings
+      args.push(
+        '-c:a', 'libmp3lame',
+        '-q:a', options.mp3Quality,
+        '-f', 'mp3' // force format
+      );
+    }
+
+    // Output file
+    args.push(dest);
+
+    // Execute
+    execFile(ffmpegPath, args, (error, stdout, stderr) => {
+      if (error) {
+        // FFmpeg writes progress to stderr, so we only reject if there's an actual Error object
+        // checking the error code is safer
+        console.error(`FFmpeg Error on ${path.basename(src)}:`, stderr);
+        reject(error);
+      } else {
+        resolve(dest);
+      }
+    });
+  });
+};
+
+const encryptBuffer = (buffer, keyString) => {
+  const keyBuffer = Buffer.from(keyString);
+  const keyLen = keyBuffer.length;
+
+  const outBuffer = Buffer.from(buffer);
+
+  for (let i = 0; i < outBuffer.length; i++) {
+    outBuffer[i] = outBuffer[i] ^ keyBuffer[i % keyLen];
+  }
+  return outBuffer;
+};
+
+/**
+ * 🔊 AUDIO PIPELINE
+ */
+const processAudioFiles = async (srcDir, publicDir) => {
+  const audioManifest = {};
+
+  const searchPattern = `${srcDir}/**/*+(${CONFIG.audioOptions.extensions.join('|')})`;
+  const files = globSync(searchPattern, { windowsPathsNoEscape: true });
+
+  if (files.length === 0) return {};
+
+  console.log(`\n🎵 Found ${files.length} audio files. Processing...`);
+
+  // Create temp directory for transcoding output
+  const tempAudioDir = path.join(os.tmpdir(), 'pipeline-audio-temp');
+  await fs.ensureDir(tempAudioDir);
+
+  for (const srcPath of files) {
+    const relativePath = path.relative(srcDir, srcPath).split(path.sep).join('/');
+
+    // 1. Read buffer for CONTENT hash
+    const fileBuffer = await fs.readFile(srcPath);
+    const contentHash = crypto.createHash('md5').update(fileBuffer).digest('hex').slice(0, 12);
+
+    // 2. Temp Paths
+    const tempOpus = path.join(tempAudioDir, `${contentHash}.webm`);
+    const tempMp3 = path.join(tempAudioDir, `${contentHash}.mp3`);
+
+    process.stdout.write(`   Processing ${path.basename(srcPath)} -> [${contentHash}] ... `);
+
+    try {
+      // 3. Transcode (WebM + MP3)
+      await Promise.all([
+        transcodeAudio(srcPath, tempOpus, 'webm', CONFIG.audioOptions),
+        transcodeAudio(srcPath, tempMp3, 'mp3', CONFIG.audioOptions)
+      ]);
+
+      // 4. Read Transcoded Files
+      const opusBuffer = await fs.readFile(tempOpus);
+      const mp3Buffer = await fs.readFile(tempMp3);
+
+      // 5. Encrypt (XOR)
+      const encryptedOpus = encryptBuffer(opusBuffer, relativePath);
+      const encryptedMp3 = encryptBuffer(mp3Buffer, relativePath);
+
+      // 6. Write to Public Dir
+      const opusOutName = `${contentHash}.ewv`;
+      const mp3OutName = `${contentHash}.ewv.fb`;
+
+      await fs.writeFile(path.join(publicDir, opusOutName), encryptedOpus);
+      await fs.writeFile(path.join(publicDir, mp3OutName), encryptedMp3);
+
+      // 7. Cleanup Temp Files
+      await fs.unlink(tempOpus);
+      await fs.unlink(tempMp3);
+
+      console.log('✅ Done');
+
+      // 8. Add to Manifest
+      audioManifest[relativePath] = opusOutName;
+
+    } catch (err) {
+      console.log('❌ Failed');
+      console.error(`      Error processing audio: ${err.message}`);
+    }
+  }
+
+  await fs.remove(tempAudioDir);
+  return audioManifest;
+};
+
+// --- EXISTING GLB PROCESSOR ---
+
 const fixUnknownTextures = async (document) => {
   const textures = document.getRoot().listTextures();
-
   for (const texture of textures) {
     const mime = texture.getMimeType();
     const name = texture.getName() || '';
-
-    // If it's "unknown" or explicitly a TIFF file
     if (name.toLowerCase().endsWith('.tif')) {
       const imageBuffer = texture.getImage();
-
       if (imageBuffer) {
         try {
-          // Force conversion to WebP
           const newBuffer = await sharp(imageBuffer, { failOn: 'none' })
             .resize({
               width: CONFIG.textureOptions.size[0],
@@ -147,8 +277,6 @@ const fixUnknownTextures = async (document) => {
             })
             .webp({ quality: CONFIG.textureOptions.quality })
             .toBuffer();
-
-          // Update the GLTF texture object
           texture.setImage(newBuffer);
           texture.setMimeType('image/webp');
         } catch (e) {
@@ -190,21 +318,14 @@ const processGlb = async (filePath) => {
       }
     }
 
-    // --- 2. PRE-STATS ---
     const preStats = getTextureStats(document);
-
-    // --- 3. MANUAL TIFF FIX ---
-    // This runs BEFORE the standard pipeline to fix the "unknown" mime types
     await fixUnknownTextures(document);
 
-    // --- 4. STANDARD OPTIMIZATION ---
     await document.transform(
       dedup(),
-      // We run prune here to remove the old TIFF data we just replaced
       prune()
     );
 
-    // --- 5. POST-STATS ---
     const postStats = getTextureStats(document);
 
     console.log('\n   📦 Texture Compression Report:');
@@ -215,15 +336,10 @@ const processGlb = async (filePath) => {
         const post = postStats[i] || { size: 0, mime: 'deleted' };
         const saved = pre.size - post.size;
         const percent = pre.size > 0 ? ((saved / pre.size) * 100).toFixed(1) : 0;
-
-        console.log(`      - ${pre.name}:`);
-        console.log(`        ${pre.mime} (${formatBytes(pre.size)}) -> ${post.mime} (${formatBytes(post.size)})`);
-        console.log(`        Saved: ${formatBytes(saved)} (${percent}%)`);
+        console.log(`      - ${pre.name}: ${pre.mime} -> ${post.mime} Saved: ${percent}%`);
       });
     }
-    console.log('');
 
-    // --- 6. GEOMETRY COMPRESSION ---
     document.createExtension(KHRDracoMeshCompression)
       .setRequired(true)
       .setEncoderOptions({
@@ -246,8 +362,7 @@ const processGlb = async (filePath) => {
   }
 };
 
-const copyBuildAssets = async (srcDir, outDir) => {
-  await fs.emptyDir(outDir);
+const copyBuildAssets = async (srcDir, outDir, audioManifest) => {
   await fs.ensureDir(outDir);
 
   const assetFiles = globSync(`${srcDir}/**/*.*`, {
@@ -255,56 +370,29 @@ const copyBuildAssets = async (srcDir, outDir) => {
     windowsPathsNoEscape: true
   });
 
-  const manifest = {};
+  const manifest = { ...audioManifest };
 
   for (const srcPath of assetFiles) {
-    // 1. Get Normalized Path (e.g. "textures/hero.png")
-    // We force forward slashes so the key is the same on Windows & Mac
     const relativePath = path.relative(srcDir, srcPath).split(path.sep).join('/');
-
-    // 2. Prepare Key (The Path is the Key!)
-    const keyBuffer = Buffer.from(relativePath);
-    const keyLen = keyBuffer.length;
-
-    // 3. Read & Encrypt
     const fileBuffer = await fs.readFile(srcPath);
+    const encryptedBuffer = encryptBuffer(fileBuffer, relativePath);
 
-    // XOR Encryption
-    for (let i = 0; i < fileBuffer.length; i++) {
-      fileBuffer[i] = fileBuffer[i] ^ keyBuffer[i % keyLen];
-    }
-
-    // 4. Generate Filename (Hash the PATH, not the content)
-    // This ensures consistent naming across builds
     const pathHash = crypto.createHash('md5').update(relativePath).digest('hex').slice(0, 12);
     const mangledFileName = `${pathHash}.clt`;
 
-    // 5. Write to output
     const outFilePath = path.join(outDir, mangledFileName);
-    await fs.writeFile(outFilePath, fileBuffer);
+    await fs.writeFile(outFilePath, encryptedBuffer);
 
-    // 6. Add to Manifest
     manifest[relativePath] = mangledFileName;
   }
 
-
-
-
-
-  // 1. Create the normal JSON string
   const jsonString = JSON.stringify(manifest);
-
-  // 2. Stringify IT AGAIN to create a valid JS string literal (handles escaping quotes automatically)
   const escapedStringLiteral = JSON.stringify(jsonString);
 
-  // --- OUTPUT FOR COPYING ---
   console.log('\n// ----------------------------------------------------');
   console.log('// ✂️  COPY BELOW THIS LINE');
   console.log('// ----------------------------------------------------');
-
-  // We output code that calls JSON.parse() on that string
   console.log(`export const assets = JSON.parse(${escapedStringLiteral});`);
-
   console.log('// ----------------------------------------------------');
   console.log('// ✂️  COPY ABOVE THIS LINE');
   console.log('// ----------------------------------------------------');
@@ -318,46 +406,47 @@ const run = async () => {
 
   await fs.ensureDir(CONFIG.outDir);
   await fs.emptyDir(CONFIG.outDir);
+  await fs.ensureDir(CONFIG.publicDir);
+  await fs.emptyDir(CONFIG.publicDir);
 
+  // 1. Process Audio
+  const audioManifest = await processAudioFiles(CONFIG.srcDir, CONFIG.publicDir);
+
+  // 2. Process Models
   const files = globSync(`${CONFIG.srcDir}/**/*.fbx`);
 
-  if (files.length === 0) {
-    console.log('No FBX files found.');
-    return;
-  }
+  if (files.length > 0) {
+    for (const srcPath of files) {
+      const relativePath = path.relative(CONFIG.srcDir, srcPath);
+      const dirName = path.dirname(relativePath);
+      const sanitizedName = sanitizeName(srcPath);
+      const outFolderPath = path.join(CONFIG.outDir, dirName);
+      const outFilePath = path.join(outFolderPath, `${sanitizedName}.glb`);
+      const fbmFolderPath = srcPath.substring(0, srcPath.lastIndexOf('.')) + '.fbm';
 
-  for (const srcPath of files) {
-    const relativePath = path.relative(CONFIG.srcDir, srcPath);
-    const dirName = path.dirname(relativePath);
-    const sanitizedName = sanitizeName(srcPath);
+      await fs.ensureDir(outFolderPath);
 
-    const outFolderPath = path.join(CONFIG.outDir, dirName);
-    const outFilePath = path.join(outFolderPath, `${sanitizedName}.glb`);
-    const fbmFolderPath = srcPath.substring(0, srcPath.lastIndexOf('.')) + '.fbm';
+      process.stdout.write(`Processing: ${path.basename(srcPath)} -> ${sanitizedName}.glb ... `);
 
-    await fs.ensureDir(outFolderPath);
-
-    process.stdout.write(`Processing: ${path.basename(srcPath)} -> ${sanitizedName}.glb ... `);
-
-    try {
-      await convertFbxToGlb(srcPath, outFilePath);
-
-      if (await fs.pathExists(fbmFolderPath)) {
-        await fs.remove(fbmFolderPath);
+      try {
+        await convertFbxToGlb(srcPath, outFilePath);
+        if (await fs.pathExists(fbmFolderPath)) await fs.remove(fbmFolderPath);
+        await processGlb(outFilePath);
+        console.log('✅ Done');
+      } catch (err) {
+        console.log('❌ Failed');
+        console.error(err);
       }
-
-      await processGlb(outFilePath);
-
-      console.log('✅ Done');
-    } catch (err) {
-      console.log('❌ Failed');
-      console.error(err);
     }
+  } else {
+    console.log('No FBX files found (skipping model processing).');
   }
 
   console.log('✨ Build Complete.');
 
-  await copyBuildAssets(CONFIG.outDir, CONFIG.publicDir);
+  // 3. Package and Encrypt 3D Assets (Merge with Audio Manifest)
+  await copyBuildAssets(CONFIG.outDir, CONFIG.publicDir, audioManifest);
+
   console.log('🎉 All assets are ready in the public directory.');
 };
 
