@@ -191,7 +191,79 @@
         ]
     },
     "audio": {
-        "files": [],
-        "compositions": []
+        "files": [
+            {
+                "name": "electric.mp3",
+                "url": "train/NS-SGM/electric.mp3"
+            },
+            {
+                "name": "buzz.mp3",
+                "url": "train/NS-SGM/buzz.mp3"
+            },
+            {
+                "name": "train-track.mp3",
+                "url": "train/NS-SGM/train-track.mp3"
+            }
+        ],
+        "compositions": [
+            {
+                "title": "engine",
+                "sounds": [
+                    {
+                        "file": "electric.mp3",
+                        "curves": [
+                            {
+                                "points": [
+                                    {
+                                        "x": 0,
+                                        "y": 0
+                                    },
+                                    {
+                                        "x": 1,
+                                        "y": 1
+                                    }
+                                ],
+                                "axis": {
+                                    "x": {
+                                        "min": 0,
+                                        "max": 1,
+                                        "label": "Throttle Power"
+                                    },
+                                    "y": {
+                                        "min": 0,
+                                        "max": 1,
+                                        "label": "Volume"
+                                    }
+                                }
+                            },
+                            {
+                                "points": [
+                                    {
+                                        "x": 0,
+                                        "y": 1
+                                    },
+                                    {
+                                        "x": 29.76895509133965,
+                                        "y": 0
+                                    }
+                                ],
+                                "axis": {
+                                    "x": {
+                                        "min": 0,
+                                        "max": 30,
+                                        "label": "Velocity (m/s)"
+                                    },
+                                    "y": {
+                                        "min": 0,
+                                        "max": 1,
+                                        "label": "Volume"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
     }
 }
