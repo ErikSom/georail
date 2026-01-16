@@ -21,6 +21,7 @@
     "fs-extra": "^11.3.2",
     "glob": "^13.0.0",
     "gltf-pipeline": "^4.3.0",
+    "maplibre-gl": "^5.16.0",
     "preact": "^10.27.2",
     "sharp": "^0.34.5",
     "three-perf": "^1.0.11",
