@@ -1,26 +1,215 @@
-import { useRef, useEffect } from 'preact/hooks';
+import { useRef, useEffect, useState } from 'preact/hooks';
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
+import { mapPosition, mapSize, mapSelected, initializeMapState } from '../store/maps';
 import styles from './Maps2D.module.css';
 
 const HOORN: [number, number] = [5.0597, 52.6424];
-const AMSTERDAM: [number, number] = [4.9041, 52.3676];
+const MIN_SIZE = 100; // Container can go down to 100px
+const BASE_MAP_SIZE = 200; // The internal map renders at this size and scales
 
-console.log('dafuqqq')
+type ResizeCorner = 'tl' | 'tr' | 'bl' | 'br' | null;
+
+function clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
+}
 
 function Maps2D() {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const mapContainerRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<maplibregl.Map | null>(null);
 
-    console.log("Maps2D Rendered...", containerRef.current, mapContainerRef.current);
+    const [position, setPosition] = useState({ x: 100, y: 100 });
+    const [size, setSize] = useState(200);
+    const [selected, setSelected] = useState(false);
 
+    const dragState = useRef<{
+        isDragging: boolean;
+        isResizing: ResizeCorner;
+        startX: number;
+        startY: number;
+        startPosX: number;
+        startPosY: number;
+        startSize: number;
+    }>({
+        isDragging: false,
+        isResizing: null,
+        startX: 0,
+        startY: 0,
+        startPosX: 0,
+        startPosY: 0,
+        startSize: 0,
+    });
+
+    // Clamp position to keep container within screen bounds
+    const clampPosition = (x: number, y: number, sz: number) => {
+        if (typeof window === 'undefined') return { x, y };
+        const maxX = window.innerWidth - sz;
+        const maxY = window.innerHeight - sz;
+        return {
+            x: clamp(x, 0, Math.max(0, maxX)),
+            y: clamp(y, 0, Math.max(0, maxY)),
+        };
+    };
+
+    // Initialize state from localStorage on mount and subscribe to signal changes
     useEffect(() => {
-        console.log("Initializing 2D Map...", containerRef.current, mapContainerRef.current);
-        if (!containerRef.current || !mapContainerRef.current) return;
+        initializeMapState();
 
-        // 1. Initialize Map
+        // Sync local state with signals
+        setPosition({ x: mapPosition.value.x, y: mapPosition.value.y });
+        setSize(mapSize.value);
+        setSelected(mapSelected.value);
+
+        // Subscribe to signal changes
+        const unsubPosition = mapPosition.subscribe((val) => setPosition({ x: val.x, y: val.y }));
+        const unsubSize = mapSize.subscribe((val) => {
+            setSize(val);
+            // Trigger map resize when size changes
+            if (mapRef.current) {
+                mapRef.current.resize();
+            }
+        });
+        const unsubSelected = mapSelected.subscribe((val) => setSelected(val));
+
+        return () => {
+            unsubPosition();
+            unsubSize();
+            unsubSelected();
+        };
+    }, []);
+
+    // Resize map when size changes
+    useEffect(() => {
+        if (mapRef.current) {
+            mapRef.current.resize();
+        }
+    }, [size]);
+
+    // Handle click outside to deselect
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+                mapSelected.value = false;
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Handle drag and resize mouse events
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            const state = dragState.current;
+            if (state.isDragging) {
+                const dx = e.clientX - state.startX;
+                const dy = e.clientY - state.startY;
+                const newPos = clampPosition(
+                    state.startPosX + dx,
+                    state.startPosY + dy,
+                    size
+                );
+                mapPosition.value = newPos;
+            } else if (state.isResizing) {
+                const dx = e.clientX - state.startX;
+                const dy = e.clientY - state.startY;
+                const corner = state.isResizing;
+
+                // Calculate delta based on corner - drag direction determines growth
+                let delta: number;
+                if (corner === 'br') {
+                    delta = (dx + dy) / 2;
+                } else if (corner === 'bl') {
+                    delta = (-dx + dy) / 2;
+                } else if (corner === 'tr') {
+                    delta = (dx - dy) / 2;
+                } else {
+                    delta = (-dx - dy) / 2;
+                }
+
+                const newSize = Math.max(MIN_SIZE, state.startSize + delta);
+                const sizeDiff = newSize - state.startSize;
+
+                let newX = state.startPosX;
+                let newY = state.startPosY;
+
+                // Adjust position for corners that resize from top or left
+                if (corner === 'tl') {
+                    newX = state.startPosX - sizeDiff;
+                    newY = state.startPosY - sizeDiff;
+                } else if (corner === 'tr') {
+                    newY = state.startPosY - sizeDiff;
+                } else if (corner === 'bl') {
+                    newX = state.startPosX - sizeDiff;
+                }
+
+                // Clamp position
+                const clamped = clampPosition(newX, newY, newSize);
+
+                mapSize.value = newSize;
+                mapPosition.value = clamped;
+            }
+        };
+
+        const handleMouseUp = () => {
+            dragState.current.isDragging = false;
+            dragState.current.isResizing = null;
+            if (mapRef.current) {
+                mapRef.current.resize();
+            }
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [size]);
+
+    const handleContainerMouseDown = (e: MouseEvent) => {
+        const target = e.target as HTMLElement;
+        // Check if clicking on a resize handle
+        if (target.classList.contains(styles.resizeHandle) ||
+            target.classList.contains(styles.handleTL) ||
+            target.classList.contains(styles.handleTR) ||
+            target.classList.contains(styles.handleBL) ||
+            target.classList.contains(styles.handleBR)) {
+            return;
+        }
+
+        e.preventDefault();
+        mapSelected.value = true;
+        dragState.current = {
+            isDragging: true,
+            isResizing: null,
+            startX: e.clientX,
+            startY: e.clientY,
+            startPosX: position.x,
+            startPosY: position.y,
+            startSize: size,
+        };
+    };
+
+    const handleResizeMouseDown = (corner: ResizeCorner) => (e: MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragState.current = {
+            isDragging: false,
+            isResizing: corner,
+            startX: e.clientX,
+            startY: e.clientY,
+            startPosX: position.x,
+            startPosY: position.y,
+            startSize: size,
+        };
+    };
+
+    // Initialize MapLibre
+    useEffect(() => {
+        if (!mapContainerRef.current) return;
+
         const map = new maplibregl.Map({
             style: "https://tiles.openfreemap.org/styles/liberty",
             container: mapContainerRef.current,
@@ -32,53 +221,44 @@ function Maps2D() {
             bearing: 0,
             maxPitch: 0,
             interactive: true,
-            attributionControl: false, // Hide default
+            attributionControl: false,
         });
 
         mapRef.current = map;
 
-        // 2. Add Custom Attribution
         const attribution = new maplibregl.AttributionControl({ compact: true });
         map.addControl(attribution, "bottom-right");
 
-        // Expose attribution to window for debugging if needed (TypeScript cast required)
-        (window as any).attribution = attribution;
-
-        // 3. Disable Interactions
-        map.boxZoom.disable();
+        // Disable native interactions
+        // map.boxZoom.disable();
         map.dragPan.disable();
         map.dragRotate.disable();
         map.keyboard.disable();
         map.doubleClickZoom.disable();
         map.touchZoomRotate.disable();
 
-        // 4. Remove Canvas Focus Border
         const canvas = map.getCanvas();
         const handleCanvasFocus = () => canvas.blur();
-        canvas.addEventListener("focus", handleCanvasFocus);
+        // canvas.addEventListener("focus", handleCanvasFocus);
 
-        // 5. Custom Keydown Logic
+        // Custom keyboard controls
         const step = 0.5;
         const handleKeyDown = (e: KeyboardEvent) => {
             const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase?.() ?? "";
             if (tag === "input" || tag === "textarea") return;
 
-            // Zoom
             if (e.key === "-" || e.key === "_") {
                 e.preventDefault();
                 const z = Math.max(map.getMinZoom(), map.getZoom() - step);
                 map.setZoom(z);
-                console.log("Zoom:", z);
             }
 
             if (e.key === "+" || e.key === "=") {
                 e.preventDefault();
                 const z = Math.min(map.getMaxZoom(), map.getZoom() + step);
                 map.setZoom(z);
-                console.log("Zoom:", z);
             }
 
-            // Pan (Arrow keys)
             const center = map.getCenter();
             if (e.key === "ArrowUp") {
                 e.preventDefault();
@@ -99,15 +279,11 @@ function Maps2D() {
         };
 
         window.addEventListener("keydown", handleKeyDown);
-        map.on("zoomend", () => console.log("Zoomend:", map.getZoom()));
 
-        // 6. On Load Logic (Hiding Layers)
         map.on("load", async () => {
-            // Toggle attribution programmatically (using private method as per original code)
             // @ts-ignore
             if (attribution._toggleAttribution) attribution._toggleAttribution();
 
-            // Hide 3D buildings + POIs
             const layers = map.getStyle().layers || [];
             for (const layer of layers) {
                 if (layer.type === "fill-extrusion") {
@@ -132,8 +308,6 @@ function Maps2D() {
                     map.setLayoutProperty(layer.id, "visibility", "none");
                 }
             }
-
-            console.log("Map Loaded. Zoom:", map.getZoom());
         });
 
         return () => {
@@ -144,11 +318,45 @@ function Maps2D() {
         };
     }, []);
 
+    // Map container is always at least BASE_MAP_SIZE (200px)
+    // When container is >= 200px, map fills it at scale 1
+    // When container is < 200px, map stays at 200px but scales down
+    const mapContainerSize = Math.max(size, BASE_MAP_SIZE);
+    const scale = size < BASE_MAP_SIZE ? size / BASE_MAP_SIZE : 1;
+
     return (
-        <div ref={containerRef} className={styles.container}>
-            <div ref={mapContainerRef} className={styles.mapContainer} />
+        <div
+            ref={containerRef}
+            className={styles.container}
+            style={{
+                left: `${position.x}px`,
+                top: `${position.y}px`,
+                width: `${size}px`,
+                height: `${size}px`,
+            }}
+            onMouseDown={handleContainerMouseDown}
+        >
+            <div
+                ref={mapContainerRef}
+                className={styles.mapContainer}
+                style={{
+                    width: `${mapContainerSize}px`,
+                    height: `${mapContainerSize}px`,
+                    transform: scale < 1 ? `scale(${scale})` : undefined,
+                    borderRadius: scale < 1 ? `${16 / scale}px` : undefined,
+                }}
+            />
+
+            {selected && (
+                <>
+                    <div className={`${styles.resizeHandle} ${styles.handleTL}`} onMouseDown={handleResizeMouseDown('tl')} />
+                    <div className={`${styles.resizeHandle} ${styles.handleTR}`} onMouseDown={handleResizeMouseDown('tr')} />
+                    <div className={`${styles.resizeHandle} ${styles.handleBL}`} onMouseDown={handleResizeMouseDown('bl')} />
+                    <div className={`${styles.resizeHandle} ${styles.handleBR}`} onMouseDown={handleResizeMouseDown('br')} />
+                </>
+            )}
         </div>
     );
-};
+}
 
 export default Maps2D;

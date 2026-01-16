@@ -11,13 +11,29 @@ const { title } = Astro.props;
     <head>
         <meta charset="UTF-8" />
         <meta name="description" content="Astro 3D Viewer" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+        />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <title>{title}</title>
     </head>
     <body>
         <slot />
         <div id="tweakpane-container"></div>
+        <script>
+            // Prevent pinch-to-zoom (trackpad) and Ctrl+scroll zoom
+            // but allow it on canvas elements (for map zoom)
+            document.addEventListener('wheel', (e) => {
+                if (e.ctrlKey) {
+                    const target = e.target as HTMLElement;
+                    // Allow zoom on canvas elements (maps, 3D views)
+                    if (target.tagName !== 'CANVAS') {
+                        e.preventDefault();
+                    }
+                }
+            }, { passive: false });
+        </script>
     </body>
 </html>
 <style is:global>
@@ -30,6 +46,7 @@ const { title } = Astro.props;
         font-family: system-ui, sans-serif;
         overflow: hidden;
         color: #333;
+        touch-action: none;
     }
     #tweakpane-container {
         display: flex;

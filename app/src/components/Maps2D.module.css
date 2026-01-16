@@ -1,13 +1,99 @@
 .container {
     position: absolute;
-    top: 100px;
-    left: 100px;
     box-shadow:
         rgba(50, 50, 93, 0.25) 0px 6px 12px -2px,
         rgba(0, 0, 0, 0.3) 0px 3px 7px -3px;
+    border-radius: 16px;
+    cursor: grab;
+}
+
+.container:active {
+    cursor: grabbing;
 }
 
 .mapContainer {
-    width: 200px;
-    height: 200px;
+    width: 100%;
+    height: 100%;
+    transform-origin: top left;
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+/* Resize handles - rounded corner indicators */
+.resizeHandle {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    pointer-events: auto;
+    z-index: 10;
+}
+
+/* Corner arcs using borders */
+.resizeHandle::before {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border: 3px solid #4a9eff;
+    background: transparent;
+}
+
+/* Corner: top-left */
+.handleTL {
+    top: -3px;
+    left: -3px;
+    cursor: nwse-resize;
+}
+
+.handleTL::before {
+    top: 0;
+    left: 0;
+    border-right: none;
+    border-bottom: none;
+    border-top-left-radius: 16px;
+}
+
+/* Corner: top-right */
+.handleTR {
+    top: -3px;
+    right: -3px;
+    cursor: nesw-resize;
+}
+
+.handleTR::before {
+    top: 0;
+    right: 0;
+    border-left: none;
+    border-bottom: none;
+    border-top-right-radius: 16px;
+}
+
+/* Corner: bottom-left */
+.handleBL {
+    bottom: -3px;
+    left: -3px;
+    cursor: nesw-resize;
+}
+
+.handleBL::before {
+    bottom: 0;
+    left: 0;
+    border-right: none;
+    border-top: none;
+    border-bottom-left-radius: 16px;
+}
+
+/* Corner: bottom-right */
+.handleBR {
+    bottom: -3px;
+    right: -3px;
+    cursor: nwse-resize;
+}
+
+.handleBR::before {
+    bottom: 0;
+    right: 0;
+    border-left: none;
+    border-top: none;
+    border-bottom-right-radius: 16px;
 }
