@@ -33,7 +33,7 @@
     --handle-size: 16px;
     --handle-offset: -20px;
     --handle-inset: 8px;
-    --handle-radius: 18px;
+    --handle-radius: 20px;
 }
 
 /* Corner arcs using borders - visual indicator */

@@ -119,21 +119,35 @@ function Maps2D() {
 
     // Handle drag and resize pointer events
     useEffect(() => {
+        const cancelDrag = () => {
+            const capturedPointerId = dragState.current.pointerId;
+            dragState.current.isDragging = false;
+            dragState.current.isResizing = null;
+            dragState.current.pointerId = null;
+            // Release pointer capture so events flow to underlying canvas
+            if (capturedPointerId !== null && containerRef.current) {
+                try {
+                    containerRef.current.releasePointerCapture(capturedPointerId);
+                } catch (_) { /* ignore if already released */ }
+            }
+        };
+
         const handlePointerDown = (e: PointerEvent) => {
             activePointers.current.add(e.pointerId);
             // Cancel drag/resize if a second finger touches
             if (activePointers.current.size > 1) {
-                dragState.current.isDragging = false;
-                dragState.current.isResizing = null;
-                dragState.current.pointerId = null;
+                cancelDrag();
             }
         };
 
         const handlePointerMove = (e: PointerEvent) => {
             const state = dragState.current;
             if (state.pointerId !== e.pointerId) return;
-            // Ignore if multi-touch
-            if (activePointers.current.size > 1) return;
+            // Cancel drag/resize if multi-touch detected
+            if (activePointers.current.size > 1) {
+                cancelDrag();
+                return;
+            }
 
             if (state.isDragging) {
                 const dx = e.clientX - state.startX;
@@ -198,12 +212,13 @@ function Maps2D() {
             }
         };
 
-        document.addEventListener('pointerdown', handlePointerDown);
+        // Use capture phase for pointerdown so we track pointers before container handler runs
+        document.addEventListener('pointerdown', handlePointerDown, true);
         document.addEventListener('pointermove', handlePointerMove);
         document.addEventListener('pointerup', handlePointerUp);
         document.addEventListener('pointercancel', handlePointerUp);
         return () => {
-            document.removeEventListener('pointerdown', handlePointerDown);
+            document.removeEventListener('pointerdown', handlePointerDown, true);
             document.removeEventListener('pointermove', handlePointerMove);
             document.removeEventListener('pointerup', handlePointerUp);
             document.removeEventListener('pointercancel', handlePointerUp);
@@ -218,6 +233,11 @@ function Maps2D() {
             target.classList.contains(styles.handleTR) ||
             target.classList.contains(styles.handleBL) ||
             target.classList.contains(styles.handleBR)) {
+            return;
+        }
+
+        // Don't start drag if multi-touch (let inner canvas handle it)
+        if (activePointers.current.size > 1) {
             return;
         }
 
@@ -238,6 +258,11 @@ function Maps2D() {
     };
 
     const handleResizePointerDown = (corner: ResizeCorner) => (e: PointerEvent) => {
+        // Don't start resize if multi-touch
+        if (activePointers.current.size > 1) {
+            return;
+        }
+
         e.preventDefault();
         e.stopPropagation();
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -273,12 +298,12 @@ function Maps2D() {
 
         mapRef.current = map;
 
-        // Disable native interactions
+        // Disable native interactions except pinch-to-zoom
         map.dragPan.disable();
         map.dragRotate.disable();
         map.keyboard.disable();
         map.doubleClickZoom.disable();
-        map.touchZoomRotate.disable();
+        map.touchZoomRotate.disableRotation();
 
         const canvas = map.getCanvas();
         const handleCanvasFocus = () => canvas.blur();
