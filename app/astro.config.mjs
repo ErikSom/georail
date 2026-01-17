@@ -12,7 +12,7 @@ const baseOptions = {
   deadCodeInjection: true,
   debugProtection: true,
   disableConsoleOutput: false,
-  domainLock: ['georail.app', '.georail.app', 'localhost'],
+  domainLock: ['georail.app', '.georail.app', 'localhost', '.georail-app.pages.dev'],
   identifierNamesGenerator: 'hexadecimal',
   log: false,
   numbersToExpressions: false,
