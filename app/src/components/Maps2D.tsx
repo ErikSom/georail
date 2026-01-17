@@ -379,7 +379,7 @@ function Maps2D() {
             style: "https://tiles.openfreemap.org/styles/liberty",
             container: mapContainerRef.current,
             center: DEFAULT_CENTER,
-            zoom: 18,
+            zoom: 16,
             minZoom: 10,
             maxZoom: 18,
             pitch: 0,
@@ -429,24 +429,6 @@ function Maps2D() {
                 e.preventDefault();
                 const z = Math.min(map.getMaxZoom(), map.getZoom() + step);
                 map.setZoom(z);
-            }
-
-            const center = map.getCenter();
-            if (e.key === "ArrowUp") {
-                e.preventDefault();
-                map.setCenter([center.lng, center.lat + 0.0005]);
-            }
-            if (e.key === "ArrowDown") {
-                e.preventDefault();
-                map.setCenter([center.lng, center.lat - 0.0005]);
-            }
-            if (e.key === "ArrowLeft") {
-                e.preventDefault();
-                map.setCenter([center.lng - 0.0005, center.lat]);
-            }
-            if (e.key === "ArrowRight") {
-                e.preventDefault();
-                map.setCenter([center.lng + 0.0005, center.lat]);
             }
         };
 
