@@ -19,10 +19,12 @@ function Maps2D() {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const mapContainerRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<maplibregl.Map | null>(null);
+    const indicatorRef = useRef<HTMLDivElement | null>(null);
 
     const [position, setPosition] = useState({ x: 100, y: 100 });
     const [size, setSize] = useState(200);
     const [selected, setSelected] = useState(false);
+    const [ready, setReady] = useState(false);
 
     const dragState = useRef<{
         isDragging: boolean;
@@ -84,6 +86,7 @@ function Maps2D() {
 
         handleWindowResize();
         window.addEventListener('resize', handleWindowResize);
+        setReady(true);
 
         return () => {
             unsubPosition();
@@ -350,6 +353,7 @@ function Maps2D() {
                 top: `${position.y}px`,
                 width: `${size}px`,
                 height: `${size}px`,
+                visibility: ready ? 'visible' : 'hidden',
             }}
             onPointerDown={handleContainerPointerDown}
         >
@@ -363,6 +367,8 @@ function Maps2D() {
                     borderRadius: scale < 1 ? `${16 / scale}px` : undefined,
                 }}
             />
+
+            <div ref={indicatorRef} className={styles.indicator}></div>
 
             {selected && (
                 <>
