@@ -29,8 +29,10 @@
     pointer-events: auto;
     z-index: 10;
     touch-action: none;
+
     --handle-size: 16px;
-    --handle-offset: -28px;
+    --handle-offset: -20px;
+    --handle-inset: 8px;
     --handle-radius: 18px;
 }
 
@@ -52,8 +54,8 @@
 }
 
 .handleTL::before {
-    bottom: 0px;
-    right: 0px;
+    bottom: var(--handle-inset);
+    right: var(--handle-inset);
     border-right: none;
     border-bottom: none;
     border-top-left-radius: var(--handle-radius);
@@ -67,8 +69,8 @@
 }
 
 .handleTR::before {
-    bottom: 0px;
-    left: 0px;
+    bottom: var(--handle-inset);
+    left: var(--handle-inset);
     border-left: none;
     border-bottom: none;
     border-top-right-radius: var(--handle-radius);
@@ -82,8 +84,8 @@
 }
 
 .handleBL::before {
-    top: 0px;
-    right: 0px;
+    top: var(--handle-inset);
+    right: var(--handle-inset);
     border-right: none;
     border-top: none;
     border-bottom-left-radius: var(--handle-radius);
@@ -97,8 +99,8 @@
 }
 
 .handleBR::before {
-    top: 0px;
-    left: 0px;
+    top: var(--handle-inset);
+    left: var(--handle-inset);
     border-left: none;
     border-top: none;
     border-bottom-right-radius: var(--handle-radius);

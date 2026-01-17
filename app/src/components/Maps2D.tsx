@@ -75,10 +75,21 @@ function Maps2D() {
         });
         const unsubSelected = mapSelected.subscribe((val) => setSelected(val));
 
+        // on resize, clamp position
+        const handleWindowResize = () => {
+            const clamped = clampPosition(mapPosition.value.x, mapPosition.value.y, mapSize.value);
+            mapPosition.value = clamped;
+            setPosition(clamped);
+        };
+
+        handleWindowResize();
+        window.addEventListener('resize', handleWindowResize);
+
         return () => {
             unsubPosition();
             unsubSize();
             unsubSelected();
+            window.removeEventListener('resize', handleWindowResize);
         };
     }, []);
 
@@ -240,9 +251,6 @@ function Maps2D() {
 
         mapRef.current = map;
 
-        const attribution = new maplibregl.AttributionControl({ compact: true });
-        map.addControl(attribution, "bottom-right");
-
         // Disable native interactions
         map.dragPan.disable();
         map.dragRotate.disable();
@@ -293,9 +301,6 @@ function Maps2D() {
         window.addEventListener("keydown", handleKeyDown);
 
         map.on("load", async () => {
-            // @ts-ignore
-            if (attribution._toggleAttribution) attribution._toggleAttribution();
-
             const layers = map.getStyle().layers || [];
             for (const layer of layers) {
                 if (layer.type === "fill-extrusion") {
