@@ -4,6 +4,7 @@ import {
     PerspectiveCamera,
     Clock,
     Vector3,
+    MathUtils,
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { MapViewer } from './MapViewer';
@@ -17,7 +18,7 @@ import { FlightControls } from './utils/FlightControls';
 import Path from './utils/Path';
 import { getTrainConfiguration, nssgmTrainType } from './train/configs/TrainConfigurations.secure';
 import { ThreePerf } from 'three-perf';
-import { trainInstance, updateTrainState, trainDebugMode, trainLatE7, trainLonE7, trainFrontLatE7, trainFrontLonE7, trainBackLatE7, trainBackLonE7 } from '../store/train';
+import { trainInstance, updateTrainState, trainDebugMode, trainLatE7, trainLonE7, trainFrontLatE7, trainFrontLonE7, trainBackLatE7, trainBackLonE7, cameraYawRelativeToTrain } from '../store/train';
 import { getPerformanceConfig, type PerformanceConfig } from './utils/PerformanceConfig';
 
 export class World {
@@ -331,6 +332,25 @@ export class World {
                 trainBackLatE7.value = Math.round(backCoords.lat * 1e7);
                 trainBackLonE7.value = Math.round(backCoords.lon * 1e7);
             }
+
+            // Calculate camera yaw relative to train
+            // Get vector from train to camera, projected onto horizontal plane
+            this.tmp.copy(this.camera.position).sub(this.train.group.position);
+            this.tmp.y = 0; // Project to horizontal plane
+            const cameraAngle = Math.atan2(this.tmp.x, this.tmp.z) * MathUtils.RAD2DEG;
+
+            // Get train's forward direction projected onto horizontal plane
+            const trainForward = new Vector3(0, 0, 1).applyQuaternion(this.train.group.quaternion);
+            trainForward.y = 0;
+            const trainAngle = Math.atan2(trainForward.x, trainForward.z) * MathUtils.RAD2DEG;
+
+            // Relative yaw: how much the camera is rotated around the train
+            // Add 180 to match screen visuals (camera looks at train, not from train)
+            let relativeYaw = cameraAngle - trainAngle + 180;
+            // Normalize to 0-360
+            if (relativeYaw < 0) relativeYaw += 360;
+            if (relativeYaw >= 360) relativeYaw -= 360;
+            cameraYawRelativeToTrain.value = relativeYaw;
         }
         // 7. Update UI and store train coordinates - only if MapViewer is initialized
         if (this.mapViewer.initialized) {

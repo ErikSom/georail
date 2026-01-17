@@ -21,19 +21,6 @@ const { title } = Astro.props;
     <body>
         <slot />
         <div id="tweakpane-container"></div>
-        <script>
-            // Prevent pinch-to-zoom (trackpad) and Ctrl+scroll zoom
-            // but allow it on canvas elements (for map zoom)
-            document.addEventListener('wheel', (e) => {
-                if (e.ctrlKey) {
-                    const target = e.target as HTMLElement;
-                    // Allow zoom on canvas elements (maps, 3D views)
-                    if (target.tagName !== 'CANVAS') {
-                        e.preventDefault();
-                    }
-                }
-            }, { passive: false });
-        </script>
     </body>
 </html>
 <style is:global>

@@ -3,7 +3,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { mapPosition, mapSize, mapSelected, initializeMapState } from '../store/maps';
-import { trainLat, trainLon, trainFrontLat, trainFrontLon, trainBackLat, trainBackLon, updateTick, trainLatE7 } from '../store/train';
+import { trainLat, trainLon, trainFrontLat, trainFrontLon, trainBackLat, trainBackLon, updateTick, trainLatE7, cameraYawRelativeToTrain } from '../store/train';
 import styles from './Maps2D.module.css';
 
 const DEFAULT_CENTER: [number, number] = [0, 0]; // Will be updated when train position is available
@@ -47,7 +47,8 @@ function Maps2D() {
     const [size, setSize] = useState(200);
     const [selected, setSelected] = useState(false);
     const [ready, setReady] = useState(false);
-    const [bearing, setBearing] = useState(0);
+    const [trainBearing, setTrainBearing] = useState(0);
+    const [cameraYaw, setCameraYaw] = useState(0);
     const [mapLoaded, setMapLoaded] = useState(false);
 
     const dragState = useRef<{
@@ -147,7 +148,10 @@ function Maps2D() {
                     trainBackLat.value, trainBackLon.value,
                     trainFrontLat.value, trainFrontLon.value
                 );
-                setBearing(newBearing);
+                setTrainBearing(newBearing);
+                setCameraYaw(cameraYawRelativeToTrain.value);
+                // Rotate map to match camera view
+                mapRef.current.setBearing(-cameraYawRelativeToTrain.value);
                 initialCenterSet = true;
             }
         });
@@ -161,7 +165,9 @@ function Maps2D() {
                 trainBackLat.value, trainBackLon.value,
                 trainFrontLat.value, trainFrontLon.value
             );
-            setBearing(newBearing);
+            setTrainBearing(newBearing);
+            setCameraYaw(cameraYawRelativeToTrain.value);
+            mapRef.current.setBearing(-cameraYawRelativeToTrain.value);
             initialCenterSet = true;
         }
 
@@ -179,7 +185,12 @@ function Maps2D() {
                 trainBackLat.value, trainBackLon.value,
                 trainFrontLat.value, trainFrontLon.value
             );
-            setBearing(newBearing);
+            setTrainBearing(newBearing);
+            setCameraYaw(cameraYawRelativeToTrain.value);
+            // Rotate map to match camera view
+            if (mapRef.current) {
+                mapRef.current.setBearing(-cameraYawRelativeToTrain.value);
+            }
         });
 
         return () => {
@@ -380,7 +391,7 @@ function Maps2D() {
 
         mapRef.current = map;
 
-        // Disable native interactions except pinch-to-zoom
+        // Disable native interactions except pinch-to-zoom and scroll zoom
         map.dragPan.disable();
         map.dragRotate.disable();
         map.keyboard.disable();
@@ -389,6 +400,18 @@ function Maps2D() {
 
         const canvas = map.getCanvas();
         const handleCanvasFocus = () => canvas.blur();
+
+        // Custom wheel zoom handler (since native scrollZoom may be blocked)
+        const handleWheel = (e: WheelEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const delta = -e.deltaY * 0.01;
+            const currentZoom = map.getZoom();
+            const newZoom = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), currentZoom + delta));
+            map.setZoom(newZoom);
+        };
+        // Use capture phase to intercept wheel events before they reach other handlers
+        mapContainerRef.current!.addEventListener('wheel', handleWheel, { passive: false, capture: true });
 
         // Custom keyboard controls
         const step = 0.5;
@@ -461,6 +484,7 @@ function Maps2D() {
         return () => {
             window.removeEventListener("keydown", handleKeyDown);
             canvas.removeEventListener("focus", handleCanvasFocus);
+            mapContainerRef.current?.removeEventListener("wheel", handleWheel, { capture: true });
             map.remove();
             mapRef.current = null;
         };
@@ -499,7 +523,7 @@ function Maps2D() {
             <div
                 ref={indicatorRef}
                 className={styles.indicator}
-                style={{ transform: `translate(-50%, -50%) rotate(${bearing}deg)` }}
+                style={{ transform: `translate(-50%, -50%) rotate(${trainBearing + cameraYaw}deg)` }}
             />
 
             {selected && (

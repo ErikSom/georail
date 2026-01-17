@@ -25,6 +25,10 @@ export const trainFrontLon = computed(() => trainFrontLonE7.value / 1e7);
 export const trainBackLat = computed(() => trainBackLatE7.value / 1e7);
 export const trainBackLon = computed(() => trainBackLonE7.value / 1e7);
 
+// Camera yaw relative to train (in degrees, 0 = looking along train direction)
+// Used by 2D map to rotate the map to match camera view
+export const cameraYawRelativeToTrain = signal(0);
+
 // Computed values for easy access to floating point lat/lon
 export const trainLat = computed(() => trainLatE7.value / 1e7);
 export const trainLon = computed(() => trainLonE7.value / 1e7);
