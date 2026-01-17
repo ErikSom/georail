@@ -5,6 +5,7 @@ import TrainControls from '../lib/controls/TrainControls';
 import type { RouteData } from '../lib/Georail';
 import Maps2D from './Maps2D';
 import Tiles3DAttribution, { type Tiles3DAttributionCredits } from './Tiles3DAttribution';
+import styles from './ThreeViewer.module.css';
 
 function ThreeViewer() {
     const mountRef = useRef<HTMLDivElement | null>(null);
@@ -37,8 +38,8 @@ function ThreeViewer() {
     console.log('Attribution:', attribution);
 
     return (
-        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-            <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
+        <div className={styles.container}>
+            <div ref={mountRef} className={styles.canvas} />
 
             {!showPicker && <TrainControls />}
             {!showPicker && <Maps2D />}
