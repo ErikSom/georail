@@ -3,11 +3,33 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { mapPosition, mapSize, mapSelected, initializeMapState } from '../store/maps';
+import { trainLat, trainLon, trainFrontLat, trainFrontLon, trainBackLat, trainBackLon, updateTick, trainLatE7 } from '../store/train';
 import styles from './Maps2D.module.css';
 
-const HOORN: [number, number] = [5.0597, 52.6424];
+const DEFAULT_CENTER: [number, number] = [0, 0]; // Will be updated when train position is available
 const MIN_SIZE = 100; // Container can go down to 100px
 const BASE_MAP_SIZE = 200; // The internal map renders at this size and scales
+
+/**
+ * Calculate bearing (in degrees) from point 1 to point 2 using lat/lon coordinates.
+ * Returns bearing in degrees where 0 = north, 90 = east, 180 = south, 270 = west.
+ */
+function calculateBearing(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const toRad = Math.PI / 180;
+    const toDeg = 180 / Math.PI;
+
+    const dLon = (lon2 - lon1) * toRad;
+    const lat1Rad = lat1 * toRad;
+    const lat2Rad = lat2 * toRad;
+
+    const x = Math.sin(dLon) * Math.cos(lat2Rad);
+    const y = Math.cos(lat1Rad) * Math.sin(lat2Rad) - Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
+
+    let bearing = Math.atan2(x, y) * toDeg + 90;
+    // Normalize to 0-360
+    if (bearing < 0) bearing += 360;
+    return bearing;
+}
 
 type ResizeCorner = 'tl' | 'tr' | 'bl' | 'br' | null;
 
@@ -25,6 +47,8 @@ function Maps2D() {
     const [size, setSize] = useState(200);
     const [selected, setSelected] = useState(false);
     const [ready, setReady] = useState(false);
+    const [bearing, setBearing] = useState(0);
+    const [mapLoaded, setMapLoaded] = useState(false);
 
     const dragState = useRef<{
         isDragging: boolean;
@@ -105,6 +129,64 @@ function Maps2D() {
             mapRef.current.resize();
         }
     }, [size]);
+
+    // Subscribe to train position and bearing updates
+    useEffect(() => {
+        if (!mapLoaded) return;
+
+        let initialCenterSet = false;
+
+        // Watch for when train coordinates first become valid
+        const unsubLatE7 = trainLatE7.subscribe((latE7) => {
+            if (!initialCenterSet && latE7 !== 0 && mapRef.current) {
+                const lat = trainLat.value;
+                const lon = trainLon.value;
+                mapRef.current.setCenter([lon, lat]);
+                // Calculate bearing from back to front of train
+                const newBearing = calculateBearing(
+                    trainBackLat.value, trainBackLon.value,
+                    trainFrontLat.value, trainFrontLon.value
+                );
+                setBearing(newBearing);
+                initialCenterSet = true;
+            }
+        });
+
+        // Check immediately in case coordinates are already valid
+        const initialLat = trainLat.value;
+        const initialLon = trainLon.value;
+        if ((initialLat !== 0 || initialLon !== 0) && mapRef.current) {
+            mapRef.current.setCenter([initialLon, initialLat]);
+            const newBearing = calculateBearing(
+                trainBackLat.value, trainBackLon.value,
+                trainFrontLat.value, trainFrontLon.value
+            );
+            setBearing(newBearing);
+            initialCenterSet = true;
+        }
+
+        // Continue updating on each tick
+        const unsubTick = updateTick.subscribe(() => {
+            const lat = trainLat.value;
+            const lon = trainLon.value;
+
+            if ((lat !== 0 || lon !== 0) && mapRef.current) {
+                mapRef.current.setCenter([lon, lat]);
+            }
+
+            // Calculate bearing from back to front of train
+            const newBearing = calculateBearing(
+                trainBackLat.value, trainBackLon.value,
+                trainFrontLat.value, trainFrontLon.value
+            );
+            setBearing(newBearing);
+        });
+
+        return () => {
+            unsubLatE7();
+            unsubTick();
+        };
+    }, [mapLoaded]);
 
     // Handle click outside to deselect
     useEffect(() => {
@@ -285,7 +367,7 @@ function Maps2D() {
         const map = new maplibregl.Map({
             style: "https://tiles.openfreemap.org/styles/liberty",
             container: mapContainerRef.current,
-            center: HOORN,
+            center: DEFAULT_CENTER,
             zoom: 18,
             minZoom: 10,
             maxZoom: 18,
@@ -372,6 +454,8 @@ function Maps2D() {
                     map.setLayoutProperty(layer.id, "visibility", "none");
                 }
             }
+
+            setMapLoaded(true);
         });
 
         return () => {
@@ -412,7 +496,11 @@ function Maps2D() {
                 }}
             />
 
-            <div ref={indicatorRef} className={styles.indicator}></div>
+            <div
+                ref={indicatorRef}
+                className={styles.indicator}
+                style={{ transform: `translate(-50%, -50%) rotate(${bearing}deg)` }}
+            />
 
             {selected && (
                 <>

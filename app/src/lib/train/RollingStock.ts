@@ -514,6 +514,14 @@ export class RollingStock {
         return {} as RollingStockConfig; // Placeholder, to be overridden in subclasses
     }
 
+    /**
+     * Get the rail positions for this rolling stock.
+     * These are the world positions of the bogies and center point on the track.
+     */
+    public getRailPositions() {
+        return this.railPositions;
+    }
+
     public createDebugUI(
         pane: Pane | FolderApi,
         config: TrainConfig,

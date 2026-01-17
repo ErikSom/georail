@@ -553,6 +553,13 @@ export class Train implements IPhysicsTarget {
         return this.physics.getVelocityKmh();
     }
 
+    /**
+     * Get the rail positions of the front cab for orientation calculation.
+     */
+    public getCabRailPositions() {
+        return this.cab.getRailPositions();
+    }
+
     public update(delta: number): void {
         // Update physics simulation (this will directly update distanceTraveled)
         this.physics.update(delta);

@@ -3,7 +3,6 @@ import {
     WebGLRenderer,
     PerspectiveCamera,
     Clock,
-    MathUtils,
     Vector3,
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -18,7 +17,7 @@ import { FlightControls } from './utils/FlightControls';
 import Path from './utils/Path';
 import { getTrainConfiguration, nssgmTrainType } from './train/configs/TrainConfigurations.secure';
 import { ThreePerf } from 'three-perf';
-import { trainInstance, updateTrainState, trainDebugMode } from '../store/train';
+import { trainInstance, updateTrainState, trainDebugMode, trainLatE7, trainLonE7, trainFrontLatE7, trainFrontLonE7, trainBackLatE7, trainBackLonE7 } from '../store/train';
 import { getPerformanceConfig, type PerformanceConfig } from './utils/PerformanceConfig';
 
 export class World {
@@ -312,17 +311,37 @@ export class World {
         this.renderer.render(this.scene, this.camera);
         this.perf.end();
 
-        // 7. Update UI - only if MapViewer is initialized
+        const trainCoords = this.mapViewer.getLatLonHeightFromWorldPosition(this.train.group.position);
+
+        // Store coordinates as integers (multiplied by 1e7 for precision)
+        if (trainCoords) {
+            trainLatE7.value = Math.round(trainCoords.lat * 1e7);
+            trainLonE7.value = Math.round(trainCoords.lon * 1e7);
+
+            // Get front and back positions of the cab for 2D map bearing calculation
+            const cabRailPositions = this.train.getCabRailPositions();
+            const frontCoords = this.mapViewer.getLatLonHeightFromWorldPosition(cabRailPositions.bogieFront);
+            const backCoords = this.mapViewer.getLatLonHeightFromWorldPosition(cabRailPositions.bogieRear);
+
+            if (frontCoords) {
+                trainFrontLatE7.value = Math.round(frontCoords.lat * 1e7);
+                trainFrontLonE7.value = Math.round(frontCoords.lon * 1e7);
+            }
+            if (backCoords) {
+                trainBackLatE7.value = Math.round(backCoords.lat * 1e7);
+                trainBackLonE7.value = Math.round(backCoords.lon * 1e7);
+            }
+        }
+        // 7. Update UI and store train coordinates - only if MapViewer is initialized
         if (this.mapViewer.initialized) {
             const cameraCredits = this.mapViewer.getCredits();
-            const trainCoords = this.mapViewer.getLatLonHeightFromWorldPosition(this.train.group.position);
 
             if (trainCoords) {
-                const trainLat = (trainCoords.lat * MathUtils.RAD2DEG).toFixed(5);
-                const trainLon = (trainCoords.lon * MathUtils.RAD2DEG).toFixed(5);
+                const trainLatStr = trainCoords.lat.toFixed(5);
+                const trainLonStr = trainCoords.lon.toFixed(5);
                 const trainHeight = trainCoords.height.toFixed(1);
 
-                const fullCredits = `${cameraCredits}\nTrain: ${trainLat}°, ${trainLon}° | Height: ${trainHeight}m`;
+                const fullCredits = `${cameraCredits}\nTrain: ${trainLatStr}°, ${trainLonStr}° | Height: ${trainHeight}m`;
 
                 this.setCreditsCallback(fullCredits);
             }
