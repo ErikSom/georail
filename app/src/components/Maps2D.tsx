@@ -27,6 +27,7 @@ function Maps2D() {
     const dragState = useRef<{
         isDragging: boolean;
         isResizing: ResizeCorner;
+        pointerId: number | null;
         startX: number;
         startY: number;
         startPosX: number;
@@ -35,6 +36,7 @@ function Maps2D() {
     }>({
         isDragging: false,
         isResizing: null,
+        pointerId: null,
         startX: 0,
         startY: 0,
         startPosX: 0,
@@ -89,19 +91,21 @@ function Maps2D() {
 
     // Handle click outside to deselect
     useEffect(() => {
-        const handleClickOutside = (e: MouseEvent) => {
+        const handlePointerDown = (e: PointerEvent) => {
             if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
                 mapSelected.value = false;
             }
         };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
+        document.addEventListener('pointerdown', handlePointerDown);
+        return () => document.removeEventListener('pointerdown', handlePointerDown);
     }, []);
 
-    // Handle drag and resize mouse events
+    // Handle drag and resize pointer events
     useEffect(() => {
-        const handleMouseMove = (e: MouseEvent) => {
+        const handlePointerMove = (e: PointerEvent) => {
             const state = dragState.current;
+            if (state.pointerId !== e.pointerId) return;
+
             if (state.isDragging) {
                 const dx = e.clientX - state.startX;
                 const dy = e.clientY - state.startY;
@@ -152,23 +156,28 @@ function Maps2D() {
             }
         };
 
-        const handleMouseUp = () => {
+        const handlePointerUp = (e: PointerEvent) => {
+            if (dragState.current.pointerId !== e.pointerId) return;
+
             dragState.current.isDragging = false;
             dragState.current.isResizing = null;
+            dragState.current.pointerId = null;
             if (mapRef.current) {
                 mapRef.current.resize();
             }
         };
 
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
+        document.addEventListener('pointermove', handlePointerMove);
+        document.addEventListener('pointerup', handlePointerUp);
+        document.addEventListener('pointercancel', handlePointerUp);
         return () => {
-            document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
+            document.removeEventListener('pointermove', handlePointerMove);
+            document.removeEventListener('pointerup', handlePointerUp);
+            document.removeEventListener('pointercancel', handlePointerUp);
         };
     }, [size]);
 
-    const handleContainerMouseDown = (e: MouseEvent) => {
+    const handleContainerPointerDown = (e: PointerEvent) => {
         const target = e.target as HTMLElement;
         // Check if clicking on a resize handle
         if (target.classList.contains(styles.resizeHandle) ||
@@ -180,10 +189,13 @@ function Maps2D() {
         }
 
         e.preventDefault();
+        e.stopPropagation();
+        containerRef.current?.setPointerCapture(e.pointerId);
         mapSelected.value = true;
         dragState.current = {
             isDragging: true,
             isResizing: null,
+            pointerId: e.pointerId,
             startX: e.clientX,
             startY: e.clientY,
             startPosX: position.x,
@@ -192,12 +204,14 @@ function Maps2D() {
         };
     };
 
-    const handleResizeMouseDown = (corner: ResizeCorner) => (e: MouseEvent) => {
+    const handleResizePointerDown = (corner: ResizeCorner) => (e: PointerEvent) => {
         e.preventDefault();
         e.stopPropagation();
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         dragState.current = {
             isDragging: false,
             isResizing: corner,
+            pointerId: e.pointerId,
             startX: e.clientX,
             startY: e.clientY,
             startPosX: position.x,
@@ -230,7 +244,6 @@ function Maps2D() {
         map.addControl(attribution, "bottom-right");
 
         // Disable native interactions
-        // map.boxZoom.disable();
         map.dragPan.disable();
         map.dragRotate.disable();
         map.keyboard.disable();
@@ -239,7 +252,6 @@ function Maps2D() {
 
         const canvas = map.getCanvas();
         const handleCanvasFocus = () => canvas.blur();
-        // canvas.addEventListener("focus", handleCanvasFocus);
 
         // Custom keyboard controls
         const step = 0.5;
@@ -334,7 +346,7 @@ function Maps2D() {
                 width: `${size}px`,
                 height: `${size}px`,
             }}
-            onMouseDown={handleContainerMouseDown}
+            onPointerDown={handleContainerPointerDown}
         >
             <div
                 ref={mapContainerRef}
@@ -349,10 +361,10 @@ function Maps2D() {
 
             {selected && (
                 <>
-                    <div className={`${styles.resizeHandle} ${styles.handleTL}`} onMouseDown={handleResizeMouseDown('tl')} />
-                    <div className={`${styles.resizeHandle} ${styles.handleTR}`} onMouseDown={handleResizeMouseDown('tr')} />
-                    <div className={`${styles.resizeHandle} ${styles.handleBL}`} onMouseDown={handleResizeMouseDown('bl')} />
-                    <div className={`${styles.resizeHandle} ${styles.handleBR}`} onMouseDown={handleResizeMouseDown('br')} />
+                    <div className={`${styles.resizeHandle} ${styles.handleTL}`} onPointerDown={handleResizePointerDown('tl')} />
+                    <div className={`${styles.resizeHandle} ${styles.handleTR}`} onPointerDown={handleResizePointerDown('tr')} />
+                    <div className={`${styles.resizeHandle} ${styles.handleBL}`} onPointerDown={handleResizePointerDown('bl')} />
+                    <div className={`${styles.resizeHandle} ${styles.handleBR}`} onPointerDown={handleResizePointerDown('br')} />
                 </>
             )}
         </div>

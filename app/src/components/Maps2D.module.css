@@ -5,6 +5,7 @@
         rgba(0, 0, 0, 0.3) 0px 3px 7px -3px;
     border-radius: 16px;
     cursor: grab;
+    touch-action: none;
 }
 
 .container:active {
@@ -17,83 +18,88 @@
     transform-origin: top left;
     border-radius: 16px;
     overflow: hidden;
+    pointer-events: auto;
 }
 
-/* Resize handles - rounded corner indicators */
+/* Resize handles - 44px hit area for mobile accessibility */
 .resizeHandle {
     position: absolute;
-    width: 24px;
-    height: 24px;
+    width: 44px;
+    height: 44px;
     pointer-events: auto;
     z-index: 10;
+    touch-action: none;
+    --handle-size: 16px;
+    --handle-offset: -28px;
+    --handle-radius: 18px;
 }
 
-/* Corner arcs using borders */
+/* Corner arcs using borders - visual indicator */
 .resizeHandle::before {
     content: '';
     position: absolute;
-    width: 14px;
-    height: 14px;
-    border: 3px solid #4a9eff;
+    width: var(--handle-size);
+    height: var(--handle-size);
+    border: 4px solid #4a9eff;
     background: transparent;
 }
 
 /* Corner: top-left */
 .handleTL {
-    top: -3px;
-    left: -3px;
+    top: var(--handle-offset);
+    left: var(--handle-offset);
     cursor: nwse-resize;
 }
 
 .handleTL::before {
-    top: 0;
-    left: 0;
+    bottom: 0px;
+    right: 0px;
     border-right: none;
     border-bottom: none;
-    border-top-left-radius: 16px;
+    border-top-left-radius: var(--handle-radius);
 }
 
 /* Corner: top-right */
 .handleTR {
-    top: -3px;
-    right: -3px;
+    top: var(--handle-offset);
+    right: var(--handle-offset);
     cursor: nesw-resize;
 }
 
 .handleTR::before {
-    top: 0;
-    right: 0;
+    bottom: 0px;
+    left: 0px;
     border-left: none;
     border-bottom: none;
-    border-top-right-radius: 16px;
+    border-top-right-radius: var(--handle-radius);
 }
 
 /* Corner: bottom-left */
 .handleBL {
-    bottom: -3px;
-    left: -3px;
+    bottom: var(--handle-offset);
+    left: var(--handle-offset);
     cursor: nesw-resize;
 }
 
 .handleBL::before {
-    bottom: 0;
-    left: 0;
+    top: 0px;
+    right: 0px;
     border-right: none;
     border-top: none;
-    border-bottom-left-radius: 16px;
+    border-bottom-left-radius: var(--handle-radius);
 }
 
 /* Corner: bottom-right */
 .handleBR {
-    bottom: -3px;
-    right: -3px;
+    bottom: var(--handle-offset);
+    right: var(--handle-offset);
     cursor: nwse-resize;
 }
 
 .handleBR::before {
-    bottom: 0;
-    right: 0;
+    top: 0px;
+    left: 0px;
     border-left: none;
     border-top: none;
-    border-bottom-right-radius: 16px;
+    border-bottom-right-radius: var(--handle-radius);
 }
