@@ -3,6 +3,7 @@ import { World } from '../lib/World';
 import TravelPicker from './TravelPicker';
 import TrainControls from '../lib/controls/TrainControls';
 import type { RouteData } from '../lib/Georail';
+import Maps2D from './Maps2D';
 
 function ThreeViewer() {
     const mountRef = useRef<HTMLDivElement | null>(null);
@@ -37,6 +38,7 @@ function ThreeViewer() {
             <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
 
             {!showPicker && <TrainControls />}
+            {!showPicker && <Maps2D />}
 
             <div style={{
                 position: 'absolute',

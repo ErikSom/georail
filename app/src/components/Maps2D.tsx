@@ -46,6 +46,9 @@ function Maps2D() {
         startSize: 0,
     });
 
+    // Track active pointers to detect multi-touch
+    const activePointers = useRef<Set<number>>(new Set());
+
     // Clamp position to keep container within screen bounds
     const clampPosition = (x: number, y: number, sz: number) => {
         if (typeof window === 'undefined') return { x, y };
@@ -116,9 +119,21 @@ function Maps2D() {
 
     // Handle drag and resize pointer events
     useEffect(() => {
+        const handlePointerDown = (e: PointerEvent) => {
+            activePointers.current.add(e.pointerId);
+            // Cancel drag/resize if a second finger touches
+            if (activePointers.current.size > 1) {
+                dragState.current.isDragging = false;
+                dragState.current.isResizing = null;
+                dragState.current.pointerId = null;
+            }
+        };
+
         const handlePointerMove = (e: PointerEvent) => {
             const state = dragState.current;
             if (state.pointerId !== e.pointerId) return;
+            // Ignore if multi-touch
+            if (activePointers.current.size > 1) return;
 
             if (state.isDragging) {
                 const dx = e.clientX - state.startX;
@@ -171,6 +186,8 @@ function Maps2D() {
         };
 
         const handlePointerUp = (e: PointerEvent) => {
+            activePointers.current.delete(e.pointerId);
+
             if (dragState.current.pointerId !== e.pointerId) return;
 
             dragState.current.isDragging = false;
@@ -181,10 +198,12 @@ function Maps2D() {
             }
         };
 
+        document.addEventListener('pointerdown', handlePointerDown);
         document.addEventListener('pointermove', handlePointerMove);
         document.addEventListener('pointerup', handlePointerUp);
         document.addEventListener('pointercancel', handlePointerUp);
         return () => {
+            document.removeEventListener('pointerdown', handlePointerDown);
             document.removeEventListener('pointermove', handlePointerMove);
             document.removeEventListener('pointerup', handlePointerUp);
             document.removeEventListener('pointercancel', handlePointerUp);
