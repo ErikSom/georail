@@ -116,4 +116,5 @@
     mask: url('icons/train-marker.svg') no-repeat center / contain;
     transform: translate(-50%, -50%);
     background-color: #007aff;
+    pointer-events: none;
 }

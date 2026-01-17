@@ -385,18 +385,11 @@ function Maps2D() {
             pitch: 0,
             bearing: 0,
             maxPitch: 0,
-            interactive: true,
+            interactive: false,
             attributionControl: false,
         });
 
         mapRef.current = map;
-
-        // Disable native interactions except pinch-to-zoom and scroll zoom
-        map.dragPan.disable();
-        map.dragRotate.disable();
-        map.keyboard.disable();
-        map.doubleClickZoom.disable();
-        map.touchZoomRotate.disableRotation();
 
         const canvas = map.getCanvas();
         const handleCanvasFocus = () => canvas.blur();
@@ -410,8 +403,48 @@ function Maps2D() {
             const newZoom = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), currentZoom + delta));
             map.setZoom(newZoom);
         };
-        // Use capture phase to intercept wheel events before they reach other handlers
         mapContainerRef.current!.addEventListener('wheel', handleWheel, { passive: false, capture: true });
+
+        // Custom pinch-to-zoom handler
+        let initialPinchDistance: number | null = null;
+        let initialZoom: number | null = null;
+
+        const getDistance = (touches: TouchList) => {
+            const dx = touches[0].clientX - touches[1].clientX;
+            const dy = touches[0].clientY - touches[1].clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        };
+
+        const handleTouchStart = (e: TouchEvent) => {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                initialPinchDistance = getDistance(e.touches);
+                initialZoom = map.getZoom();
+            }
+        };
+
+        const handleTouchMove = (e: TouchEvent) => {
+            if (e.touches.length === 2 && initialPinchDistance !== null && initialZoom !== null) {
+                e.preventDefault();
+                const currentDistance = getDistance(e.touches);
+                const scale = currentDistance / initialPinchDistance;
+                // Convert scale to zoom delta (log scale feels more natural)
+                const zoomDelta = Math.log2(scale);
+                const newZoom = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), initialZoom + zoomDelta));
+                map.setZoom(newZoom);
+            }
+        };
+
+        const handleTouchEnd = (e: TouchEvent) => {
+            if (e.touches.length < 2) {
+                initialPinchDistance = null;
+                initialZoom = null;
+            }
+        };
+
+        mapContainerRef.current!.addEventListener('touchstart', handleTouchStart, { passive: false });
+        mapContainerRef.current!.addEventListener('touchmove', handleTouchMove, { passive: false });
+        mapContainerRef.current!.addEventListener('touchend', handleTouchEnd);
 
         // Custom keyboard controls
         const step = 0.5;
@@ -467,6 +500,9 @@ function Maps2D() {
             window.removeEventListener("keydown", handleKeyDown);
             canvas.removeEventListener("focus", handleCanvasFocus);
             mapContainerRef.current?.removeEventListener("wheel", handleWheel, { capture: true });
+            mapContainerRef.current?.removeEventListener("touchstart", handleTouchStart);
+            mapContainerRef.current?.removeEventListener("touchmove", handleTouchMove);
+            mapContainerRef.current?.removeEventListener("touchend", handleTouchEnd);
             map.remove();
             mapRef.current = null;
         };
