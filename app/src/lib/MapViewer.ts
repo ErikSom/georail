@@ -22,6 +22,7 @@ import {
 } from 'three';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { type PerformanceConfig } from './utils/PerformanceConfig';
+import type { Tiles3DAttributionCredits } from '../components/Tiles3DAttribution';
 
 const getDracoDecoderPath = (): string => {
     return 'https://unpkg.com/three@0.180.0/examples/jsm/libs/draco/gltf/';
@@ -286,9 +287,9 @@ export class MapViewer {
         this.tiles.update();
     }
 
-    public getCredits(): string {
+    public getCredits(): Tiles3DAttributionCredits {
         if (!this.tiles || !this.camera) {
-            return '';
+            return null;
         }
 
         this.tempMatrix.copy(this.tiles.group.matrixWorld).invert();
@@ -304,6 +305,6 @@ export class MapViewer {
         // @ts-ignore - GeoUtils types might be outdated or incorrect
         const latLonStr = GeoUtils.toLatLonString(this.tempCartographic.lat, this.tempCartographic.lon, true);
 
-        return `${latLonStr}\n${attributions}`;
+        return { latLonStr, source: attributions };
     }
 }

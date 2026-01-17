@@ -4,11 +4,12 @@ import TravelPicker from './TravelPicker';
 import TrainControls from '../lib/controls/TrainControls';
 import type { RouteData } from '../lib/Georail';
 import Maps2D from './Maps2D';
+import Tiles3DAttribution, { type Tiles3DAttributionCredits } from './Tiles3DAttribution';
 
 function ThreeViewer() {
     const mountRef = useRef<HTMLDivElement | null>(null);
     const worldRef = useRef<World | null>(null);
-    const [credits, setCredits] = useState<string>('');
+    const [attribution, setAttribution] = useState<Tiles3DAttributionCredits>(null);
     const [showPicker, setShowPicker] = useState(true);
     const [routeData, setRouteData] = useState<RouteData | null>(null);
 
@@ -18,7 +19,7 @@ function ThreeViewer() {
             return;
         }
 
-        worldRef.current = new World(mountRef.current, setCredits, routeData);
+        worldRef.current = new World(mountRef.current, setAttribution, routeData);
         worldRef.current.init();
 
         // Cleanup function
@@ -33,6 +34,8 @@ function ThreeViewer() {
         setShowPicker(false);
     };
 
+    console.log('Attribution:', attribution);
+
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
             <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
@@ -40,20 +43,7 @@ function ThreeViewer() {
             {!showPicker && <TrainControls />}
             {!showPicker && <Maps2D />}
 
-            <div style={{
-                position: 'absolute',
-                bottom: '10px',
-                left: '10px',
-                color: 'white',
-                fontSize: '12px',
-                fontFamily: 'sans-serif',
-                textShadow: '1px 1px 2px black',
-                whiteSpace: 'pre-wrap',
-                zIndex: 10,
-                maxWidth: 'calc(100% - 20px)',
-            }}>
-                {credits}
-            </div>
+            <Tiles3DAttribution attribution={attribution} />
 
             {showPicker && <TravelPicker onRouteSelected={handleRouteSelected} />}
         </div>

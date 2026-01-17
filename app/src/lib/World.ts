@@ -20,6 +20,7 @@ import { getTrainConfiguration, nssgmTrainType } from './train/configs/TrainConf
 import { ThreePerf } from 'three-perf';
 import { trainInstance, updateTrainState, trainDebugMode, trainLatE7, trainLonE7, trainFrontLatE7, trainFrontLonE7, trainBackLatE7, trainBackLonE7, cameraYawRelativeToTrain } from '../store/train';
 import { getPerformanceConfig, type PerformanceConfig } from './utils/PerformanceConfig';
+import type { Tiles3DAttributionCredits } from '../components/Tiles3DAttribution';
 
 export class World {
     private scene!: Scene;
@@ -38,12 +39,12 @@ export class World {
 
     private rafId: number | null = null;
     private mountElement: HTMLDivElement;
-    private setCreditsCallback: (credits: string) => void;
+    private setCreditsCallback: (credits: Tiles3DAttributionCredits) => void;
     private routeData: RouteData | null = null;
     private freeFlyCameraMode: boolean = false;
 
 
-    constructor(mountElement: HTMLDivElement, setCreditsCallback: (credits: string) => void, routeData?: RouteData) {
+    constructor(mountElement: HTMLDivElement, setCreditsCallback: (credits: Tiles3DAttributionCredits) => void, routeData?: RouteData) {
         this.mountElement = mountElement;
         this.setCreditsCallback = setCreditsCallback;
         this.routeData = routeData || null;
@@ -354,19 +355,11 @@ export class World {
         }
         // 7. Update UI and store train coordinates - only if MapViewer is initialized
         if (this.mapViewer.initialized) {
-            const cameraCredits = this.mapViewer.getCredits();
-
             if (trainCoords) {
-                const trainLatStr = trainCoords.lat.toFixed(5);
-                const trainLonStr = trainCoords.lon.toFixed(5);
-                const trainHeight = trainCoords.height.toFixed(1);
-
-                const fullCredits = `${cameraCredits}\nTrain: ${trainLatStr}°, ${trainLonStr}° | Height: ${trainHeight}m`;
-
-                this.setCreditsCallback(fullCredits);
+                const attribution = this.mapViewer.getCredits();
+                console.log('Attribution from MapViewer:', attribution);
+                this.setCreditsCallback(attribution);
             }
-        } else {
-            this.setCreditsCallback('Loading route...');
         }
     }
 }
