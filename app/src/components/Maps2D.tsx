@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState } from 'preact/hooks';
+import type { CSSProperties } from 'preact';
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
@@ -389,6 +390,9 @@ function Maps2D() {
             attributionControl: false,
         });
 
+        // const nav = new maplibregl.NavigationControl({ showCompass: true, showZoom: false });
+        // map.addControl(nav, 'top-right');
+
         mapRef.current = map;
 
         const canvas = map.getCanvas();
@@ -543,6 +547,13 @@ function Maps2D() {
                 className={styles.indicator}
                 style={{ transform: `translate(-50%, -50%) rotate(${trainBearing + cameraYaw}deg)` }}
             />
+
+
+            <div className={styles.compass}
+                style={{ '--rotation': `${-cameraYaw}deg` } as CSSProperties}
+            >
+                <div className={styles.compassNeedle}></div>
+            </div>
 
             {selected && (
                 <>

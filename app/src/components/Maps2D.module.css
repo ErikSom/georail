@@ -118,3 +118,46 @@
     background-color: #007aff;
     pointer-events: none;
 }
+
+.compass {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    z-index: 10;
+    transform-origin: center;
+    transform: scale(0.8) rotate(calc(var(--rotation) * -1));
+    width: 28px;
+    height: 28px;
+    background-color: rgba(255, 255, 255, 0.85);
+    border-radius: 50%;
+    border: 1px solid #d0d0d0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    pointer-events: none;
+}
+
+/* The Red Arrow (Needle) */
+.compassNeedle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-left: 3px solid transparent;
+    border-right: 3px solid transparent;
+    border-bottom: 10px solid #FF3B30;
+    transform: translate(-50%, -100%);
+    z-index: 1;
+
+    &::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        border-left: 3px solid transparent;
+        border-right: 3px solid transparent;
+        border-top: 10px solid #CCC;
+        transform: translate(-50%, 100%);
+    }
+}
