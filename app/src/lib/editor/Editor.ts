@@ -14,6 +14,7 @@ import { RouteEditor } from './RouteEditor';
 import { fetchRouteByName, type RouteData } from '../Georail';
 import type { RouteInfo } from '../types/Patch';
 import { Sky } from '../Sky';
+import type { Tiles3DAttributionCredits } from '../../components/Tiles3DAttribution';
 
 export class Editor {
     private scene!: Scene;
@@ -29,14 +30,14 @@ export class Editor {
 
     private rafId: number | null = null;
     private mountElement: HTMLDivElement;
-    private setCreditsCallback: (credits: string) => void;
+    private setCreditsCallback: (credits: Tiles3DAttributionCredits) => void;
 
     // Callbacks for patch editing
     public onNodeSelected: ((nodeData: any) => void) | null = null;
     public onNodesModified: ((count: number) => void) | null = null;
     public onNodeIndexChanged: ((currentIndex: number, totalNodes: number) => void) | null = null;
 
-    constructor(mountElement: HTMLDivElement, setCreditsCallback: (credits: string) => void) {
+    constructor(mountElement: HTMLDivElement, setCreditsCallback: (credits: Tiles3DAttributionCredits) => void) {
         this.mountElement = mountElement;
         this.setCreditsCallback = setCreditsCallback;
 
@@ -317,7 +318,11 @@ export class Editor {
         if (this.mapViewer.initialized) {
             this.setCreditsCallback(this.mapViewer.getCredits());
         } else {
-            this.setCreditsCallback('Select or create a patch to begin editing');
+            const message = 'Select or create a patch to begin editing';
+            this.setCreditsCallback({
+                latLonStr: '',
+                source: message,
+            });
         }
 
         Input.update();

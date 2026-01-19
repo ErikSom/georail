@@ -25,6 +25,7 @@ export class TrainPhysics {
     private totalMass: number = 0; // kg
     private totalEnginePower: number = 0; // kW
     private totalBrakingForce: number = 0; // kN (force, not power)
+    private voltage: number = 0; // Volts
 
     private velocity: number = 0; // m/s
     private powerSetting: number = 0; // -1..1
@@ -59,6 +60,7 @@ export class TrainPhysics {
         if (config.cab.engine) {
             this.totalEnginePower += config.cab.enginePower;
             this.totalBrakingForce += config.cab.brakingPower;
+            this.voltage = Math.max(this.voltage, config.cab.voltage);
         }
 
         config.wagons.forEach(wagon => {
@@ -66,6 +68,7 @@ export class TrainPhysics {
             if (wagon.engine) {
                 this.totalEnginePower += wagon.enginePower;
                 this.totalBrakingForce += wagon.brakingPower;
+                this.voltage = Math.max(this.voltage, wagon.voltage);
             }
         });
 
@@ -74,8 +77,36 @@ export class TrainPhysics {
             if (config.rearCab.engine) {
                 this.totalEnginePower += config.rearCab.enginePower;
                 this.totalBrakingForce += config.rearCab.brakingPower;
+                this.voltage = Math.max(this.voltage, config.rearCab.voltage);
             }
         }
+    }
+
+    public getMaxTractiveEffort(): number {
+        return this.ADHESION_COEFF * this.totalMass * this.GRAVITY;
+    }
+
+    public getNormalizedTraction(): number {
+        const currentForce = Math.abs(this.calculateEngineForce());
+        const maxForce = this.getMaxTractiveEffort();
+
+        if (maxForce === 0) return 0; // Prevent divide by zero
+
+        // Clamp simply for safety, though physics shouldn't exceed maxForce
+        return Math.min(1, Math.max(0, currentForce / maxForce));
+    }
+
+    public getMaxRatedAmps(): number {
+        if (this.totalEnginePower === 0) return 0;
+
+        // Convert kW to Watts, then divide by Voltage
+        // I = P / V
+        return (this.totalEnginePower * 1000) / this.voltage;
+    }
+
+    public getCurrentAmps(): number {
+        const loadFactor = this.getNormalizedTraction();
+        return loadFactor * this.getMaxRatedAmps();
     }
 
     public setPower(value: number): void {
@@ -135,7 +166,7 @@ export class TrainPhysics {
         let force = powerWatts / speedForCalculation;
 
         // Adhesion (tractive effort) limit: clamps unrealistic low-speed acceleration
-        const maxTractiveEffort = this.ADHESION_COEFF * this.totalMass * this.GRAVITY; // N
+        const maxTractiveEffort = this.getMaxTractiveEffort();
         force = Math.max(-maxTractiveEffort, Math.min(maxTractiveEffort, force));
 
         return force;

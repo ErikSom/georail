@@ -349,6 +349,7 @@ export class Train implements IPhysicsTarget {
             engine: false,
             enginePower: 0.0,
             brakingPower: 0.0,
+            voltage: 0.0,
             animationGroups: [],
         };
 
