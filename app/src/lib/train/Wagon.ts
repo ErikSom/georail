@@ -34,6 +34,8 @@ export class Wagon extends RollingStock {
             pane,
             config,
             updateConfig,
+            onDelete,
+            onDuplicate,
             registerFolder,
             folderPath,
             getFolderExpanded

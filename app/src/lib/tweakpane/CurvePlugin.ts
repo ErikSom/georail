@@ -1629,7 +1629,7 @@ export const CurveBladePlugin: BladePlugin<CurveBladeParams> = createPlugin({
         return new LabeledValueBladeController(args.document, {
             blade: args.blade,
             props: ValueMap.fromObject({
-                label: args.params.label ?? undefined,
+                label: args.params.label as string | null | undefined,
             }),
             value,
             valueController: vc,

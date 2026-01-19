@@ -594,7 +594,7 @@ export const AudioUploadBladePlugin: BladePlugin<AudioUploadBladeParams> = creat
         return new LabeledValueBladeController(args.document, {
             blade: args.blade,
             props: ValueMap.fromObject({
-                label: args.params.label,
+                label: args.params.label as string | null | undefined,
             }),
             value,
             valueController: vc,

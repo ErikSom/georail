@@ -526,6 +526,8 @@ export class RollingStock {
         pane: Pane | FolderApi,
         config: TrainConfig,
         updateConfig: (config: TrainConfig) => void,
+        _onDelete: (() => void) | null,
+        _onDuplicate: (() => void) | null,
         registerFolder: (folder: FolderApi, key: string) => void,
         folderPath: string[],
         getFolderExpanded: (key: string, fallback: boolean) => boolean
@@ -652,6 +654,13 @@ export class RollingStock {
             min: 0,
             max: 500,
             step: 1
+        }).on('change', () => updateConfig(config));
+
+        engFolder.addBinding(targetConfig, 'voltage', {
+            label: 'Voltage (V)',
+            min: 0,
+            max: 25000, // Common values: 750V DC, 1500V DC, 3000V DC, 15kV AC, 25kV AC
+            step: 50
         }).on('change', () => updateConfig(config));
 
         // --- 4. Visuals & Model Loading ---

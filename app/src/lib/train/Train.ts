@@ -209,7 +209,7 @@ export class Train implements IPhysicsTarget {
         // Cab
         this.cab.createDebugUI(physical, this.config, (updatedConfig: TrainConfig) => {
             this.updateConfig(updatedConfig);
-        }, this.registerFolder.bind(this), [...rootPath, 'Visual & Physics'], this.getFolderExpanded.bind(this));
+        }, null, null, this.registerFolder.bind(this), [...rootPath, 'Visual & Physics'], this.getFolderExpanded.bind(this));
 
         // Wagons folder
         const wagonsKey = getFolderKey([...rootPath, 'Visual & Physics', 'Wagons']);
@@ -244,7 +244,7 @@ export class Train implements IPhysicsTarget {
         if (this.rearCab && this.config.rearCab) {
             this.rearCab.createDebugUI(physical, this.config, (updatedConfig: TrainConfig) => {
                 this.updateConfig(updatedConfig);
-            }, this.registerFolder.bind(this), [...rootPath, 'Visual & Physics'], this.getFolderExpanded.bind(this));
+            }, null, null, this.registerFolder.bind(this), [...rootPath, 'Visual & Physics'], this.getFolderExpanded.bind(this));
         }
 
         // Add/Remove Rear Cab button

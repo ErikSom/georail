@@ -3,13 +3,14 @@ import { Editor } from '../lib/editor/Editor';
 import PatchManagement from './PatchManagement';
 import ReviewModal from './ReviewModal';
 import type { RouteInfo } from '../lib/types/Patch';
+import type { Tiles3DAttributionCredits } from './Tiles3DAttribution';
 
 import styles from './EditorViewer.module.css';
 
 function EditorViewer() {
     const mountRef = useRef<HTMLDivElement | null>(null);
     const editorRef = useRef<Editor | null>(null);
-    const [credits, setCredits] = useState<string>('');
+    const [credits, setCredits] = useState<Tiles3DAttributionCredits>(null);
     const [showPatchManagement, setShowPatchManagement] = useState(true);
     const [activePatchId, setActivePatchId] = useState<number | null>(null);
     const [selectedNodeData, setSelectedNodeData] = useState<any>(null);
