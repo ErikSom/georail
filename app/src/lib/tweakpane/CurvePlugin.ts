@@ -29,14 +29,15 @@ type PartialAxes = { x?: PartialAxis; y?: PartialAxis };
 type PartialGrid = { x?: number; y?: number };
 
 export type VerticalAxisType = 'Volume' | 'Pitch';
-export type HorizontalAxisType = 'Throttle Power' | 'Velocity (m/s)' | 'Brake Power';
+export type HorizontalAxisType = 'Throttle Power' | 'Velocity (km/h)' | 'Brake Power' | 'Tractive Effort';
 
 const AXIS_DEFAULTS: Record<VerticalAxisType | HorizontalAxisType, { min: number; max: number }> = {
     'Volume': { min: 0, max: 1 },
     'Pitch': { min: 0.5, max: 2 },
     'Throttle Power': { min: 0, max: 1 },
-    'Velocity (m/s)': { min: 0, max: 30 },
+    'Velocity (km/h)': { min: 0, max: 100 },
     'Brake Power': { min: 0, max: 1 },
+    'Tractive Effort': { min: 0, max: 1 },
 };
 
 export interface CurveBladeParams extends BaseBladeParams {
@@ -830,7 +831,7 @@ class CurveController implements ValueController<CurvePoint[], CurveView> {
         panel.appendChild(controls);
 
         const yAxisTypeSelect = this.createAxisTypeSelect(doc, controls, 'Target (Y)', ['Volume', 'Pitch']);
-        const xAxisTypeSelect = this.createAxisTypeSelect(doc, controls, 'Input (X)', ['Throttle Power', 'Velocity (m/s)', 'Brake Power']);
+        const xAxisTypeSelect = this.createAxisTypeSelect(doc, controls, 'Input (X)', ['Throttle Power', 'Velocity (km/h)', 'Brake Power', 'Tractive Effort']);
 
         const yMinInput = this.createNumberField(doc, controls, 'Y Min', '0.01');
         const yMaxInput = this.createNumberField(doc, controls, 'Y Max', '0.01');

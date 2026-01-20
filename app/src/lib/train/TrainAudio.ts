@@ -8,7 +8,7 @@ import {
 import { getFolderKey } from './TrainUiUtils';
 import type { AudioConfig, AudioSound, AudioCurve } from './TrainConfig';
 import { AudioLoader, PositionalAudio, Group } from 'three';
-import { trainPower, trainVelocityKmh } from '../../store/train';
+import { trainPower, trainVelocityKmh, trainTractiveEffort } from '../../store/train';
 import { audioListener } from '../../store/globals';
 import { loadEncryptedAsset, getProtectedAssetPath, blobString } from '../utils/Security.secure';
 import { trainAssetsPath } from './configs/TrainConfigurations.secure';
@@ -37,8 +37,9 @@ interface AudioInstance {
  */
 interface TrainState {
     throttlePower: number;  // 0-1
-    velocity: number;       // m/s
+    velocityKmh: number;    // km/h
     brakePower: number;     // 0-1
+    tractiveEffort: number; // 0-1 (normalized)
 }
 
 /**
@@ -528,7 +529,6 @@ export class TrainAudio {
     private getTrainState(): TrainState {
         const power = trainPower.value;
         const velocityKmh = trainVelocityKmh.value;
-        const velocity = Math.abs(velocityKmh / 3.6); // Convert km/h to m/s
 
         // Calculate brake power: when power is opposite to velocity direction, or when coasting
         let brakePower = 0;
@@ -544,8 +544,9 @@ export class TrainAudio {
 
         const state = {
             throttlePower: Math.abs(power),
-            velocity: velocity,
-            brakePower: brakePower
+            velocityKmh: Math.abs(velocityKmh),
+            brakePower: brakePower,
+            tractiveEffort: trainTractiveEffort.value
         };
 
         return state;
@@ -618,10 +619,12 @@ export class TrainAudio {
         switch (axisLabel) {
             case 'Throttle Power':
                 return trainState.throttlePower;
-            case 'Velocity (m/s)':
-                return trainState.velocity;
+            case 'Velocity (km/h)':
+                return trainState.velocityKmh;
             case 'Brake Power':
                 return trainState.brakePower;
+            case 'Tractive Effort':
+                return trainState.tractiveEffort;
             default:
                 console.warn(`TrainAudio: Unknown input axis "${axisLabel}"`);
                 return null;

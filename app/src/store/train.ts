@@ -4,6 +4,7 @@ import type { Train } from "../lib/train/Train";
 // Train state signals
 export const trainPower = signal(0); // -1 to 1
 export const trainVelocityKmh = signal(0);
+export const trainTractiveEffort = signal(0); // 0 to 1 (normalized)
 export const trainInstance = signal<Train | null>(null);
 export const trainDebugMode = signal(false); // Enable debug visualization
 
@@ -61,6 +62,7 @@ export function updateTrainState() {
     const train = trainInstance.value;
     if (train) {
         trainVelocityKmh.value = train.getVelocityKmh();
+        trainTractiveEffort.value = train.getNormalizedTractiveEffort();
     }
 
     // Calculate delta time

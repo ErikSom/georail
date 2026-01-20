@@ -44,6 +44,7 @@
         "engine": true,
         "enginePower": 1320,
         "brakingPower": 88,
+        "voltage": 1500,
         "animationGroups": [
             {
                 "name": "doors",
@@ -111,6 +112,7 @@
             "engine": false,
             "enginePower": 0,
             "brakingPower": 0,
+            "voltage": 0,
             "animationGroups": [
                 {
                     "name": "doors",
@@ -169,6 +171,7 @@
         "engine": false,
         "enginePower": 0,
         "brakingPower": 0,
+        "voltage": 0,
         "animationGroups": [
             {
                 "name": "doors",
@@ -193,24 +196,24 @@
     "audio": {
         "files": [
             {
-                "name": "electric.mp3",
-                "url": "train/NS-SGM/electric.mp3"
+                "name": "NS SGM high speed motor throb.wav",
+                "url": "train/NS-SGM/NS SGM high speed motor throb.wav"
             },
             {
-                "name": "buzz.mp3",
-                "url": "train/NS-SGM/buzz.mp3"
+                "name": "NS SGM electrical current.wav",
+                "url": "train/NS-SGM/NS SGM electrical current.wav"
             },
             {
-                "name": "train-track.mp3",
-                "url": "train/NS-SGM/train-track.mp3"
+                "name": "NS SGM motornoise version 2.wav",
+                "url": "train/NS-SGM/NS SGM motornoise version 2.wav"
             }
         ],
         "compositions": [
             {
-                "title": "engine",
+                "title": "Engine",
                 "sounds": [
                     {
-                        "file": "electric.mp3",
+                        "file": "NS SGM high speed motor throb.wav",
                         "curves": [
                             {
                                 "points": [
@@ -219,15 +222,19 @@
                                         "y": 0
                                     },
                                     {
-                                        "x": 1,
+                                        "x": 50,
+                                        "y": 0
+                                    },
+                                    {
+                                        "x": 90,
                                         "y": 1
                                     }
                                 ],
                                 "axis": {
                                     "x": {
                                         "min": 0,
-                                        "max": 1,
-                                        "label": "Throttle Power"
+                                        "max": 100,
+                                        "label": "Velocity (km/h)"
                                     },
                                     "y": {
                                         "min": 0,
@@ -240,18 +247,140 @@
                                 "points": [
                                     {
                                         "x": 0,
-                                        "y": 1
+                                        "y": 0.8
                                     },
                                     {
-                                        "x": 29.76895509133965,
-                                        "y": 0
+                                        "x": 50,
+                                        "y": 0.8
+                                    },
+                                    {
+                                        "x": 90,
+                                        "y": 1.05
                                     }
                                 ],
                                 "axis": {
                                     "x": {
                                         "min": 0,
-                                        "max": 30,
-                                        "label": "Velocity (m/s)"
+                                        "max": 100,
+                                        "label": "Velocity (km/h)"
+                                    },
+                                    "y": {
+                                        "min": 0.5,
+                                        "max": 2,
+                                        "label": "Pitch"
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "file": "NS SGM motornoise version 2.wav",
+                        "curves": [
+                            {
+                                "points": [
+                                    {
+                                        "x": 2,
+                                        "y": 0
+                                    },
+                                    {
+                                        "x": 25,
+                                        "y": 1
+                                    },
+                                    {
+                                        "x": 72,
+                                        "y": 1
+                                    },
+                                    {
+                                        "x": 110,
+                                        "y": 0.3
+                                    }
+                                ],
+                                "axis": {
+                                    "x": {
+                                        "min": 0,
+                                        "max": 110,
+                                        "label": "Velocity (km/h)"
+                                    },
+                                    "y": {
+                                        "min": 0,
+                                        "max": 1,
+                                        "label": "Volume"
+                                    }
+                                }
+                            },
+                            {
+                                "points": [
+                                    {
+                                        "x": 50,
+                                        "y": 0.8
+                                    },
+                                    {
+                                        "x": 90,
+                                        "y": 1
+                                    }
+                                ],
+                                "axis": {
+                                    "x": {
+                                        "min": 0,
+                                        "max": 100,
+                                        "label": "Velocity (km/h)"
+                                    },
+                                    "y": {
+                                        "min": 0.5,
+                                        "max": 2,
+                                        "label": "Pitch"
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "file": "NS SGM electrical current.wav",
+                        "curves": [
+                            {
+                                "points": [
+                                    {
+                                        "x": 0.53,
+                                        "y": 0.35
+                                    },
+                                    {
+                                        "x": 1,
+                                        "y": 1
+                                    }
+                                ],
+                                "axis": {
+                                    "x": {
+                                        "min": 0,
+                                        "max": 1,
+                                        "label": "Tractive Effort"
+                                    },
+                                    "y": {
+                                        "min": 0,
+                                        "max": 1,
+                                        "label": "Volume"
+                                    }
+                                }
+                            },
+                            {
+                                "points": [
+                                    {
+                                        "x": 0,
+                                        "y": 0
+                                    },
+                                    {
+                                        "x": 4,
+                                        "y": 1
+                                    },
+                                    {
+                                        "x": 50,
+                                        "y": 0.7
+                                    }
+                                ],
+                                "axis": {
+                                    "x": {
+                                        "min": 0,
+                                        "max": 100,
+                                        "label": "Velocity (km/h)"
                                     },
                                     "y": {
                                         "min": 0,

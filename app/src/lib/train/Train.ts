@@ -555,6 +555,13 @@ export class Train implements IPhysicsTarget {
     }
 
     /**
+     * Get normalized tractive effort (0-1 range)
+     */
+    public getNormalizedTractiveEffort(): number {
+        return this.physics.getNormalizedTraction();
+    }
+
+    /**
      * Get the rail positions of the front cab for orientation calculation.
      */
     public getCabRailPositions() {

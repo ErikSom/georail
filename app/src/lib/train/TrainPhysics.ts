@@ -96,6 +96,13 @@ export class TrainPhysics {
         return Math.min(1, Math.max(0, currentForce / maxForce));
     }
 
+    /**
+     * Get current tractive effort in Newtons (absolute value)
+     */
+    public getTractiveEffort(): number {
+        return Math.abs(this.calculateEngineForce());
+    }
+
     public getMaxRatedAmps(): number {
         if (this.totalEnginePower === 0) return 0;
 
