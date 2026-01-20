@@ -44,7 +44,6 @@
         "engine": true,
         "enginePower": 1320,
         "brakingPower": 88,
-        "voltage": 1500,
         "animationGroups": [
             {
                 "name": "doors",
@@ -112,7 +111,6 @@
             "engine": false,
             "enginePower": 0,
             "brakingPower": 0,
-            "voltage": 0,
             "animationGroups": [
                 {
                     "name": "doors",
@@ -171,7 +169,6 @@
         "engine": false,
         "enginePower": 0,
         "brakingPower": 0,
-        "voltage": 0,
         "animationGroups": [
             {
                 "name": "doors",

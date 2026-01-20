@@ -68,7 +68,6 @@ export interface RollingStockConfig {
     engine: boolean;
     enginePower: number; // in kW
     brakingPower: number; // in kN
-    voltage: number; // in Volts
 
     // Animation groups
     animationGroups: AnimationGroupConfig[];
@@ -124,7 +123,6 @@ export function getDefaultTrainConfig(): TrainConfig {
             engine: false,
             enginePower: 0.0,
             brakingPower: 0.0,
-            voltage: 0.0,
             animationGroups: [],
         },
         wagons: [],
