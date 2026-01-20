@@ -8,9 +8,12 @@ const MAX_WALK = 5;
 const SEG_LINEAR = 0;
 const SEG_CURVE = 1;
 
-// 30 degrees: If angle is sharper than this, we treat it as a curve.
 const CURVE_ANGLE_THRESHOLD = MathUtils.degToRad(10);
 const COS_CURVE_THRESHOLD = Math.cos(CURVE_ANGLE_THRESHOLD);
+
+// Samples per curve. 
+// A size of 20 means 21 entries (0..20) in the array.
+const LUT_STEPS = 20;
 
 export default class Path {
     public points: Vector3[];
@@ -19,9 +22,13 @@ export default class Path {
     private segPointIndices!: Int32Array;
     private segTypes!: Uint8Array;
 
-    // NEW: We store the calculated "pushed" control points here (x,y,z per segment)
-    // This allows the curve to pass THROUGH the vertex.
-    private curveControlPoints!: Float32Array;
+    // Maps logical segment index -> index in the giant curveLUT array.
+    // Stores -1 for linear segments.
+    private segLUTOffsets!: Int32Array;
+
+    // FLATTENED ARRAYS for cache locality
+    private curveControlPoints!: Float32Array; // Stride: 3 (x, y, z)
+    private curveLUT!: Float32Array;           // Stride: LUT_STEPS + 1
 
     private cumulativeLengths!: Float64Array;
     private invSegmentLengths!: Float64Array;
@@ -29,7 +36,6 @@ export default class Path {
     private logicalCount = 0;
 
     private looping = false;
-
     private startDir = new Vector3(1, 0, 0);
     private endDir = new Vector3(1, 0, 0);
 
@@ -38,12 +44,10 @@ export default class Path {
 
     constructor(points: Vector3[]) {
         this.points = points;
-
         const loopingEpsilon = 1e-5;
         if (points.length > 2 && points[0].distanceToSquared(points[points.length - 1]) < loopingEpsilon) {
             this.looping = true;
         }
-
         this.precompute();
     }
 
@@ -54,10 +58,9 @@ export default class Path {
             return;
         }
 
-        // 1. Calculate raw directions
+        // 1. Analyze directions to detect curves
         const rawDirs: Vector3[] = [];
         const rawLengths: number[] = [];
-
         for (let i = 0; i < n - 1; i++) {
             const v = new Vector3().subVectors(this.points[i + 1], this.points[i]);
             const len = v.length();
@@ -66,70 +69,85 @@ export default class Path {
             rawDirs.push(v);
         }
 
-        // 2. Build Logical Segments
-        const maxSegs = n - 1;
+        // 2. Count Logical Segments & Curves (Pass 1)
+        // We do this to allocate the exact amount of memory needed for the arrays
+        let tempLogicalCount = 0;
+        let tempCurveCount = 0;
+        let k = 0;
+        while (k < n - 1) {
+            let isCurve = false;
+            if (k < n - 2) {
+                if (rawDirs[k].dot(rawDirs[k + 1]) < COS_CURVE_THRESHOLD) isCurve = true;
+            }
+            tempLogicalCount++;
+            if (isCurve) {
+                tempCurveCount++;
+                k += 2;
+            } else {
+                k += 1;
+            }
+        }
+
+        // 3. Allocate Memory
+        const maxSegs = tempLogicalCount;
         this.segPointIndices = new Int32Array(maxSegs);
         this.segTypes = new Uint8Array(maxSegs);
+        this.segLUTOffsets = new Int32Array(maxSegs);
         this.cumulativeLengths = new Float64Array(maxSegs + 1);
         this.invSegmentLengths = new Float64Array(maxSegs);
 
-        // Store X,Y,Z for every logical segment (only used if type is curve)
+        // Optimize: Only allocate space for actual curves
+        // If we didn't use flattened arrays, we'd have thousands of small objects
         this.curveControlPoints = new Float32Array(maxSegs * 3);
+        this.curveLUT = new Float32Array(tempCurveCount * (LUT_STEPS + 1));
 
+        // 4. Fill Data (Pass 2)
         let logicalIdx = 0;
+        let curveFillIdx = 0; // Index in the Float32Array
         let totalLen = 0;
         this.cumulativeLengths[0] = 0;
 
         let i = 0;
         while (i < n - 1) {
             let isCurve = false;
-
-            // Check neighbors to decide if we curve
             if (i < n - 2) {
-                const dir1 = rawDirs[i];
-                const dir2 = rawDirs[i + 1];
-                if (dir1.dot(dir2) < COS_CURVE_THRESHOLD) {
-                    isCurve = true;
-                }
+                if (rawDirs[i].dot(rawDirs[i + 1]) < COS_CURVE_THRESHOLD) isCurve = true;
             }
 
             this.segPointIndices[logicalIdx] = i;
             let segLen = 0;
 
             if (isCurve) {
-                // CURVE MODE
                 this.segTypes[logicalIdx] = SEG_CURVE;
+                this.segLUTOffsets[logicalIdx] = curveFillIdx; // Store pointer to giant array
 
-                const p0 = this.points[i];     // Start
-                const pVertex = this.points[i + 1]; // The Corner (Target)
-                const p2 = this.points[i + 2];   // End
+                const p0 = this.points[i];
+                const pVertex = this.points[i + 1];
+                const p2 = this.points[i + 2];
 
-                // --- KEY MATH FIX ---
-                // We want the curve to pass exactly through pVertex at t=0.5.
-                // Standard Bezier at t=0.5 is: 0.25*p0 + 0.5*Ctrl + 0.25*p2
-                // We solve for Ctrl: Ctrl = 2*pVertex - 0.5*p0 - 0.5*p2
+                // Solve for Control Point (pushed out)
                 const cx = 2 * pVertex.x - 0.5 * p0.x - 0.5 * p2.x;
                 const cy = 2 * pVertex.y - 0.5 * p0.y - 0.5 * p2.y;
                 const cz = 2 * pVertex.z - 0.5 * p0.z - 0.5 * p2.z;
 
-                // Store in our typed array
                 const cIdx = logicalIdx * 3;
                 this.curveControlPoints[cIdx] = cx;
                 this.curveControlPoints[cIdx + 1] = cy;
                 this.curveControlPoints[cIdx + 2] = cz;
 
-                // Calculate length using this NEW control point
-                segLen = this.approxBezierLength(
+                // Build LUT directly into the shared buffer
+                segLen = this.buildArcLengthLUT(
+                    curveFillIdx, // Write at this offset
                     p0.x, p0.y, p0.z,
                     cx, cy, cz,
-                    p2.x, p2.y, p2.z,
-                    10 // Slightly higher samples for accuracy
+                    p2.x, p2.y, p2.z
                 );
 
-                i += 2; // Skip the corner point, we consumed it
+                curveFillIdx += (LUT_STEPS + 1); // Advance the LUT pointer
+                i += 2;
             } else {
-                // LINEAR MODE
                 this.segTypes[logicalIdx] = SEG_LINEAR;
+                this.segLUTOffsets[logicalIdx] = -1; // No LUT
                 segLen = rawLengths[i];
                 i += 1;
             }
@@ -145,21 +163,17 @@ export default class Path {
         this.totalLength = totalLen;
         this.lastIndex = 0;
 
-        // Cache Directions for Extrapolation
+        // Cache Directions
         if (this.logicalCount > 0) {
-            // Start Dir
             const firstIdx = this.segPointIndices[0];
             const p0 = this.points[firstIdx];
             const p1 = this.points[firstIdx + 1];
             this.startDir.subVectors(p1, p0).normalize();
 
-            // End Dir
             const lastLogIdx = this.logicalCount - 1;
             const pIdx = this.segPointIndices[lastLogIdx];
-
             if (this.segTypes[lastLogIdx] === SEG_CURVE) {
                 const cIdx = lastLogIdx * 3;
-                // Tangent at end of Bezier is (P2 - Control)
                 const cx = this.curveControlPoints[cIdx];
                 const cy = this.curveControlPoints[cIdx + 1];
                 const cz = this.curveControlPoints[cIdx + 2];
@@ -180,23 +194,35 @@ export default class Path {
         this.invSegmentLengths = new Float64Array(0);
         this.segPointIndices = new Int32Array(0);
         this.segTypes = new Uint8Array(0);
+        this.segLUTOffsets = new Int32Array(0);
         this.curveControlPoints = new Float32Array(0);
+        this.curveLUT = new Float32Array(0);
     }
 
-    // Unrolled arguments to avoid Vector3 creation
-    private approxBezierLength(
+    /**
+     * Builds the LUT directly into the flattened 'this.curveLUT' array.
+     * Returns the total arc length of the curve.
+     */
+    private buildArcLengthLUT(
+        offset: number,
         ax: number, ay: number, az: number,
         bx: number, by: number, bz: number,
-        cx: number, cy: number, cz: number,
-        samples: number
+        cx: number, cy: number, cz: number
     ): number {
-        let len = 0;
+        // 1. Calculate Arc Lengths for uniform T (0, 0.05, 0.1 ...)
+        // We use a temporary stack array for this small calculation to avoid GC
+        // Note: Float32Array on stack is very fast
+        const tempArc = new Float32Array(LUT_STEPS + 1);
+        tempArc[0] = 0;
+
         let prevX = ax, prevY = ay, prevZ = az;
+        let currentLen = 0;
 
-        for (let i = 1; i <= samples; i++) {
-            const t = i / samples;
+        // Step 1: Measure distance at uniform T steps
+        for (let i = 1; i <= LUT_STEPS; i++) {
+            const t = i / LUT_STEPS;
             const mt = 1 - t;
-
+            // Bezier Expansion
             const c0 = mt * mt;
             const c1 = 2 * mt * t;
             const c2 = t * t;
@@ -209,10 +235,43 @@ export default class Path {
             const dy = py - prevY;
             const dz = pz - prevZ;
 
-            len += Math.sqrt(dx * dx + dy * dy + dz * dz);
+            currentLen += Math.sqrt(dx * dx + dy * dy + dz * dz);
+            tempArc[i] = currentLen;
             prevX = px; prevY = py; prevZ = pz;
         }
-        return len;
+
+        // Step 2: Invert mapping (Uniform Distance -> T)
+        // Write directly to this.curveLUT at 'offset'
+        const lut = this.curveLUT;
+        lut[offset] = 0;
+        lut[offset + LUT_STEPS] = 1;
+
+        const totalLen = currentLen;
+        let arcIdx = 1;
+
+        // "Remapping" loop
+        for (let i = 1; i < LUT_STEPS; i++) {
+            const targetDist = (i / LUT_STEPS) * totalLen;
+
+            // Find which interval [arcIdx-1, arcIdx] contains targetDist
+            while (arcIdx < LUT_STEPS && tempArc[arcIdx] < targetDist) {
+                arcIdx++;
+            }
+
+            // Interpolate T
+            const lenPrev = tempArc[arcIdx - 1];
+            const lenNext = tempArc[arcIdx];
+            const fraction = (lenNext - lenPrev) > EPS
+                ? (targetDist - lenPrev) / (lenNext - lenPrev)
+                : 0;
+
+            const tPrev = (arcIdx - 1) / LUT_STEPS;
+            const tNext = arcIdx / LUT_STEPS;
+
+            lut[offset + i] = tPrev + fraction * (tNext - tPrev);
+        }
+
+        return totalLen;
     }
 
     public getPointAtDistance(distance: number, out: Vector3 = new Vector3()): Vector3 {
@@ -220,8 +279,8 @@ export default class Path {
 
         if (this.looping) return this.getPointInternal(this.wrapDistance(distance), out);
 
+        // Extrapolations
         if (distance < 0) return out.copy(this.points[0]).addScaledVector(this.startDir, distance);
-
         if (distance >= this.totalLength) {
             const lastLogIdx = this.logicalCount - 1;
             const pIdx = this.segPointIndices[lastLogIdx];
@@ -237,6 +296,7 @@ export default class Path {
         const cum = this.cumulativeLengths;
         const count = this.logicalCount;
 
+        // Finger Search
         let i = this.lastIndex;
         if (i >= count) i = count - 1;
 
@@ -255,24 +315,44 @@ export default class Path {
 
         this.lastIndex = i;
 
-        const t = (distance - cum[i]) * this.invSegmentLengths[i];
+        const normalizedDist = (distance - cum[i]) * this.invSegmentLengths[i]; // 0..1
         const pIdx = this.segPointIndices[i];
         const pts = this.points;
 
         if (this.segTypes[i] === SEG_LINEAR) {
+            // Linear
             const a = pts[pIdx];
             const b = pts[pIdx + 1];
             out.set(
-                a.x + (b.x - a.x) * t,
-                a.y + (b.y - a.y) * t,
-                a.z + (b.z - a.z) * t
+                a.x + (b.x - a.x) * normalizedDist,
+                a.y + (b.y - a.y) * normalizedDist,
+                a.z + (b.z - a.z) * normalizedDist
             );
         } else {
-            // Bezier with Calculated Control Point
+            // Curve with LUT
+            const offset = this.segLUTOffsets[i];
+
+            // --- LUT LOOKUP ---
+            // Map 0..1 dist to index 0..LUT_STEPS
+            const scaled = normalizedDist * LUT_STEPS;
+            const idx = scaled | 0; // Fast floor
+
+            let t = 0;
+            // Boundary checks
+            if (idx >= LUT_STEPS) {
+                t = 1;
+            } else if (idx < 0) {
+                t = 0;
+            } else {
+                const frac = scaled - idx;
+                const t1 = this.curveLUT[offset + idx];
+                const t2 = this.curveLUT[offset + idx + 1];
+                t = t1 + (t2 - t1) * frac;
+            }
+
+            // Bezier Calc
             const p0 = pts[pIdx];
             const p2 = pts[pIdx + 2];
-
-            // Read from cache
             const cIdx = i * 3;
             const cx = this.curveControlPoints[cIdx];
             const cy = this.curveControlPoints[cIdx + 1];
@@ -314,53 +394,20 @@ export default class Path {
     }
 
     public getTotalLength(): number { return this.totalLength; }
+
     public cleanup(): void { this.removeDebugPath(); }
 
     public drawDebugPath(scene: Scene): void {
         this.removeDebugPath();
-        console.log("Drawing debug path indicators...");
         const debugSteps = 500;
         const step = this.totalLength / debugSteps;
         for (let i = 0; i <= debugSteps; i++) {
-            const d = i * step;
-            const pos = this.getPointAtDistance(d);
-            const indicator = new NodeIndicator(0.1);
-            indicator.mesh.position.copy(pos);
+            const indicator = new NodeIndicator(0.05); // Smaller debug points
+            indicator.mesh.position.copy(this.getPointAtDistance(i * step));
             indicator.setMode('selected');
             scene.add(indicator.mesh);
             this.pathDebugIndicators.push(indicator);
         }
-
-        // draw the points normal
-        this.points.forEach((point, index) => {
-            const indicator = new NodeIndicator(0.2);
-            indicator.mesh.position.copy(point);
-
-            // Orient the indicator to point towards the next point (or previous for last point)
-            if (index < this.points.length - 1) {
-                // Point towards next point
-                const nextPoint = this.points[index + 1];
-                dummy.position.copy(point);
-                dummy.lookAt(nextPoint);
-                indicator.mesh.quaternion.copy(dummy.quaternion);
-            } else if (index > 0 && !this.looping) {
-                // Last point: use same orientation as previous point
-                const prevIndicator = this.pathDebugIndicators[index - 1];
-                indicator.mesh.quaternion.copy(prevIndicator.mesh.quaternion);
-            } else if (this.looping && this.points.length > 1) {
-                // Looping path: point towards first point
-                const nextPoint = this.points[0];
-                dummy.position.copy(point);
-                dummy.lookAt(nextPoint);
-                indicator.mesh.quaternion.copy(dummy.quaternion);
-            }
-
-            // Use 'selected' mode (yellow) to make them stand out
-            indicator.setMode('selected');
-
-            scene.add(indicator.mesh);
-            this.pathDebugIndicators.push(indicator);
-        });
     }
 
     public removeDebugPath(): void {

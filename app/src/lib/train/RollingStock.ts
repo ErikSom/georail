@@ -303,17 +303,17 @@ export class RollingStock {
 
         const getWheelPoint = (config: BogieConfig, offset: number, out: Vector3) => {
             const totalOffset = config.zOffset + offset;
-            return path.getPointAtDistance(totalOffset, out);
+            return path.getPointAtDistance(distance + totalOffset, out);
         };
 
         // Update rail position vectors
-        getWheelPoint(frontBogie, distance, this.railPositions.bogieFront);
-        getWheelPoint(frontBogie, distance + frontBogie.wheelOffsetFront, this.railPositions.bogieFrontFront);
-        getWheelPoint(frontBogie, distance + frontBogie.wheelOffsetRear, this.railPositions.bogieFrontBack);
+        getWheelPoint(frontBogie, 0, this.railPositions.bogieFront);
+        getWheelPoint(frontBogie, frontBogie.wheelOffsetFront, this.railPositions.bogieFrontFront);
+        getWheelPoint(frontBogie, frontBogie.wheelOffsetRear, this.railPositions.bogieFrontBack);
 
-        getWheelPoint(rearBogie, distance, this.railPositions.bogieRear);
-        getWheelPoint(rearBogie, distance + rearBogie.wheelOffsetFront, this.railPositions.bogieRearFront);
-        getWheelPoint(rearBogie, distance + rearBogie.wheelOffsetRear, this.railPositions.bogieRearBack);
+        getWheelPoint(rearBogie, 0, this.railPositions.bogieRear);
+        getWheelPoint(rearBogie, rearBogie.wheelOffsetFront, this.railPositions.bogieRearFront);
+        getWheelPoint(rearBogie, rearBogie.wheelOffsetRear, this.railPositions.bogieRearBack);
 
         path.getPointAtDistance(distance, this.railPositions.center);
 
