@@ -1,27 +1,39 @@
-import { Scene, Vector3, Object3D } from "three";
+import { Scene, Vector3, MathUtils } from "three";
 import { NodeIndicator } from "../editor/NodeIndicator";
 import { dummy } from "./Helper";
 
 const EPS = 1e-6;
-const MAX_WALK = 4; // Max segments to scan linearly before switching to binary search
+const MAX_WALK = 5;
+
+const SEG_LINEAR = 0;
+const SEG_CURVE = 1;
+
+// 30 degrees: If angle is sharper than this, we treat it as a curve.
+const CURVE_ANGLE_THRESHOLD = MathUtils.degToRad(10);
+const COS_CURVE_THRESHOLD = Math.cos(CURVE_ANGLE_THRESHOLD);
 
 export default class Path {
     public points: Vector3[];
 
-    // Optimized memory layout for fast CPU caching
+    // --- Logical Segment Data ---
+    private segPointIndices!: Int32Array;
+    private segTypes!: Uint8Array;
+
+    // NEW: We store the calculated "pushed" control points here (x,y,z per segment)
+    // This allows the curve to pass THROUGH the vertex.
+    private curveControlPoints!: Float32Array;
+
     private cumulativeLengths!: Float64Array;
     private invSegmentLengths!: Float64Array;
     private totalLength = 0;
+    private logicalCount = 0;
+
     private looping = false;
 
-    // Cached extrapolation directions
     private startDir = new Vector3(1, 0, 0);
     private endDir = new Vector3(1, 0, 0);
 
-    // Finger-search cache
     private lastIndex = 0;
-
-    // Debug
     private pathDebugIndicators: NodeIndicator[] = [];
 
     constructor(points: Vector3[]) {
@@ -38,194 +50,288 @@ export default class Path {
     private precompute(): void {
         const n = this.points.length;
         if (n < 2) {
-            this.totalLength = 0;
-            this.cumulativeLengths = new Float64Array(n);
-            this.invSegmentLengths = new Float64Array(Math.max(0, n - 1));
+            this.resetEmpty();
             return;
         }
 
-        this.cumulativeLengths = new Float64Array(n);
-        this.invSegmentLengths = new Float64Array(n - 1);
+        // 1. Calculate raw directions
+        const rawDirs: Vector3[] = [];
+        const rawLengths: number[] = [];
 
-        let total = 0;
+        for (let i = 0; i < n - 1; i++) {
+            const v = new Vector3().subVectors(this.points[i + 1], this.points[i]);
+            const len = v.length();
+            rawLengths.push(len);
+            if (len > EPS) v.multiplyScalar(1 / len);
+            rawDirs.push(v);
+        }
+
+        // 2. Build Logical Segments
+        const maxSegs = n - 1;
+        this.segPointIndices = new Int32Array(maxSegs);
+        this.segTypes = new Uint8Array(maxSegs);
+        this.cumulativeLengths = new Float64Array(maxSegs + 1);
+        this.invSegmentLengths = new Float64Array(maxSegs);
+
+        // Store X,Y,Z for every logical segment (only used if type is curve)
+        this.curveControlPoints = new Float32Array(maxSegs * 3);
+
+        let logicalIdx = 0;
+        let totalLen = 0;
         this.cumulativeLengths[0] = 0;
 
-        for (let i = 0; i < n - 1; i++) {
-            const a = this.points[i];
-            const b = this.points[i + 1];
+        let i = 0;
+        while (i < n - 1) {
+            let isCurve = false;
 
-            const dx = b.x - a.x;
-            const dy = b.y - a.y;
-            const dz = b.z - a.z;
+            // Check neighbors to decide if we curve
+            if (i < n - 2) {
+                const dir1 = rawDirs[i];
+                const dir2 = rawDirs[i + 1];
+                if (dir1.dot(dir2) < COS_CURVE_THRESHOLD) {
+                    isCurve = true;
+                }
+            }
 
-            const segLen = Math.sqrt(dx * dx + dy * dy + dz * dz);
-            total += segLen;
+            this.segPointIndices[logicalIdx] = i;
+            let segLen = 0;
 
-            this.cumulativeLengths[i + 1] = total;
-            // Store 1/length to multiply later (faster than division)
-            this.invSegmentLengths[i] = segLen > EPS ? 1 / segLen : 0;
+            if (isCurve) {
+                // CURVE MODE
+                this.segTypes[logicalIdx] = SEG_CURVE;
+
+                const p0 = this.points[i];     // Start
+                const pVertex = this.points[i + 1]; // The Corner (Target)
+                const p2 = this.points[i + 2];   // End
+
+                // --- KEY MATH FIX ---
+                // We want the curve to pass exactly through pVertex at t=0.5.
+                // Standard Bezier at t=0.5 is: 0.25*p0 + 0.5*Ctrl + 0.25*p2
+                // We solve for Ctrl: Ctrl = 2*pVertex - 0.5*p0 - 0.5*p2
+                const cx = 2 * pVertex.x - 0.5 * p0.x - 0.5 * p2.x;
+                const cy = 2 * pVertex.y - 0.5 * p0.y - 0.5 * p2.y;
+                const cz = 2 * pVertex.z - 0.5 * p0.z - 0.5 * p2.z;
+
+                // Store in our typed array
+                const cIdx = logicalIdx * 3;
+                this.curveControlPoints[cIdx] = cx;
+                this.curveControlPoints[cIdx + 1] = cy;
+                this.curveControlPoints[cIdx + 2] = cz;
+
+                // Calculate length using this NEW control point
+                segLen = this.approxBezierLength(
+                    p0.x, p0.y, p0.z,
+                    cx, cy, cz,
+                    p2.x, p2.y, p2.z,
+                    10 // Slightly higher samples for accuracy
+                );
+
+                i += 2; // Skip the corner point, we consumed it
+            } else {
+                // LINEAR MODE
+                this.segTypes[logicalIdx] = SEG_LINEAR;
+                segLen = rawLengths[i];
+                i += 1;
+            }
+
+            totalLen += segLen;
+            this.cumulativeLengths[logicalIdx + 1] = totalLen;
+            this.invSegmentLengths[logicalIdx] = segLen > EPS ? 1 / segLen : 0;
+
+            logicalIdx++;
         }
 
-        this.totalLength = total;
+        this.logicalCount = logicalIdx;
+        this.totalLength = totalLen;
         this.lastIndex = 0;
 
-        // Cache startDir: first non-degenerate segment direction
-        for (let i = 0; i < n - 1; i++) {
-            if (this.invSegmentLengths[i] !== 0) {
-                const a = this.points[i];
-                const b = this.points[i + 1];
-                this.startDir.set(b.x - a.x, b.y - a.y, b.z - a.z).normalize();
-                break;
-            }
-        }
+        // Cache Directions for Extrapolation
+        if (this.logicalCount > 0) {
+            // Start Dir
+            const firstIdx = this.segPointIndices[0];
+            const p0 = this.points[firstIdx];
+            const p1 = this.points[firstIdx + 1];
+            this.startDir.subVectors(p1, p0).normalize();
 
-        // Cache endDir: last non-degenerate segment direction
-        for (let i = n - 2; i >= 0; i--) {
-            if (this.invSegmentLengths[i] !== 0) {
-                const a = this.points[i];
-                const b = this.points[i + 1];
-                this.endDir.set(b.x - a.x, b.y - a.y, b.z - a.z).normalize();
-                break;
+            // End Dir
+            const lastLogIdx = this.logicalCount - 1;
+            const pIdx = this.segPointIndices[lastLogIdx];
+
+            if (this.segTypes[lastLogIdx] === SEG_CURVE) {
+                const cIdx = lastLogIdx * 3;
+                // Tangent at end of Bezier is (P2 - Control)
+                const cx = this.curveControlPoints[cIdx];
+                const cy = this.curveControlPoints[cIdx + 1];
+                const cz = this.curveControlPoints[cIdx + 2];
+                const pEnd = this.points[pIdx + 2];
+                this.endDir.set(pEnd.x - cx, pEnd.y - cy, pEnd.z - cz).normalize();
+            } else {
+                const l0 = this.points[pIdx];
+                const l1 = this.points[pIdx + 1];
+                this.endDir.subVectors(l1, l0).normalize();
             }
         }
     }
 
-    /**
-     * Get a point on the path at distance X.
-     * @param distance Absolute distance along the path.
-     * @param out Optional Vector3 to write result into (avoids GC).
-     */
+    private resetEmpty(): void {
+        this.totalLength = 0;
+        this.logicalCount = 0;
+        this.cumulativeLengths = new Float64Array(0);
+        this.invSegmentLengths = new Float64Array(0);
+        this.segPointIndices = new Int32Array(0);
+        this.segTypes = new Uint8Array(0);
+        this.curveControlPoints = new Float32Array(0);
+    }
+
+    // Unrolled arguments to avoid Vector3 creation
+    private approxBezierLength(
+        ax: number, ay: number, az: number,
+        bx: number, by: number, bz: number,
+        cx: number, cy: number, cz: number,
+        samples: number
+    ): number {
+        let len = 0;
+        let prevX = ax, prevY = ay, prevZ = az;
+
+        for (let i = 1; i <= samples; i++) {
+            const t = i / samples;
+            const mt = 1 - t;
+
+            const c0 = mt * mt;
+            const c1 = 2 * mt * t;
+            const c2 = t * t;
+
+            const px = c0 * ax + c1 * bx + c2 * cx;
+            const py = c0 * ay + c1 * by + c2 * cy;
+            const pz = c0 * az + c1 * bz + c2 * cz;
+
+            const dx = px - prevX;
+            const dy = py - prevY;
+            const dz = pz - prevZ;
+
+            len += Math.sqrt(dx * dx + dy * dy + dz * dz);
+            prevX = px; prevY = py; prevZ = pz;
+        }
+        return len;
+    }
+
     public getPointAtDistance(distance: number, out: Vector3 = new Vector3()): Vector3 {
-        const n = this.points.length;
+        if (this.logicalCount === 0) return out.copy(this.points.length > 0 ? this.points[0] : out.set(0, 0, 0));
 
-        // Handle degenerate paths
-        if (n < 2) {
-            return n === 1 ? out.copy(this.points[0]) : out.set(0, 0, 0);
-        }
+        if (this.looping) return this.getPointInternal(this.wrapDistance(distance), out);
 
-        if (this.looping) {
-            return this.getPointOnPathInternal(this.wrapDistance(distance), out);
-        }
+        if (distance < 0) return out.copy(this.points[0]).addScaledVector(this.startDir, distance);
 
-
-        // 1. Negative Extrapolation
-        if (distance < 0) {
-            return out.copy(this.points[0]).addScaledVector(this.startDir, distance);
-        }
-
-        // 2. Forward Extrapolation
         if (distance >= this.totalLength) {
-            const last = this.points[n - 1];
-            return out.copy(last).addScaledVector(this.endDir, distance - this.totalLength);
+            const lastLogIdx = this.logicalCount - 1;
+            const pIdx = this.segPointIndices[lastLogIdx];
+            const isCurve = this.segTypes[lastLogIdx] === SEG_CURVE;
+            const lastPt = this.points[pIdx + (isCurve ? 2 : 1)];
+            return out.copy(lastPt).addScaledVector(this.endDir, distance - this.totalLength);
         }
 
-        // 3. Interpolate
-        return this.getPointOnPathInternal(distance, out);
+        return this.getPointInternal(distance, out);
     }
 
-    private getPointOnPathInternal(distance: number, out: Vector3): Vector3 {
+    private getPointInternal(distance: number, out: Vector3): Vector3 {
         const cum = this.cumulativeLengths;
-        const pts = this.points;
-        const maxSeg = pts.length - 2;
+        const count = this.logicalCount;
 
-        // Clamp cached index to valid range
         let i = this.lastIndex;
-        if (i < 0) i = 0;
-        else if (i > maxSeg) i = maxSeg;
+        if (i >= count) i = count - 1;
 
-        // Check if 'i' is still correct (most likely case)
         if (distance < cum[i] || distance > cum[i + 1]) {
-
-            // We moved! Use "Bounded Walk" strategy.
-            // Checks neighbors first, walks a bit, then falls back to binary search.
-
-            // Moving Forward
             if (distance > cum[i + 1]) {
                 let k = 0;
-                while (k < MAX_WALK && i < maxSeg && distance > cum[i + 1]) {
-                    i++;
-                    k++;
-                }
-            }
-            // Moving Backward
-            else {
+                while (k < MAX_WALK && i < count - 1 && distance > cum[i + 1]) { i++; k++; }
+            } else {
                 let k = 0;
-                while (k < MAX_WALK && i > 0 && distance < cum[i]) {
-                    i--;
-                    k++;
-                }
+                while (k < MAX_WALK && i > 0 && distance < cum[i]) { i--; k++; }
             }
-
-            // If the walk didn't find it (Teleport or Fast Movement), use Binary Search
             if (distance < cum[i] || distance > cum[i + 1]) {
-                i = this.binarySearchSeg(distance);
+                i = this.binarySearch(distance);
             }
         }
 
-        // Update cache
         this.lastIndex = i;
 
-        // --- Calculation ---
-        // Direct array access + manual lerp (No Vector3 allocation)
-        const a = pts[i];
-        const b = pts[i + 1];
+        const t = (distance - cum[i]) * this.invSegmentLengths[i];
+        const pIdx = this.segPointIndices[i];
+        const pts = this.points;
 
-        // (distance - start) * (1 / length)
-        const alpha = (distance - cum[i]) * this.invSegmentLengths[i];
+        if (this.segTypes[i] === SEG_LINEAR) {
+            const a = pts[pIdx];
+            const b = pts[pIdx + 1];
+            out.set(
+                a.x + (b.x - a.x) * t,
+                a.y + (b.y - a.y) * t,
+                a.z + (b.z - a.z) * t
+            );
+        } else {
+            // Bezier with Calculated Control Point
+            const p0 = pts[pIdx];
+            const p2 = pts[pIdx + 2];
 
-        out.set(
-            a.x + (b.x - a.x) * alpha,
-            a.y + (b.y - a.y) * alpha,
-            a.z + (b.z - a.z) * alpha
-        );
+            // Read from cache
+            const cIdx = i * 3;
+            const cx = this.curveControlPoints[cIdx];
+            const cy = this.curveControlPoints[cIdx + 1];
+            const cz = this.curveControlPoints[cIdx + 2];
+
+            const mt = 1 - t;
+            const c0 = mt * mt;
+            const c1 = 2 * mt * t;
+            const c2 = t * t;
+
+            out.set(
+                c0 * p0.x + c1 * cx + c2 * p2.x,
+                c0 * p0.y + c1 * cy + c2 * p2.y,
+                c0 * p0.z + c1 * cz + c2 * p2.z
+            );
+        }
 
         return out;
     }
 
-    private binarySearchSeg(distance: number): number {
-        const cum = this.cumulativeLengths;
+    private binarySearch(dist: number): number {
         let low = 0;
-        let high = cum.length - 2;
-
+        let high = this.logicalCount - 1;
+        const cum = this.cumulativeLengths;
         while (low <= high) {
             const mid = (low + high) >>> 1;
-            if (cum[mid + 1] < distance) {
-                low = mid + 1;
-            } else if (cum[mid] > distance) {
-                high = mid - 1;
-            } else {
-                return mid; // Exact match found
-            }
+            if (cum[mid + 1] < dist) low = mid + 1;
+            else if (cum[mid] > dist) high = mid - 1;
+            else return mid;
         }
-        // Clamping handles out-of-bounds inputs gracefully
-        return Math.max(0, Math.min(cum.length - 2, high));
+        return Math.max(0, Math.min(this.logicalCount - 1, high));
     }
 
-    private wrapDistance(distance: number): number {
+    private wrapDistance(d: number): number {
         const L = this.totalLength;
         if (L <= EPS) return 0;
-        distance %= L;
-        if (distance < 0) distance += L;
-        return distance;
+        d %= L;
+        return d < 0 ? d + L : d;
     }
 
-    public getTotalLength(): number {
-        return this.totalLength;
-    }
-
-    public removeDebugPath(): void {
-        this.pathDebugIndicators.forEach(indicator => {
-            if (indicator.mesh.parent) {
-                indicator.mesh.parent.remove(indicator.mesh);
-            }
-            indicator.dispose();
-        });
-        this.pathDebugIndicators = [];
-    }
+    public getTotalLength(): number { return this.totalLength; }
+    public cleanup(): void { this.removeDebugPath(); }
 
     public drawDebugPath(scene: Scene): void {
         this.removeDebugPath();
+        console.log("Drawing debug path indicators...");
+        const debugSteps = 500;
+        const step = this.totalLength / debugSteps;
+        for (let i = 0; i <= debugSteps; i++) {
+            const d = i * step;
+            const pos = this.getPointAtDistance(d);
+            const indicator = new NodeIndicator(0.1);
+            indicator.mesh.position.copy(pos);
+            indicator.setMode('selected');
+            scene.add(indicator.mesh);
+            this.pathDebugIndicators.push(indicator);
+        }
 
+        // draw the points normal
         this.points.forEach((point, index) => {
             const indicator = new NodeIndicator(0.2);
             indicator.mesh.position.copy(point);
@@ -257,7 +363,11 @@ export default class Path {
         });
     }
 
-    public cleanup(): void {
-        this.removeDebugPath();
+    public removeDebugPath(): void {
+        this.pathDebugIndicators.forEach(i => {
+            if (i.mesh.parent) i.mesh.parent.remove(i.mesh);
+            i.dispose();
+        });
+        this.pathDebugIndicators = [];
     }
 }

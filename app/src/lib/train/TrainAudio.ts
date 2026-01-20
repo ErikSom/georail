@@ -356,7 +356,6 @@ export class TrainAudio {
 
                 // Check if this initialization was cancelled
                 if (initializationId !== this.currentInitializationId) {
-                    console.log(`TrainAudio: Initialization ${initializationId} cancelled (current: ${this.currentInitializationId})`);
                     return;
                 }
 
@@ -571,11 +570,6 @@ export class TrainAudio {
             // Interpolate curve to get output value
             const outputValue = this.interpolateCurve(curve, inputValue);
 
-            // Debug logging (remove after testing)
-            if (Math.random() < 0.01) { // Log 1% of frames
-                console.log(`Curve ${xAxis} -> ${yAxis}: input=${inputValue.toFixed(3)}, output=${outputValue.toFixed(3)}`);
-            }
-
             // Store output value based on target axis
             if (yAxis === 'Volume') {
                 volumeValues.push(outputValue);
@@ -588,11 +582,6 @@ export class TrainAudio {
         // If no curves control a property, default to maximum (1.0)
         const finalVolume = volumeValues.length > 0 ? Math.min(...volumeValues) : 1.0;
         instance.audio.setVolume(finalVolume);
-
-        // Debug logging (remove after testing)
-        if (Math.random() < 0.01 && volumeValues.length > 0) {
-            console.log(`Final volume: ${finalVolume.toFixed(3)} (from ${volumeValues.length} curves)`);
-        }
 
         // Auto-play if volume is above 0 and not already playing
         if (finalVolume > 0 && !instance.audio.isPlaying) {

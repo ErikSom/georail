@@ -283,7 +283,7 @@ export class TrainEditorWorld {
     private generateCirclePath(): Vector3[] {
         const points: Vector3[] = [];
         const radius = 200;
-        const numPoints = 100;
+        const numPoints = 20;
 
         for (let i = 0; i <= numPoints; i++) {
             const angle = (i / numPoints) * Math.PI * 2;
