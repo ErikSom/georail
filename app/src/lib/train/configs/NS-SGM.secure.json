@@ -40,7 +40,7 @@
             }
         },
         "couplerLengthFront": 0,
-        "couplerLengthRear": 0.5,
+        "couplerLengthRear": 0.25,
         "engine": true,
         "enginePower": 1320,
         "brakingPower": 88,
@@ -106,8 +106,8 @@
                     "z": 1
                 }
             },
-            "couplerLengthFront": 0.5,
-            "couplerLengthRear": 0.5,
+            "couplerLengthFront": 0.25,
+            "couplerLengthRear": 0.25,
             "engine": false,
             "enginePower": 0,
             "brakingPower": 0,
@@ -164,8 +164,8 @@
                 "z": 1
             }
         },
-        "couplerLengthFront": 0,
-        "couplerLengthRear": 0.5,
+        "couplerLengthFront": 0.25,
+        "couplerLengthRear": 0,
         "engine": false,
         "enginePower": 0,
         "brakingPower": 0,
