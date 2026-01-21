@@ -138,6 +138,10 @@ export class Train implements IPhysicsTarget {
         }
     }
 
+    public getPath(): Path | null {
+        return this.path;
+    }
+
     public getRollingStockTransform(index: number = 0): Group {
         if (index === 0) {
             return this.cab.group;

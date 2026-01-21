@@ -482,6 +482,16 @@ export class TrainEditorWorld {
         this.sky.update(deltaTime, this.camera);
         this.train?.update(deltaTime);
 
+
+        // Wrap train around path if needed
+        const totalPathLength = this.train.getPath()?.getTotalLength() || 0;
+        if (this.train.distanceTraveled > totalPathLength || this.train.distanceTraveled < 0) {
+            // modulo wrap
+            const modulo = this.train.distanceTraveled % totalPathLength;
+            this.train.distanceTraveled = modulo < 0 ? modulo + totalPathLength : modulo;
+        }
+
+
         // Update Camera
         this.camera.updateMatrixWorld();
 
