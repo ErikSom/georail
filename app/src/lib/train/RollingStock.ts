@@ -958,12 +958,13 @@ export class RollingStock {
     }
 
     private rotateWheels(distanceDelta: number): void {
+        const directionMultiplier = this.config.reverseOnTrack ? -1 : 1;
         for (const wheel of this.wheels) {
             // Wheel rotation calculation:
             // Circumference = 2 * π * radius
             // Full rotation (2π radians) occurs when distance = circumference
             // So: angle = (distance / circumference) * 2π = (distance / (2πr)) * 2π = distance / radius
-            const angle = distanceDelta / wheel.radius;
+            const angle = (distanceDelta / wheel.radius) * directionMultiplier;
 
             // Rotate around the wheel's rotation axis in local space
             wheel.mesh.rotateOnAxis(wheel.rotationAxis, angle);
