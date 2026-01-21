@@ -331,6 +331,7 @@ export class Train implements IPhysicsTarget {
             scale: 1.0,
             modelOffset: { x: 0, y: 0, z: 0 },
             modelForwardAxis: { x: 0, y: 0, z: 1 },
+            reverseOnTrack: false,
             frontBogie: {
                 zOffset: 5.0,
                 wheelOffsetFront: 1.0,

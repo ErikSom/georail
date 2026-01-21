@@ -1,4 +1,4 @@
-import { Group, Mesh, Object3D, SphereGeometry, BoxGeometry, MeshBasicMaterial, Vector3, MeshStandardMaterial, CylinderGeometry } from 'three';
+import { Group, Mesh, Object3D, SphereGeometry, BoxGeometry, MeshBasicMaterial, Vector3, MeshStandardMaterial, CylinderGeometry, Quaternion } from 'three';
 import type { BogieConfig, RollingStockConfig, TrainConfig, WheelConfig } from './TrainConfig';
 import { getGLTFLoader } from '../utils/ModelLoader';
 import type Path from '../utils/Path';
@@ -28,6 +28,8 @@ export class RollingStock {
 
     private railPositions = {
         center: new Vector3(),
+        bodyFront: new Vector3(),
+        bodyRear: new Vector3(),
         bogieFront: new Vector3(),
         bogieFrontFront: new Vector3(),
         bogieFrontBack: new Vector3(),
@@ -293,9 +295,10 @@ export class RollingStock {
 
     public positionOnPath(distance: number, path: Path): void {
         const { frontBogie, rearBogie } = this.config;
+        const directionMultiplier = this.config.reverseOnTrack ? -1 : 1;
 
         const getWheelPoint = (config: BogieConfig, offset: number, out: Vector3) => {
-            const totalOffset = config.zOffset + offset;
+            const totalOffset = (config.zOffset + offset) * directionMultiplier;
             return path.getPointAtDistance(distance + totalOffset, out);
         };
 
@@ -309,6 +312,9 @@ export class RollingStock {
         getWheelPoint(rearBogie, rearBogie.wheelOffsetRear, this.railPositions.bogieRearBack);
 
         path.getPointAtDistance(distance, this.railPositions.center);
+
+        this.railPositions.bodyFront.copy(this.railPositions.bogieFront);
+        this.railPositions.bodyRear.copy(this.railPositions.bogieRear);
 
         this.orientOnRails();
 
@@ -491,8 +497,8 @@ export class RollingStock {
     }
 
     public orientOnRails(): void {
-        const frontPoint = this.railPositions.bogieFront;
-        const rearPoint = this.railPositions.bogieRear;
+        const frontPoint = this.railPositions.bodyFront;
+        const rearPoint = this.railPositions.bodyRear;
 
         // Calculate the midpoint between bogies for lateral positioning
         const bogieMidpoint = dummyVec3.addVectors(frontPoint, rearPoint).multiplyScalar(0.5);
@@ -531,9 +537,9 @@ export class RollingStock {
         ) => {
             // A. Calculate the direction vector in Local Space
             // (The direction the bogie SHOULD face relative to the train car)
-            const localFront = entity.parent!.worldToLocal(posFront.clone());
-            const localBack = entity.parent!.worldToLocal(posBack.clone());
-            const localDirection = dummyVec3.subVectors(localFront, localBack).normalize();
+            const worldDirection = dummyVec3.subVectors(posFront, posBack).normalize();
+            const parentQuat = entity.parent!.getWorldQuaternion(dummyQuad);
+            const localDirection = worldDirection.applyQuaternion(parentQuat.invert());
 
             // B. Calculate the "Ideal" Rotation (assuming +Z is forward)
             // We use lookAt because it enforces the Y-Up constraint automatically,
@@ -558,7 +564,7 @@ export class RollingStock {
             entity.quaternion.copy(targetRotation.multiply(correctionQuat));
         };
 
-        // Apply to Front Bogie
+        // Apply to Front Bogie entity (bo01)
         if (this.frontBogieEntity && this.model) {
             updateBogieRotation(
                 this.frontBogieEntity,
@@ -568,7 +574,7 @@ export class RollingStock {
             );
         }
 
-        // Apply to Rear Bogie
+        // Apply to Rear Bogie entity (bo02)
         if (this.rearBogieEntity && this.model) {
             updateBogieRotation(
                 this.rearBogieEntity,
@@ -778,6 +784,10 @@ export class RollingStock {
             x: { min: -1, max: 1, step: 0.1 },
             y: { min: -1, max: 1, step: 0.1 },
             z: { min: -1, max: 1, step: 0.1 }
+        }).on('change', () => updateConfig(config));
+
+        visFolder.addBinding(targetConfig, 'reverseOnTrack', {
+            label: 'Reverse On Track'
         }).on('change', () => updateConfig(config));
 
         // --- 5. Bogie Configuration ---

@@ -17,6 +17,7 @@
             "y": 0,
             "z": -1
         },
+        "reverseOnTrack": false,
         "frontBogie": {
             "zOffset": 8.5,
             "wheelOffsetFront": 1.2000000000000002,
@@ -93,8 +94,9 @@
             "modelForwardAxis": {
                 "x": 0,
                 "y": 0,
-                "z": 1
+                "z": -1
             },
+            "reverseOnTrack": false,
             "frontBogie": {
                 "zOffset": 9.4,
                 "wheelOffsetFront": 1.2500000000000002,
@@ -162,8 +164,9 @@
         "modelForwardAxis": {
             "x": 0,
             "y": 0,
-            "z": 1
+            "z": -1
         },
+        "reverseOnTrack": true,
         "frontBogie": {
             "zOffset": 8.5,
             "wheelOffsetFront": 1.2000000000000002,

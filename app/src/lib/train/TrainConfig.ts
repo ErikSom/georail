@@ -63,6 +63,7 @@ export interface RollingStockConfig {
     }
     // Model forward axis - defines which local axis of the model should point forward along the track
     modelForwardAxis: { x: number; y: number; z: number };
+    reverseOnTrack: boolean;
 
     frontBogie: BogieConfig;
     rearBogie: BogieConfig;
@@ -113,6 +114,7 @@ export function getDefaultTrainConfig(): TrainConfig {
                 z: 0.0
             },
             modelForwardAxis: { x: 0, y: 0, z: 1 }, // Default: +Z forward
+            reverseOnTrack: false,
             frontBogie: {
                 zOffset: 5.0,
                 wheelOffsetFront: 1.0,
