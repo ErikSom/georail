@@ -21,22 +21,22 @@
             "zOffset": 8.5,
             "wheelOffsetFront": 1.2000000000000002,
             "wheelOffsetRear": -1.4000000000000001,
-            "entityName": "",
+            "entityName": "bo01",
             "boneForwardAxis": {
                 "x": 0,
-                "y": 0,
-                "z": 1
+                "y": -1,
+                "z": 0
             }
         },
         "rearBogie": {
             "zOffset": -9.3,
             "wheelOffsetFront": 1.1500000000000001,
             "wheelOffsetRear": -1.35,
-            "entityName": "",
+            "entityName": "bo02",
             "boneForwardAxis": {
                 "x": 0,
-                "y": 0,
-                "z": 1
+                "y": -1,
+                "z": 0
             }
         },
         "couplerLengthFront": 0,
@@ -63,6 +63,17 @@
                 "loop": true,
                 "alternate": false
             }
+        ],
+        "wheels": [
+            {
+                "pattern": "wh0",
+                "rotationAxis": {
+                    "x": 1,
+                    "y": 0,
+                    "z": 0
+                },
+                "radius": 0.5
+            }
         ]
     },
     "wagons": [
@@ -88,22 +99,22 @@
                 "zOffset": 9.4,
                 "wheelOffsetFront": 1.2500000000000002,
                 "wheelOffsetRear": -1.1500000000000001,
-                "entityName": "",
+                "entityName": "bo01",
                 "boneForwardAxis": {
                     "x": 0,
-                    "y": 0,
-                    "z": 1
+                    "y": -1,
+                    "z": 0
                 }
             },
             "rearBogie": {
                 "zOffset": -9.3,
                 "wheelOffsetFront": 1.2000000000000002,
                 "wheelOffsetRear": -1.2000000000000002,
-                "entityName": "",
+                "entityName": "bo02",
                 "boneForwardAxis": {
                     "x": 0,
-                    "y": 0,
-                    "z": 1
+                    "y": -1,
+                    "z": 0
                 }
             },
             "couplerLengthFront": 0.25,
@@ -120,6 +131,17 @@
                     "autoPlay": false,
                     "loop": false,
                     "alternate": false
+                }
+            ],
+            "wheels": [
+                {
+                    "pattern": "wh0",
+                    "rotationAxis": {
+                        "x": 1,
+                        "y": 0,
+                        "z": 0
+                    },
+                    "radius": 0.5
                 }
             ]
         }
@@ -146,22 +168,22 @@
             "zOffset": 8.5,
             "wheelOffsetFront": 1.2000000000000002,
             "wheelOffsetRear": -1.4000000000000001,
-            "entityName": "",
+            "entityName": "bo01",
             "boneForwardAxis": {
                 "x": 0,
-                "y": 0,
-                "z": 1
+                "y": -1,
+                "z": 0
             }
         },
         "rearBogie": {
             "zOffset": -9.3,
             "wheelOffsetFront": 1.1500000000000001,
             "wheelOffsetRear": -1.35,
-            "entityName": "",
+            "entityName": "bo02",
             "boneForwardAxis": {
                 "x": 0,
-                "y": 0,
-                "z": 1
+                "y": -1,
+                "z": 0
             }
         },
         "couplerLengthFront": 0.25,
@@ -187,6 +209,17 @@
                 "autoPlay": true,
                 "loop": true,
                 "alternate": false
+            }
+        ],
+        "wheels": [
+            {
+                "pattern": "wh0",
+                "rotationAxis": {
+                    "x": 1,
+                    "y": 0,
+                    "z": 0
+                },
+                "radius": 0.5
             }
         ]
     },

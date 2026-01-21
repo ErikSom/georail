@@ -1,9 +1,9 @@
-import { Group, Mesh, Object3D, SphereGeometry, BoxGeometry, MeshBasicMaterial, Vector3, MeshStandardMaterial, DoubleSide } from 'three';
-import type { BogieConfig, RollingStockConfig, TrainConfig } from './TrainConfig';
+import { Group, Mesh, Object3D, SphereGeometry, BoxGeometry, MeshBasicMaterial, Vector3, MeshStandardMaterial, CylinderGeometry } from 'three';
+import type { BogieConfig, RollingStockConfig, TrainConfig, WheelConfig } from './TrainConfig';
 import { getGLTFLoader } from '../utils/ModelLoader';
 import type Path from '../utils/Path';
 import type { FolderApi, Pane } from 'tweakpane';
-import { dummy, dummyForward, dummyQuad, dummyVec3 } from '../utils/Helper';
+import { dummy, dummyForward, dummyQuad, dummyUp, dummyVec3 } from '../utils/Helper';
 import FilePicker from '../utils/FilePicker';
 import { applyDeobfuscation, isDebugAdmin, loadEncryptedAsset, getProtectedAssetPath, blobString } from '../utils/Security.secure';
 import { glassMaterial } from './Materials';
@@ -22,6 +22,9 @@ export class RollingStock {
 
     private frontBogieEntity: Object3D | null = null;
     private rearBogieEntity: Object3D | null = null;
+
+    // Wheel rotation data - wheels with their cached radius, rotation axis, and optional debug mesh
+    private wheels: { mesh: Object3D; radius: number; rotationAxis: Vector3; debugMesh?: Mesh }[] = [];
 
     private railPositions = {
         center: new Vector3(),
@@ -274,12 +277,8 @@ export class RollingStock {
             this.debugAnchor.visible = visible;
         }
 
-        // Set visibility for global debug spheres
-        Object.values(this.debugMeshes).forEach((mesh) => {
-            if (mesh && mesh.parent === this.globalDebugGroup) {
-                mesh.visible = visible;
-            }
-        });
+        // disable globalDebugGroup if needed
+        this.globalDebugGroup.visible = visible;
     }
 
     private getDebugVisibility(): boolean {
@@ -289,13 +288,7 @@ export class RollingStock {
         }
 
         // Check first available debug mesh
-        for (const mesh of Object.values(this.debugMeshes)) {
-            if (mesh) {
-                return mesh.visible;
-            }
-        }
-
-        return true; // Default to visible
+        return this.globalDebugGroup.visible;
     }
 
     public positionOnPath(distance: number, path: Path): void {
@@ -390,6 +383,14 @@ export class RollingStock {
                 this.debugMeshes.couplerRear.visible = c.couplerLengthRear > 0;
             }
         }
+
+        // 3. Update Wheel Debug Meshes
+        for (const wheel of this.wheels) {
+            if (wheel.debugMesh) {
+                wheel.mesh.getWorldPosition(wheel.debugMesh.position);
+                wheel.mesh.getWorldQuaternion(wheel.debugMesh.quaternion);
+            }
+        }
     }
 
     private findBogieEntities(): void {
@@ -406,6 +407,71 @@ export class RollingStock {
 
         console.log(`[RollingStock] Front Bogie Entity: ${this.frontBogieEntity ? 'Found' : 'Not Found'} (${this.config.frontBogie.entityName})`);
         console.log(`[RollingStock] Rear Bogie Entity: ${this.rearBogieEntity ? 'Found' : 'Not Found'} (${this.config.rearBogie.entityName})`);
+
+        // Find and cache wheels for both bogies
+        this.findWheels();
+    }
+
+    private findWheels(): void {
+        if (!this.model) return;
+
+        // Clean up old wheel debug meshes
+        for (const wheel of this.wheels) {
+            if (wheel.debugMesh) {
+                this.globalDebugGroup.remove(wheel.debugMesh);
+                wheel.debugMesh.geometry.dispose();
+                (wheel.debugMesh.material as MeshBasicMaterial).dispose();
+            }
+        }
+
+        this.wheels = [];
+
+        // Process each wheel configuration
+        for (const wheelConfig of this.config.wheels || []) {
+            if (!wheelConfig.pattern) continue;
+
+            try {
+                const regex = new RegExp(wheelConfig.pattern);
+                const rotationAxis = dummyVec3.set(
+                    wheelConfig.rotationAxis.x,
+                    wheelConfig.rotationAxis.y,
+                    wheelConfig.rotationAxis.z
+                ).normalize();
+
+                const wheelDebugMat = new MeshBasicMaterial({ color: 0xff00ff, wireframe: true });
+
+                this.model!.traverse((child) => {
+                    // Check if this wheel was already added
+                    if (regex.test(child.name) && !this.wheels.some(w => w.mesh === child)) {
+                        const radius = wheelConfig.radius;
+                        let debugMesh: Mesh | undefined;
+
+                        // Create debug visualization based on configured radius
+                        if (this.debug) {
+                            // NOTE: CylinderGeometry is Y-up by default. We must orient it to the wheel's rotation axis.
+                            const wheelDebugGeo = new CylinderGeometry(radius, radius, 1.5, 16);
+
+                            // Align the geometry to the rotation axis
+                            const alignQuat = dummyQuad.setFromUnitVectors(dummyUp, rotationAxis);
+                            wheelDebugGeo.applyQuaternion(alignQuat);
+
+                            debugMesh = new Mesh(wheelDebugGeo, wheelDebugMat);
+                            debugMesh.name = `wheel-debug-${child.name}`;
+                            this.globalDebugGroup.add(debugMesh);
+                        }
+
+
+                        // Use configured radius directly
+                        this.wheels.push({ mesh: child, radius, rotationAxis: rotationAxis.clone(), debugMesh });
+                        console.log(`[RollingStock] Found wheel: ${child.name}, radius: ${radius}m`);
+                    }
+                });
+            } catch (e) {
+                console.warn(`[RollingStock] Invalid wheel pattern regex: ${wheelConfig.pattern}`, e);
+            }
+        }
+
+        console.log(`[RollingStock] Found ${this.wheels.length} wheels total`);
     }
 
     public updateConfig(config: RollingStockConfig): void {
@@ -414,10 +480,13 @@ export class RollingStock {
             config.frontBogie.entityName !== this.config.frontBogie.entityName ||
             config.rearBogie.entityName !== this.config.rearBogie.entityName;
 
+        const wheelsChanged = JSON.stringify(config.wheels) !== JSON.stringify(this.config.wheels);
+
         this.config = config;
         this.updateModelTransform();
 
         if (bogieNamesChanged && this.model) this.findBogieEntities();
+        if (wheelsChanged && this.model) this.findWheels();
         if (modelChanged && config.modelPath) this.loadModel(config.modelPath, config.internal);
     }
 
@@ -771,6 +840,88 @@ export class RollingStock {
         registerFolder(rearBogieFolder, rearBogieKey);
         addBogieControls(rearBogieFolder, targetConfig.rearBogie, true);
 
+        // --- 6. Wheels Configuration ---
+        const wheelsKey = getFolderKey([...basePath, 'Wheels']);
+        const wheelsFolder = this.paneFolder.addFolder({
+            title: 'Wheels',
+            expanded: getFolderExpanded(wheelsKey, false)
+        });
+        registerFolder(wheelsFolder, wheelsKey);
+
+        // Ensure wheels array exists
+        if (!targetConfig.wheels) {
+            targetConfig.wheels = [];
+        }
+
+        // Helper to rebuild wheel UI
+        const rebuildWheelUI = () => {
+            // Remove all children from wheelsFolder except the Add button
+            const children = [...wheelsFolder.children];
+            children.forEach((child) => {
+                if (child !== addWheelButton) {
+                    wheelsFolder.remove(child);
+                }
+            });
+
+            // Add UI for each wheel config
+            targetConfig.wheels.forEach((wheelConfig, index) => {
+                const wheelKey = getFolderKey([...basePath, 'Wheels', `Wheel ${index + 1}`]);
+                const wheelFolder = wheelsFolder.addFolder({
+                    title: `Wheel ${index + 1}`,
+                    expanded: getFolderExpanded(wheelKey, true)
+                });
+                registerFolder(wheelFolder, wheelKey);
+
+                wheelFolder.addBinding(wheelConfig, 'pattern', {
+                    label: 'Pattern (regex)'
+                }).on('change', () => {
+                    this.findWheels();
+                    updateConfig(config);
+                });
+
+                wheelFolder.addBinding(wheelConfig, 'radius', {
+                    label: 'Radius (m)',
+                    min: 0.1,
+                    max: 2.0,
+                    step: 0.01
+                }).on('change', () => {
+                    this.findWheels();
+                    updateConfig(config);
+                });
+
+                wheelFolder.addBinding(wheelConfig, 'rotationAxis', {
+                    label: 'Rotation Axis',
+                    x: { min: -1, max: 1, step: 0.1 },
+                    y: { min: -1, max: 1, step: 0.1 },
+                    z: { min: -1, max: 1, step: 0.1 }
+                }).on('change', () => {
+                    this.findWheels();
+                    updateConfig(config);
+                });
+
+                wheelFolder.addButton({ title: 'Remove' }).on('click', () => {
+                    targetConfig.wheels.splice(index, 1);
+                    this.findWheels();
+                    updateConfig(config);
+                    rebuildWheelUI();
+                });
+            });
+        };
+
+        // Add Wheel button
+        const addWheelButton = wheelsFolder.addButton({ title: 'Add Wheel Config' }).on('click', () => {
+            targetConfig.wheels.push({
+                pattern: '',
+                rotationAxis: { x: 1, y: 0, z: 0 },
+                radius: 0.5
+            });
+            updateConfig(config);
+            rebuildWheelUI();
+        });
+
+        // Initial build
+        rebuildWheelUI();
+
         return this.paneFolder;
     }
 
@@ -785,9 +936,27 @@ export class RollingStock {
         return exported;
     }
 
-    public update(delta: number): void {
+    public update(delta: number, distanceDelta: number = 0): void {
         if (this.animator) {
             this.animator.update(delta);
+        }
+
+        // Rotate wheels based on distance traveled
+        if (distanceDelta !== 0) {
+            this.rotateWheels(distanceDelta);
+        }
+    }
+
+    private rotateWheels(distanceDelta: number): void {
+        for (const wheel of this.wheels) {
+            // Wheel rotation calculation:
+            // Circumference = 2 * π * radius
+            // Full rotation (2π radians) occurs when distance = circumference
+            // So: angle = (distance / circumference) * 2π = (distance / (2πr)) * 2π = distance / radius
+            const angle = distanceDelta / wheel.radius;
+
+            // Rotate around the wheel's rotation axis in local space
+            wheel.mesh.rotateOnAxis(wheel.rotationAxis, angle);
         }
     }
 

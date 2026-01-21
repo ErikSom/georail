@@ -6,6 +6,12 @@ export interface BogieConfig {
     boneForwardAxis: { x: number; y: number; z: number };
 }
 
+export interface WheelConfig {
+    pattern: string; // Regex pattern to match wheel mesh names
+    rotationAxis: { x: number; y: number; z: number }; // Axis to rotate around
+    radius: number; // Wheel radius in meters
+}
+
 export interface AnimationGroupConfig {
     name: string;
     pattern: string;
@@ -71,6 +77,9 @@ export interface RollingStockConfig {
 
     // Animation groups
     animationGroups: AnimationGroupConfig[];
+
+    // Wheel configurations for rotation
+    wheels: WheelConfig[];
 }
 
 export interface CabConfig extends RollingStockConfig {
@@ -124,6 +133,7 @@ export function getDefaultTrainConfig(): TrainConfig {
             enginePower: 0.0,
             brakingPower: 0.0,
             animationGroups: [],
+            wheels: [],
         },
         wagons: [],
         audio: {

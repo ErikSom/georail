@@ -21,6 +21,7 @@ export class Train implements IPhysicsTarget {
 
     private path: Path | null = null;
     public distanceTraveled: number = 0; // Public so physics can control it
+    private previousDistanceTraveled: number = 0; // For calculating distance delta
 
 
     private debug: boolean;
@@ -350,6 +351,7 @@ export class Train implements IPhysicsTarget {
             enginePower: 0.0,
             brakingPower: 0.0,
             animationGroups: [],
+            wheels: [],
         };
 
         this.config.wagons.push(defaultWagon);
@@ -571,15 +573,19 @@ export class Train implements IPhysicsTarget {
         // Update physics simulation (this will directly update distanceTraveled)
         this.physics.update(delta);
 
+        // Calculate distance delta for wheel rotation
+        const distanceDelta = this.distanceTraveled - this.previousDistanceTraveled;
+        this.previousDistanceTraveled = this.distanceTraveled;
+
         // Update position on path based on physics-driven distanceTraveled
         if (this.path && this.path.points.length > 0) {
             this.positionOnPath();
         }
 
-        // Update rolling stock animations
-        this.cab?.update(delta);
-        this.wagons.forEach(wagon => wagon.update(delta));
-        this.rearCab?.update(delta);
+        // Update rolling stock animations and wheel rotation
+        this.cab?.update(delta, distanceDelta);
+        this.wagons.forEach(wagon => wagon.update(delta, distanceDelta));
+        this.rearCab?.update(delta, distanceDelta);
 
         // Update audio engine (evaluates curves and updates audio properties)
         this.audio.update();
