@@ -6,6 +6,8 @@ import {
     Raycaster,
     Vector3,
     Quaternion,
+    SRGBColorSpace,
+    ACESFilmicToneMapping,
 } from 'three';
 import { MapViewer } from '../MapViewer';
 import { FlightControls } from '../utils/FlightControls';
@@ -49,6 +51,10 @@ export class Editor {
         this.scene = new Scene();
         this.clock = new Clock();
         this.renderer = new WebGLRenderer({ antialias: true });
+        // Ensure correct color output and a brighter, filmic response.
+        this.renderer.outputColorSpace = SRGBColorSpace;
+        this.renderer.toneMapping = ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.1;
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.setSize(this.mountElement.clientWidth, this.mountElement.clientHeight);
         this.mountElement.appendChild(this.renderer.domElement);

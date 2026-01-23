@@ -5,6 +5,15 @@ import {
     Clock,
     Vector3,
     MathUtils,
+    SRGBColorSpace,
+    ACESFilmicToneMapping,
+    NoToneMapping,
+    LinearToneMapping,
+    ReinhardToneMapping,
+    CineonToneMapping,
+    AgXToneMapping,
+    NeutralToneMapping,
+    LinearSRGBColorSpace,
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { MapViewer } from './MapViewer';
@@ -21,6 +30,7 @@ import { ThreePerf } from 'three-perf';
 import { trainInstance, updateTrainState, trainDebugMode, trainLatE7, trainLonE7, trainFrontLatE7, trainFrontLonE7, trainBackLatE7, trainBackLonE7, cameraYawRelativeToTrain } from '../store/train';
 import { getPerformanceConfig, type PerformanceConfig } from './utils/PerformanceConfig';
 import type { Tiles3DAttributionCredits } from '../components/Tiles3DAttribution';
+import { Pane } from 'tweakpane';
 
 export class World {
     private scene!: Scene;
@@ -36,6 +46,8 @@ export class World {
     private perf!: any;
     private tmp = new Vector3();
     private perfConfig: PerformanceConfig;
+    private rendererPane: Pane | null = null;
+    private isRendererPaneVisible: boolean = false;
 
     private rafId: number | null = null;
     private mountElement: HTMLDivElement;
@@ -66,6 +78,10 @@ export class World {
             antialias: this.perfConfig.antialias,
             powerPreference: 'high-performance'
         });
+        // Ensure correct color output and a brighter, filmic response.
+        this.renderer.outputColorSpace = SRGBColorSpace;
+        this.renderer.toneMapping = ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.1;
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.perfConfig.pixelRatio));
         this.renderer.setSize(this.mountElement.clientWidth, this.mountElement.clientHeight);
         this.mountElement.appendChild(this.renderer.domElement);
@@ -150,6 +166,10 @@ export class World {
 
         if (this.perf) {
             this.perf.destroy();
+        }
+        if (this.rendererPane) {
+            this.rendererPane.dispose();
+            this.rendererPane = null;
         }
 
         this.renderer.dispose();
@@ -267,6 +287,10 @@ export class World {
             // Toggle Sky UI
             this.sky.toggleUI();
         }
+        if (Input.isPressed('F2')) {
+            // Toggle Renderer UI
+            this.toggleRendererUI();
+        }
 
         Input.update();
     }
@@ -360,6 +384,54 @@ export class World {
                 console.log('Attribution from MapViewer:', attribution);
                 this.setCreditsCallback(attribution);
             }
+        }
+    }
+
+    private createRendererUI(): void {
+        if (this.rendererPane) return;
+
+        const rootDomContainer = document.getElementById('tweakpane-container');
+        this.rendererPane = new Pane({ title: 'Renderer', container: rootDomContainer || undefined });
+
+        this.rendererPane.addBinding(this.renderer, 'outputColorSpace', {
+            options: {
+                SRGB: SRGBColorSpace,
+                Linear: LinearSRGBColorSpace,
+            },
+            label: 'output',
+        });
+        this.rendererPane.addBinding(this.renderer, 'toneMapping', {
+            options: {
+                None: NoToneMapping,
+                Linear: LinearToneMapping,
+                Reinhard: ReinhardToneMapping,
+                Cineon: CineonToneMapping,
+                ACES: ACESFilmicToneMapping,
+                AgX: AgXToneMapping,
+                Neutral: NeutralToneMapping,
+            },
+            label: 'toneMap',
+        });
+        this.rendererPane.addBinding(this.renderer, 'toneMappingExposure', {
+            min: 0,
+            max: 3,
+            step: 0.01,
+            label: 'exposure',
+        });
+
+        if (!this.isRendererPaneVisible) {
+            this.rendererPane.element.style.display = 'none';
+        }
+    }
+
+    private toggleRendererUI(): void {
+        if (!this.rendererPane) {
+            this.createRendererUI();
+        }
+
+        this.isRendererPaneVisible = !this.isRendererPaneVisible;
+        if (this.rendererPane) {
+            this.rendererPane.element.style.display = this.isRendererPaneVisible ? 'block' : 'none';
         }
     }
 }

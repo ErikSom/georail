@@ -9,6 +9,7 @@ import {
     DirectionalLight,
     DirectionalLightHelper,
     AmbientLight,
+    HemisphereLight,
     TextureLoader,
     RepeatWrapping,
     LinearMipMapLinearFilter,
@@ -382,6 +383,7 @@ export class Sky {
     public sunLight: DirectionalLight;
     public moonLight: DirectionalLight;
     public ambientLight: AmbientLight;
+    public hemisphereLight: HemisphereLight;
     private sunLightHelper?: DirectionalLightHelper;
     private moonLightHelper?: DirectionalLightHelper;
 
@@ -395,6 +397,15 @@ export class Sky {
 
     public sunPeakIntensity: number = 1.5; 
     public moonPeakIntensity: number = 0.5;
+    public ambientDayIntensity: number = 2.0;
+    public ambientNightIntensity: number = 0.45;
+    public ambientMoonBoost: number = 0.35;
+    public ambientTintBlend: number = 0.0;
+    public ambientTintHex: string = '#ffffff';
+    private ambientTint = new Color('#ffffff');
+    public hemiDayIntensity: number = 1.4;
+    public hemiNightIntensity: number = 0.25;
+    public hemiMoonBoost: number = 0.25;
 
     private pane: Tweakpane.Pane | null = null;
     private isPaneVisible: boolean = false;
@@ -482,6 +493,9 @@ export class Sky {
         this.ambientLight = new AmbientLight(0x404040, 1.0);
         this.scene.add(this.ambientLight);
 
+        this.hemisphereLight = new HemisphereLight(0xffffff, 0x202020, 0.6);
+        this.scene.add(this.hemisphereLight);
+
         // Add debug helpers for lights
         if (this.debugLights) {
             this.sunLightHelper = new DirectionalLightHelper(this.sunLight, 100, 0xffff00);
@@ -539,14 +553,16 @@ export class Sky {
     private updateSkyColors(): void {
         const pos = this.sunPosAlpha;
         const preset = godotPreset;
+        const skyColor = preset.baseSkyColor.sample(pos);
+        const groundColor = preset.horizonFogColor.sample(pos);
 
         if (!this.skyMaterial.uniforms.useLUT.value) {
-            this.skyMaterial.uniforms.baseColor.value.copy(preset.baseSkyColor.sample(pos));
+            this.skyMaterial.uniforms.baseColor.value.copy(skyColor);
         } else {
             this.skyMaterial.uniforms.baseColor.value.setRGB(0.052192, 0.101373, 0.192708);
         }
 
-        this.skyMaterial.uniforms.horizonFogColor.value.copy(preset.horizonFogColor.sample(pos));
+        this.skyMaterial.uniforms.horizonFogColor.value.copy(groundColor);
 
         const baseC = preset.baseCloudColor.sample(pos);
         const overcastC = preset.overcastCloudColor.sample(pos);
@@ -561,11 +577,30 @@ export class Sky {
         const sunInt = preset.sunLightIntensity.sample(pos);
         const moonInt = preset.moonLightIntensity.sample(pos);
         const cloudDamp = 1.0 - (normalizedCoverage * 0.8);
+        const dayFactor = MathUtils.smoothstep(pos, 0.5, 1.0);
+        const moonFactor = MathUtils.clamp(moonInt, 0, 1);
 
         this.sunLight.color.copy(preset.sunLightColor.sample(pos));
         this.sunLight.intensity = Math.max(0, sunInt * cloudDamp * this.sunPeakIntensity);
         this.moonLight.color.copy(preset.moonLightColor.sample(pos));
         this.moonLight.intensity = Math.max(0, moonInt * cloudDamp * this.moonPeakIntensity);
+        const ambientBase = groundColor.clone().lerp(skyColor, 0.35);
+        if (this.ambientTintBlend > 0) {
+            ambientBase.lerp(this.ambientTint, this.ambientTintBlend);
+        }
+        this.ambientLight.color.copy(ambientBase);
+        this.ambientLight.intensity = MathUtils.lerp(
+            this.ambientNightIntensity,
+            this.ambientDayIntensity,
+            dayFactor
+        ) + (moonFactor * this.ambientMoonBoost);
+        this.hemisphereLight.color.copy(skyColor);
+        this.hemisphereLight.groundColor.copy(groundColor).multiplyScalar(0.7);
+        this.hemisphereLight.intensity = MathUtils.lerp(
+            this.hemiNightIntensity,
+            this.hemiDayIntensity,
+            dayFactor
+        ) + (moonFactor * this.hemiMoonBoost);
     }
 
     public cleanup(): void {
@@ -573,6 +608,7 @@ export class Sky {
         this.scene.remove(this.sunLight);
         this.scene.remove(this.moonLight);
         this.scene.remove(this.ambientLight);
+        this.scene.remove(this.hemisphereLight);
 
         if (this.sunLightHelper) {
             this.scene.remove(this.sunLightHelper);
@@ -686,11 +722,53 @@ export class Sky {
             step: 0.1,
             label: 'Moon Intensity'
         });
-        this.pane.addBinding(this.ambientLight, 'intensity', {
+        this.pane.addBinding(this, 'ambientDayIntensity', {
+            min: 0,
+            max: 3,
+            step: 0.05,
+            label: 'ambientDay'
+        });
+        this.pane.addBinding(this, 'ambientNightIntensity', {
             min: 0,
             max: 2,
-            step: 0.1,
-            label: 'ambientIntensity'
+            step: 0.05,
+            label: 'ambientNight'
+        });
+        this.pane.addBinding(this, 'ambientMoonBoost', {
+            min: 0,
+            max: 2,
+            step: 0.05,
+            label: 'ambientMoon'
+        });
+        this.pane.addBinding(this, 'ambientTintBlend', {
+            min: 0,
+            max: 1,
+            step: 0.01,
+            label: 'ambientMix'
+        });
+        this.pane.addBinding(this, 'ambientTintHex', {
+            view: 'color',
+            label: 'ambientColor'
+        }).on('change', (ev: any) => {
+            this.ambientTint.set(ev.value);
+        });
+        this.pane.addBinding(this, 'hemiDayIntensity', {
+            min: 0,
+            max: 3,
+            step: 0.05,
+            label: 'hemiDay'
+        });
+        this.pane.addBinding(this, 'hemiNightIntensity', {
+            min: 0,
+            max: 2,
+            step: 0.05,
+            label: 'hemiNight'
+        });
+        this.pane.addBinding(this, 'hemiMoonBoost', {
+            min: 0,
+            max: 2,
+            step: 0.05,
+            label: 'hemiMoon'
         });
         this.pane.addBinding(this, 'debugLights').on('change', (ev: any) => {
             if (ev.value) {

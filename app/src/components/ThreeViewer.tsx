@@ -35,8 +35,6 @@ function ThreeViewer() {
         setShowPicker(false);
     };
 
-    console.log('Attribution:', attribution);
-
     return (
         <div className={styles.container}>
             <div ref={mountRef} className={styles.canvas} />

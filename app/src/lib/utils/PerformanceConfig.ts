@@ -22,7 +22,7 @@ export const PERFORMANCE_PRESETS = {
         pixelRatio: 2,
         antialias: true,
         farPlane: 1e7,
-        tilesErrorTarget: 6,
+        tilesErrorTarget: 20,
         tilesMaxDepth: Infinity, // No limit - maximum detail
         tier: 'ultra',
 
@@ -35,7 +35,7 @@ export const PERFORMANCE_PRESETS = {
         pixelRatio: 1.5,
         antialias: true,
         farPlane: 1e7,
-        tilesErrorTarget: 8,
+        tilesErrorTarget: 20,
         tilesMaxDepth: Infinity, // No limit
         tier: 'high',
     } as PerformanceConfig,
@@ -47,7 +47,7 @@ export const PERFORMANCE_PRESETS = {
         pixelRatio: 1.5,
         antialias: false,
         farPlane: 1e7,
-        tilesErrorTarget: 12,
+        tilesErrorTarget: 20,
         tilesMaxDepth: Infinity, // No limit - let errorTarget control LOD
         tier: 'medium',
     } as PerformanceConfig,
@@ -59,7 +59,7 @@ export const PERFORMANCE_PRESETS = {
         pixelRatio: 1,
         antialias: false,
         farPlane: 1e7,
-        tilesErrorTarget: 18,
+        tilesErrorTarget: 20,
         tilesMaxDepth: 25, // Limit depth on low-end devices
         tier: 'low',
     } as PerformanceConfig,
@@ -71,7 +71,7 @@ export const PERFORMANCE_PRESETS = {
         pixelRatio: 1,
         antialias: false,
         farPlane: 1e7,
-        tilesErrorTarget: 24,
+        tilesErrorTarget: 20,
         tilesMaxDepth: 20, // Strict limit for potato mode
         tier: 'potato',
     } as PerformanceConfig,
