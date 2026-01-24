@@ -1,4 +1,4 @@
-import { Group, Mesh, Object3D, SphereGeometry, BoxGeometry, MeshBasicMaterial, Vector3, MeshStandardMaterial, CylinderGeometry, Quaternion } from 'three';
+import { Group, Mesh, Object3D, SphereGeometry, BoxGeometry, MeshBasicMaterial, Vector3, MeshStandardMaterial, CylinderGeometry, Quaternion, Color } from 'three';
 import type { BogieConfig, RollingStockConfig, TrainConfig, WheelConfig } from './TrainConfig';
 import { getGLTFLoader } from '../utils/ModelLoader';
 import type Path from '../utils/Path';
@@ -188,6 +188,18 @@ export class RollingStock {
                         // standardMat.side = DoubleSide;
 
                         standardMat.needsUpdate = true;
+                    }
+                    else if (this.config.interiorMaterial.pattern) {
+                        const regex = new RegExp(this.config.interiorMaterial.pattern);
+                        if (regex.test(name)) {
+                            const standardMat = mat as MeshStandardMaterial;
+                            standardMat.emissive = new Color(this.config.interiorMaterial.emissiveColor);
+                            standardMat.emissiveIntensity = this.config.interiorMaterial.emissiveIntensity;
+                            if (standardMat.map) {
+                                standardMat.emissiveMap = standardMat.map;
+                            }
+                            standardMat.needsUpdate = true;
+                        }
                     }
                     // disable receiving and casting shadows for performance
                     child.castShadow = false;
@@ -487,12 +499,14 @@ export class RollingStock {
             config.rearBogie.entityName !== this.config.rearBogie.entityName;
 
         const wheelsChanged = JSON.stringify(config.wheels) !== JSON.stringify(this.config.wheels);
+        const interiorMaterialChanged = JSON.stringify(config.interiorMaterial) !== JSON.stringify(this.config.interiorMaterial);
 
         this.config = config;
         this.updateModelTransform();
 
         if (bogieNamesChanged && this.model) this.findBogieEntities();
         if (wheelsChanged && this.model) this.findWheels();
+        if (interiorMaterialChanged && this.model) this.setModelMaterials(this.model);
         if (modelChanged && config.modelPath) this.loadModel(config.modelPath, config.internal);
     }
 
@@ -931,6 +945,48 @@ export class RollingStock {
 
         // Initial build
         rebuildWheelUI();
+
+        // --- 7. Interior Material Configuration ---
+        const interiorKey = getFolderKey([...basePath, 'Interior Material']);
+        const interiorFolder = this.paneFolder.addFolder({
+            title: 'Interior Material',
+            expanded: getFolderExpanded(interiorKey, false)
+        });
+        registerFolder(interiorFolder, interiorKey);
+
+        interiorFolder.addBinding(targetConfig.interiorMaterial, 'pattern', {
+            label: 'Pattern (regex)'
+        }).on('change', () => {
+            if (this.model) this.setModelMaterials(this.model);
+            updateConfig(config);
+        });
+
+        // Color picker - tweakpane expects {r, g, b} object
+        const colorProxy = {
+            color: {
+                r: (targetConfig.interiorMaterial.emissiveColor >> 16) & 0xff,
+                g: (targetConfig.interiorMaterial.emissiveColor >> 8) & 0xff,
+                b: targetConfig.interiorMaterial.emissiveColor & 0xff
+            }
+        };
+
+        interiorFolder.addBinding(colorProxy, 'color', {
+            label: 'Emissive Color'
+        }).on('change', (ev) => {
+            targetConfig.interiorMaterial.emissiveColor = (ev.value.r << 16) | (ev.value.g << 8) | ev.value.b;
+            if (this.model) this.setModelMaterials(this.model);
+            updateConfig(config);
+        });
+
+        interiorFolder.addBinding(targetConfig.interiorMaterial, 'emissiveIntensity', {
+            label: 'Emissive Intensity',
+            min: 0,
+            max: 2,
+            step: 0.01
+        }).on('change', () => {
+            if (this.model) this.setModelMaterials(this.model);
+            updateConfig(config);
+        });
 
         return this.paneFolder;
     }

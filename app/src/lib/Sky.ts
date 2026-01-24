@@ -395,16 +395,16 @@ export class Sky {
     public debugLights: boolean = false;
     public timeConversionFactor = (60 * 60 * 24) / 2400; // seconds in a day divided by timeOfDay range
 
-    public sunPeakIntensity: number = 1.5; 
+    public sunPeakIntensity: number = 1.5;
     public moonPeakIntensity: number = 0.5;
-    public ambientDayIntensity: number = 2.0;
-    public ambientNightIntensity: number = 0.45;
+    public ambientDayIntensity: number = 1.85;
+    public ambientNightIntensity: number = 1.15;
     public ambientMoonBoost: number = 0.35;
     public ambientTintBlend: number = 0.0;
     public ambientTintHex: string = '#ffffff';
     private ambientTint = new Color('#ffffff');
-    public hemiDayIntensity: number = 1.4;
-    public hemiNightIntensity: number = 0.25;
+    public hemiDayIntensity: number = 1.45;
+    public hemiNightIntensity: number = 0.95;
     public hemiMoonBoost: number = 0.25;
 
     private pane: Tweakpane.Pane | null = null;

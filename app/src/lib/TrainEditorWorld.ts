@@ -40,7 +40,6 @@ export class TrainEditorWorld {
     private controls!: OrbitControls;
     private flightControls: FlightControls | null = null;
     private train!: Train;
-    private sky!: Sky;
     private gridHelper!: GridHelper;
     private groundPlane!: Mesh;
 
@@ -51,6 +50,9 @@ export class TrainEditorWorld {
         power: 0,
         velocityKmh: 0,
     };
+    private sceneParams = {
+        darkness: 0,
+    };
     private cameraParams = {
         mode: 'free' as CameraMode,
     };
@@ -59,6 +61,11 @@ export class TrainEditorWorld {
     private cinematicAngle: number = 0; // For cinematic camera rotation
     private zoomDistance: number = 200; // Controlled by scroll wheel
     private boundOnWheel: (event: WheelEvent) => void;
+    private baseExposure = 1.1;
+
+
+    private ambientLight!: AmbientLight;
+    private directionalLight!: DirectionalLight;
 
     constructor(mountElement: HTMLDivElement) {
         this.mountElement = mountElement;
@@ -74,7 +81,7 @@ export class TrainEditorWorld {
         // Ensure correct color output and a brighter, filmic response.
         this.renderer.outputColorSpace = SRGBColorSpace;
         this.renderer.toneMapping = ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.1;
+        this.renderer.toneMappingExposure = this.baseExposure;
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.setSize(this.mountElement.clientWidth, this.mountElement.clientHeight);
         this.mountElement.appendChild(this.renderer.domElement);
@@ -94,15 +101,12 @@ export class TrainEditorWorld {
         audioListener.value = this.audioListener;
 
         // Lighting
-        const ambientLight = new AmbientLight(0xffffff, 0.6);
-        this.scene.add(ambientLight);
+        this.ambientLight = new AmbientLight(0xffffff, 0.6);;
+        this.scene.add(this.ambientLight);
 
-        const directionalLight = new DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(100, 200, 100);
-        this.scene.add(directionalLight);
-
-        // Sky
-        this.sky = new Sky(this.scene);
+        this.directionalLight = new DirectionalLight(0xffffff, 0.8);;
+        this.directionalLight.position.set(100, 200, 100);
+        this.scene.add(this.directionalLight);
 
         // Ground plane with subtle color
         const planeGeometry = new PlaneGeometry(2000, 2000);
@@ -241,6 +245,21 @@ export class TrainEditorWorld {
             this.updateCameraMode();
         });
 
+        const sceneFolder = this.pane.addFolder({ title: 'Scene' });
+        sceneFolder.addBinding(this.sceneParams, 'darkness', {
+            label: 'Darkness',
+            min: 0,
+            max: 1,
+            step: 0.01,
+        }).on('change', () => {
+            this.applySceneExposure();
+        });
+    }
+
+    private applySceneExposure(): void {
+        const darkness = Math.min(1, Math.max(0, this.sceneParams.darkness));
+        this.ambientLight.intensity = 1 - darkness;
+        this.directionalLight.intensity = 1 - darkness;
     }
 
     private setPath(pathType: PathType): void {
@@ -484,8 +503,7 @@ export class TrainEditorWorld {
                 break;
         }
 
-        // Update Sky
-        this.sky.update(deltaTime, this.camera);
+        // Update Train
         this.train?.update(deltaTime);
 
 
@@ -520,7 +538,6 @@ export class TrainEditorWorld {
         // Clear train instance from store
         trainInstance.value = null;
 
-        this.sky.cleanup();
         this.train.cleanup();
         this.controls.dispose();
 

@@ -357,6 +357,11 @@ export class Train implements IPhysicsTarget {
             brakingPower: 0.0,
             animationGroups: [],
             wheels: [],
+            interiorMaterial: {
+                pattern: '',
+                emissiveColor: 0xffffff,
+                emissiveIntensity: 1.0,
+            },
         };
 
         this.config.wagons.push(defaultWagon);

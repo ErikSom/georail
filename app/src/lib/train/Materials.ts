@@ -20,6 +20,7 @@ export const glassMaterial = new MeshPhysicalMaterial({
 });
 
 
+
 export function loadGlassMaterialEnvMap(envMapUrl: string) {
     new EXRLoader().load(envMapUrl, (texture) => {
         texture.mapping = EquirectangularReflectionMapping;

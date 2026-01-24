@@ -22,6 +22,12 @@ export interface AnimationGroupConfig {
     alternate: boolean;
 }
 
+export interface InteriorMaterialConfig {
+    pattern: string; // Regex pattern to match material names (e.g., "inside|seats")
+    emissiveColor: number; // Hex color (e.g., 0xff8c00)
+    emissiveIntensity: number; // 0-1 range
+}
+
 export type AudioCurvePoint = { x: number; y: number };
 export type AudioCurveAxis = { min: number; max: number; label?: string };
 export type AudioCurveAxes = { x: AudioCurveAxis; y: AudioCurveAxis };
@@ -81,6 +87,9 @@ export interface RollingStockConfig {
 
     // Wheel configurations for rotation
     wheels: WheelConfig[];
+
+    // Interior material configuration
+    interiorMaterial: InteriorMaterialConfig;
 }
 
 export interface CabConfig extends RollingStockConfig {
@@ -136,11 +145,16 @@ export function getDefaultTrainConfig(): TrainConfig {
             brakingPower: 0.0,
             animationGroups: [],
             wheels: [],
+            interiorMaterial: {
+                pattern: '',
+                emissiveColor: 0xffffff,
+                emissiveIntensity: 1.0,
+            },
         },
         wagons: [],
         audio: {
             files: [],
             compositions: []
-        }
+        },
     };
 }

@@ -75,7 +75,12 @@
                 },
                 "radius": 0.5
             }
-        ]
+        ],
+        "interiorMaterial": {
+            "pattern": "inside",
+            "emissiveColor": 16757072,
+            "emissiveIntensity": 1
+        }
     },
     "wagons": [
         {
@@ -145,7 +150,12 @@
                     },
                     "radius": 0.5
                 }
-            ]
+            ],
+            "interiorMaterial": {
+                "pattern": "inside",
+                "emissiveColor": 16757072,
+                "emissiveIntensity": 1
+            }
         }
     ],
     "rearCab": {
@@ -224,7 +234,12 @@
                 },
                 "radius": 0.5
             }
-        ]
+        ],
+        "interiorMaterial": {
+            "pattern": "inside",
+            "emissiveColor": 16757072,
+            "emissiveIntensity": 1
+        }
     },
     "audio": {
         "files": [
