@@ -261,7 +261,7 @@ const fragmentShader = `
     }
 
     vec2 generate2DClouds(vec3 dir) {
-        float safeY = max(dir.y, 0.05);
+        float safeY = max(dir.y, -0.05);
         float horizonCurve = safeY / horizonUVCurve;
         
         vec2 uvBase = vec2(dir.x / horizonCurve, dir.z / horizonCurve);
