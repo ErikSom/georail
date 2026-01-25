@@ -26,7 +26,7 @@ import { Input } from './utils/Input';
 import { FlightControls } from './utils/FlightControls';
 import Path from './utils/Path';
 import { getTrainConfiguration, nssgmTrainType } from './train/configs/TrainConfigurations.secure';
-import { ThreePerf } from 'three-perf';
+import Stats from 'stats-gl';
 import { trainInstance, updateTrainState, trainDebugMode, trainLatE7, trainLonE7, trainFrontLatE7, trainFrontLonE7, trainBackLatE7, trainBackLonE7, cameraYawRelativeToTrain } from '../store/train';
 import { getPerformanceConfig, type PerformanceConfig } from './utils/PerformanceConfig';
 import type { Tiles3DAttributionCredits } from '../components/Tiles3DAttribution';
@@ -43,7 +43,7 @@ export class World {
     private train!: Train;
     private mapViewer!: MapViewer;
     private sky!: Sky;
-    private perf!: any;
+    private stats!: Stats;
     private tmp = new Vector3();
     private perfConfig: PerformanceConfig;
     private rendererPane: Pane | null = null;
@@ -80,8 +80,8 @@ export class World {
         });
         // Ensure correct color output and a brighter, filmic response.
         this.renderer.outputColorSpace = SRGBColorSpace;
-        this.renderer.toneMapping = ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.1;
+        this.renderer.toneMapping = NeutralToneMapping;
+        this.renderer.toneMappingExposure = 1.08;
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.perfConfig.pixelRatio));
         this.renderer.setSize(this.mountElement.clientWidth, this.mountElement.clientHeight);
         this.mountElement.appendChild(this.renderer.domElement);
@@ -126,13 +126,28 @@ export class World {
         // Initialize Input system
         Input.init(this.renderer.domElement);
 
-        // Initialize three-perf
-        this.perf = new ThreePerf({
-            anchorX: 'left',
-            anchorY: 'top',
-            domElement: this.mountElement,
-            renderer: this.renderer,
+        // Initialize stats-gl (hidden by default, toggle with F2)
+        this.stats = new Stats({
+            trackGPU: true,
+            trackHz: true,
+            logsPerSecond: 20,
+            graphsPerSecond: 30,
+            samplesLog: 100,
+            samplesGraph: 10,
+            precision: 2,
+            horizontal: true,
+            minimal: false,
         });
+        this.stats.init(this.renderer);
+        this.mountElement.appendChild(this.stats.dom);
+        this.stats.dom.style.display = 'none'; // Hidden by default
+
+        // handle query params
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlStats = urlParams.get('stats');
+        if (urlStats !== null) {
+            this.toggleRendererUI();
+        }
 
         window.addEventListener('resize', this.onWindowResize, false);
 
@@ -164,8 +179,8 @@ export class World {
             this.flightControls.cleanup();
         }
 
-        if (this.perf) {
-            this.perf.destroy();
+        if (this.stats) {
+            this.stats.dom.remove();
         }
         if (this.rendererPane) {
             this.rendererPane.dispose();
@@ -333,9 +348,10 @@ export class World {
         this.camera.updateMatrixWorld();
 
         // 6. Render
-        this.perf.begin();
+        this.stats.begin();
         this.renderer.render(this.scene, this.camera);
-        this.perf.end();
+        this.stats.end();
+        this.stats.update();
 
         const trainCoords = this.mapViewer.getLatLonHeightFromWorldPosition(this.train.group.position);
 
@@ -381,7 +397,6 @@ export class World {
         if (this.mapViewer.initialized) {
             if (trainCoords) {
                 const attribution = this.mapViewer.getCredits();
-                console.log('Attribution from MapViewer:', attribution);
                 this.setCreditsCallback(attribution);
             }
         }
@@ -419,6 +434,17 @@ export class World {
             label: 'exposure',
         });
 
+        // Add renderer info monitors
+        const infoFolder = this.rendererPane.addFolder({ title: 'Render Info' });
+        infoFolder.addBinding(this.renderer.info.render, 'calls', { readonly: true, label: 'Draw Calls' });
+        infoFolder.addBinding(this.renderer.info.render, 'triangles', { readonly: true, label: 'Triangles' });
+        infoFolder.addBinding(this.renderer.info.render, 'lines', { readonly: true, label: 'Lines' });
+        infoFolder.addBinding(this.renderer.info.render, 'points', { readonly: true, label: 'Points' });
+
+        const memoryFolder = this.rendererPane.addFolder({ title: 'Memory' });
+        memoryFolder.addBinding(this.renderer.info.memory, 'geometries', { readonly: true, label: 'Geometries' });
+        memoryFolder.addBinding(this.renderer.info.memory, 'textures', { readonly: true, label: 'Textures' });
+
         if (!this.isRendererPaneVisible) {
             this.rendererPane.element.style.display = 'none';
         }
@@ -430,6 +456,13 @@ export class World {
         }
 
         this.isRendererPaneVisible = !this.isRendererPaneVisible;
+
+        // Toggle stats-gl visibility
+        if (this.stats) {
+            this.stats.dom.style.display = this.isRendererPaneVisible ? 'block' : 'none';
+        }
+
+        // Toggle tweakpane visibility
         if (this.rendererPane) {
             this.rendererPane.element.style.display = this.isRendererPaneVisible ? 'block' : 'none';
         }

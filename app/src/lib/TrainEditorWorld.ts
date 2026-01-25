@@ -12,10 +12,9 @@ import {
     DirectionalLight,
     AudioListener,
     SRGBColorSpace,
-    ACESFilmicToneMapping,
+    NeutralToneMapping,
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { Sky } from './Sky';
 import { Train } from './train/Train';
 import { getDefaultTrainConfig, type TrainConfig } from './train/TrainConfig';
 import Path from './utils/Path';
@@ -80,7 +79,7 @@ export class TrainEditorWorld {
         this.renderer = new WebGLRenderer({ antialias: true });
         // Ensure correct color output and a brighter, filmic response.
         this.renderer.outputColorSpace = SRGBColorSpace;
-        this.renderer.toneMapping = ACESFilmicToneMapping;
+        this.renderer.toneMapping = NeutralToneMapping;
         this.renderer.toneMappingExposure = this.baseExposure;
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.setSize(this.mountElement.clientWidth, this.mountElement.clientHeight);
