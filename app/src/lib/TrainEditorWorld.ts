@@ -110,7 +110,7 @@ export class TrainEditorWorld {
         // Ground plane with subtle color
         const planeGeometry = new PlaneGeometry(2000, 2000);
         const planeMaterial = new MeshStandardMaterial({
-            color: 0x2a2a2a,
+            color: 0x5f5f5f,
             roughness: 0.8,
             metalness: 0.2,
         });
