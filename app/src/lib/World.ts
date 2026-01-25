@@ -14,6 +14,7 @@ import {
     AgXToneMapping,
     NeutralToneMapping,
     LinearSRGBColorSpace,
+    AudioListener,
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { MapViewer } from './MapViewer';
@@ -21,7 +22,6 @@ import { fetchRouteByName, type RouteData } from './Georail';
 import { routePointToWorldPosition } from './utils/CoordinateHelpers';
 import { Sky } from './Sky';
 import { Train } from './train/Train';
-import { getDefaultTrainConfig } from './train/TrainConfig';
 import { Input } from './utils/Input';
 import { FlightControls } from './utils/FlightControls';
 import Path from './utils/Path';
@@ -31,12 +31,14 @@ import { trainInstance, updateTrainState, trainDebugMode, trainLatE7, trainLonE7
 import { getPerformanceConfig, type PerformanceConfig } from './utils/PerformanceConfig';
 import type { Tiles3DAttributionCredits } from '../components/Tiles3DAttribution';
 import { Pane } from 'tweakpane';
+import { audioListener } from '../store/globals';
 
 export class World {
     private scene!: Scene;
     private camera!: PerspectiveCamera;
     private renderer!: WebGLRenderer;
     private clock!: Clock;
+    private audioListener!: AudioListener;
 
     private controls!: OrbitControls;
     private flightControls: FlightControls | null = null;
@@ -94,6 +96,11 @@ export class World {
         );
         this.camera.position.set(1e3, 1e3, 1e3).multiplyScalar(0.5);
 
+        // Initialize Audio Listener
+        this.audioListener = new AudioListener();
+        this.camera.add(this.audioListener);
+        audioListener.value = this.audioListener;
+
         // Initialize MapViewer but don't call init() yet - wait for route data
         this.mapViewer = new MapViewer();
 
@@ -113,10 +120,10 @@ export class World {
         trainInstance.value = this.train;
 
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-        this.controls.minDistance = 100;
+        this.controls.minDistance = 10;
         this.controls.maxDistance = 500;
         this.controls.minPolarAngle = 0;
-        this.controls.maxPolarAngle = 3 * Math.PI / 8;
+        this.controls.maxPolarAngle = Math.PI / 2 - 0.1;  // ~ prevent going below ground
         this.controls.enableDamping = true;
         this.controls.autoRotate = false;
         this.controls.enablePan = false;
