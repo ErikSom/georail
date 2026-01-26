@@ -36,23 +36,14 @@ const patchActionLimiter = rateLimit({
 const router = express.Router();
 
 // === USER ROUTES ===
-
-// Fetch personal patches
+// Read routes
 router.get('/my', patchReadLimiter, authenticateAndAuthorize, getMyPatches);
-
-// Submit a new patch or update an existing one
-router.post('/submit', patchActionLimiter, authenticateAndAuthorize, submitPatch);
-
-// Update status (cancel or reopen personal patches)
-router.patch('/status', patchActionLimiter, authenticateAndAuthorize, updatePatchStatus);
-
-
-// === MODERATOR ROUTES ===
-
-// Fetch all patches (Moderator view)
 router.get('/all', patchReadLimiter, authenticateAndAuthorize, getAllPatches);
 
-// Approve a patch
+// Action routes (Mutations)
+router.post('/submit', patchActionLimiter, authenticateAndAuthorize, submitPatch);
 router.post('/approve', patchActionLimiter, authenticateAndAuthorize, approvePatch);
+router.patch('/status', patchActionLimiter, authenticateAndAuthorize, updatePatchStatus);
+router.delete('/:id', patchActionLimiter, authenticateAndAuthorize, deletePatch);
 
 export default router;
