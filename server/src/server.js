@@ -13,10 +13,15 @@ dotenv.config({ path: path.resolve(process.cwd(), envFile) });
 
 const app = express();
 
+// ✅ 1. Trust Proxy (Must be set before routes/limiters)
+// This allows the rate limiters to see 'cf-connecting-ip' correctly
+app.set('trust proxy', 1);
+
 initializeSupabase();
 
 app.use(express.json());
 
+// ✅ 2. Refined CORS Middleware
 app.use((req, res, next) => {
     const allowedOrigins = ['http://localhost:4321', 'https://georail-app.pages.dev', 'https://georail.app'];
     const origin = req.headers.origin;
@@ -38,18 +43,19 @@ app.use((req, res, next) => {
     next();
 });
 
+// ✅ 3. Routes
 app.use('/navi', navigationRoutes);
 app.use('/stations', stationsRoutes);
 app.use('/patches', patchesRoutes);
 app.use('/user', userRoutes);
 
+// ✅ 4. Health Check & Root
+app.get('/health', (req, res) => res.status(200).send('OK'));
 app.get('/', (req, res) => {
-    res.json({ message: 'Server is running!' });
+    res.json({ message: 'GeoRail API Server is running!' });
 });
 
-app.listen(process.env.APP_PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${process.env.APP_PORT}`);
+const PORT = process.env.APP_PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Server running on port ${PORT}`);
 });
-
-// we trust the proxy to make rate limiting work with fly.io
-app.set('trust proxy', 1);

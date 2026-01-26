@@ -9,18 +9,28 @@ import {
 } from '../controllers/patches.js';
 import { authenticateAndAuthorize } from '../middleware/auth.js';
 
-// Standard limiter for fetching lists
+// Standard limiter for fetching lists (GET requests)
 const patchReadLimiter = rateLimit({
     windowMs: 1000,
     max: 10,
-    message: 'Too many requests.'
+    message: 'Too many requests.',
+    // identify unique users behind Cloudflare
+    keyGenerator: (req) => {
+        return req.headers['cf-connecting-ip'] || req.ip;
+    },
+    validate: { trustProxy: true }
 });
 
-// Stricter limiter for database mutations (submit, approve, status changes)
+// Stricter limiter for database mutations (POST, PUT, DELETE)
 const patchActionLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
     max: 15,            // Max 15 actions per minute
-    message: 'Too many patch actions. Please wait a minute.'
+    message: 'Too many patch actions. Please wait a minute.',
+    // identify unique users behind Cloudflare
+    keyGenerator: (req) => {
+        return req.headers['cf-connecting-ip'] || req.ip;
+    },
+    validate: { trustProxy: true }
 });
 
 const router = express.Router();

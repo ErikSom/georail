@@ -36,11 +36,9 @@ export const findRouteByName = async (req, res) => {
 
     if (startError) return res.status(500).json({ error: `Start station query error: ${startError.message}` });
     if (endError) return res.status(500).json({ error: `End station query error: ${endError.message}` });
-    if (!startStations || startStations.length === 0) {
-        return res.status(404).json({ error: `Could not find start station: ${from_station} (Track: ${from_track || 'any'})` });
-    }
-    if (!endStations || endStations.length === 0) {
-        return res.status(404).json({ error: `Could not find end station: ${to_station} (Track: ${to_track || 'any'})` });
+
+    if (!startStations?.length || !endStations?.length) {
+        return res.status(404).json({ error: 'One or both stations could not be found.' });
     }
 
     const startStation = startStations[0];
@@ -50,7 +48,7 @@ export const findRouteByName = async (req, res) => {
 
     const isEditorMode = (editor === 'true');
 
-    // === STEP 2: Call the 'find_rail_route' function with all parameters ===
+    // === STEP 2: Call the 'find_rail_route' function ===
     const { data: route, error: routeError } = await supabase.rpc('find_rail_route', {
         start_lon: startCoords[0],
         start_lat: startCoords[1],
@@ -64,17 +62,14 @@ export const findRouteByName = async (req, res) => {
     }
 
     if (!route) {
-        return res.status(404).json({
-            error: 'No path found between the selected stations.',
-            from: startStation,
-            to: endStation
-        });
+        return res.status(404).json({ error: 'No path found between the selected stations.' });
     }
 
-    // === SUCCESS! Apply Caching and Return the JSON ===
-    // Cloudflare: 7 days | Browser: 10 mins
-    res.set('Cache-Control', 'public, s-maxage=604800, max-age=0, must-revalidate'); // we use this so we can vary on Authorization
-    res.set('Vary', 'Authorization, Accept-Encoding');
+    // === SUCCESS! ===
+    // Cloudflare: 7 days | Browser: 0 (forces revalidation)
+    // We removed 'Authorization' from Vary because this is now a public cache.
+    res.set('Cache-Control', 'public, s-maxage=604800, max-age=0, must-revalidate');
+    res.set('Vary', 'Accept-Encoding');
 
     res.json({
         type: "Feature",
