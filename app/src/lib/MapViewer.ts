@@ -22,7 +22,7 @@ import {
 } from 'three';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { type PerformanceConfig } from './utils/PerformanceConfig';
-import type { Tiles3DAttributionCredits } from '../components/Tiles3DAttribution';
+import type { Tiles3DAttributionCredits } from '../components/HUD/Tiles3DAttribution';
 
 const getDracoDecoderPath = (): string => {
     return 'https://unpkg.com/three@0.180.0/examples/jsm/libs/draco/gltf/';

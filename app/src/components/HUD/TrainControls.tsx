@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'preact/hooks';
 import styles from './TrainControls.module.css';
 import BipolarDial from './BipolarDial';
 import IconButton from './IconButton';
-import { Input } from '../utils/Input';
+import { Input } from '../../lib/utils/Input';
 import { trainPower, trainPowerPercent, resetTrain, updateTick, deltaTimeMs } from '../../store/train';
 
 function TrainControls() {

@@ -14,7 +14,7 @@ import { RouteEditor } from './RouteEditor';
 import { fetchRouteByName, type RouteData } from '../Georail';
 import type { RouteInfo } from '../types/Patch';
 import { Sky } from '../Sky';
-import type { Tiles3DAttributionCredits } from '../../components/Tiles3DAttribution';
+import type { Tiles3DAttributionCredits } from '../../components/HUD/Tiles3DAttribution';
 
 export class Editor {
     private scene!: Scene;

@@ -3,8 +3,8 @@ import type { CSSProperties } from 'preact';
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-import { useTransformable } from '../hooks/useTransformable';
-import { trainLat, trainLon, trainFrontLat, trainFrontLon, trainBackLat, trainBackLon, updateTick, trainLatE7, cameraYawRelativeToTrain } from '../store/train';
+import { useTransformable } from '../../hooks/useTransformable';
+import { trainLat, trainLon, trainFrontLat, trainFrontLon, trainBackLat, trainBackLon, updateTick, trainLatE7, cameraYawRelativeToTrain } from '../../store/train';
 import styles from './Maps2D.module.css';
 
 const DEFAULT_CENTER: [number, number] = [0, 0]; // Will be updated when train position is available

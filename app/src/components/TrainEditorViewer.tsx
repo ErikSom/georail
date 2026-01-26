@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'preact/hooks';
 import { TrainEditorWorld } from '../lib/TrainEditorWorld';
-import TrainControls from '../lib/controls/TrainControls';
+import TrainControls from './HUD/TrainControls';
 
 function TrainEditorViewer() {
     const mountRef = useRef<HTMLDivElement | null>(null);

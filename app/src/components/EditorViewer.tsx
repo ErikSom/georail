@@ -3,7 +3,7 @@ import { Editor } from '../lib/editor/Editor';
 import PatchManagement from './PatchManagement';
 import ReviewModal from './ReviewModal';
 import type { RouteInfo } from '../lib/types/Patch';
-import type { Tiles3DAttributionCredits } from './Tiles3DAttribution';
+import type { Tiles3DAttributionCredits } from './HUD/Tiles3DAttribution';
 
 import styles from './EditorViewer.module.css';
 

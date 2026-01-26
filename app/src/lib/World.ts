@@ -29,7 +29,7 @@ import { getTrainConfiguration, nssgmTrainType } from './train/configs/TrainConf
 import Stats from 'stats-gl';
 import { trainInstance, updateTrainState, trainDebugMode, trainLatE7, trainLonE7, trainFrontLatE7, trainFrontLonE7, trainBackLatE7, trainBackLonE7, cameraYawRelativeToTrain } from '../store/train';
 import { getPerformanceConfig, type PerformanceConfig } from './utils/PerformanceConfig';
-import type { Tiles3DAttributionCredits } from '../components/Tiles3DAttribution';
+import type { Tiles3DAttributionCredits } from '../components/HUD/Tiles3DAttribution';
 import { Pane } from 'tweakpane';
 import { audioListener } from '../store/globals';
 
