@@ -29,6 +29,10 @@ app.use((req, res, next) => {
     if (allowedOrigins.includes(origin)) {
         res.header('Access-Control-Allow-Origin', origin);
         res.header('Access-Control-Allow-Credentials', 'true');
+
+        // This tells the browser to cache the preflight result for 10 minutes
+        res.header('Access-Control-Max-Age', '600');
+
         res.header(
             'Access-Control-Allow-Headers',
             'Origin, X-Requested-With, Content-Type, Accept, Authorization'
