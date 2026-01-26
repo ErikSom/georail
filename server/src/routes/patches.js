@@ -5,7 +5,8 @@ import {
     getAllPatches,
     submitPatch,
     approvePatch,
-    updatePatchStatus
+    updatePatchStatus,
+    deletePatch
 } from '../controllers/patches.js';
 import { authenticateAndAuthorize } from '../middleware/auth.js';
 
