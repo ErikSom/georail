@@ -1,5 +1,3 @@
-import { supabase } from '../Supabase';
-
 export interface EditorPoint {
     segment_id: number;
     index: number;
@@ -37,25 +35,10 @@ export const fetchRouteByName = async (
         url.searchParams.append('editor', 'true');
     }
 
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-    if (sessionError) {
-        console.error('Error getting session:', sessionError.message);
-        throw new Error('Could not retrieve user session');
-    }
-
-    if (!session) {
-        console.warn('No active session. User is not authenticated.');
-        throw new Error('User is not authenticated');
-    }
-
-    const token = session.access_token;
-
     try {
         const response = await fetch(url.toString(), {
             method: 'GET',
             headers: {
-                'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
             }
         });
