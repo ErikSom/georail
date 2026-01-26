@@ -81,8 +81,8 @@ export default defineConfig({
       }
     },
     plugins: [
-      process.env.NODE_ENV === 'production' && createObfuscator(true),
-      process.env.NODE_ENV === 'production' && createObfuscator(false)
+      // process.env.NODE_ENV === 'production' && createObfuscator(true),
+      // process.env.NODE_ENV === 'production' && createObfuscator(false)
     ].filter(Boolean)
   }
 });
