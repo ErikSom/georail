@@ -3,7 +3,7 @@ import type { CSSProperties } from 'preact';
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-import { mapPosition, mapSize, mapSelected, initializeMapState } from '../store/maps';
+import { useTransformable } from '../hooks/useTransformable';
 import { trainLat, trainLon, trainFrontLat, trainFrontLon, trainBackLat, trainBackLon, updateTick, trainLatE7, cameraYawRelativeToTrain } from '../store/train';
 import styles from './Maps2D.module.css';
 
@@ -32,98 +32,38 @@ function calculateBearing(lat1: number, lon1: number, lat2: number, lon2: number
     return bearing;
 }
 
-type ResizeCorner = 'tl' | 'tr' | 'bl' | 'br' | null;
-
-function clamp(value: number, min: number, max: number): number {
-    return Math.max(min, Math.min(max, value));
-}
-
 function Maps2D() {
-    const containerRef = useRef<HTMLDivElement | null>(null);
     const mapContainerRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<maplibregl.Map | null>(null);
     const indicatorRef = useRef<HTMLDivElement | null>(null);
 
-    const [position, setPosition] = useState({ x: 100, y: 100 });
-    const [size, setSize] = useState(200);
-    const [selected, setSelected] = useState(false);
-    const [ready, setReady] = useState(false);
     const [trainBearing, setTrainBearing] = useState(0);
     const [cameraYaw, setCameraYaw] = useState(0);
     const [mapLoaded, setMapLoaded] = useState(false);
 
-    const dragState = useRef<{
-        isDragging: boolean;
-        isResizing: ResizeCorner;
-        pointerId: number | null;
-        startX: number;
-        startY: number;
-        startPosX: number;
-        startPosY: number;
-        startSize: number;
-    }>({
-        isDragging: false,
-        isResizing: null,
-        pointerId: null,
-        startX: 0,
-        startY: 0,
-        startPosX: 0,
-        startPosY: 0,
-        startSize: 0,
-    });
-
-    // Track active pointers to detect multi-touch
-    const activePointers = useRef<Set<number>>(new Set());
-
-    // Clamp position to keep container within screen bounds
-    const clampPosition = (x: number, y: number, sz: number) => {
-        if (typeof window === 'undefined') return { x, y };
-        const maxX = window.innerWidth - sz;
-        const maxY = window.innerHeight - sz;
-        return {
-            x: clamp(x, 0, Math.max(0, maxX)),
-            y: clamp(y, 0, Math.max(0, maxY)),
-        };
-    };
-
-    // Initialize state from localStorage on mount and subscribe to signal changes
-    useEffect(() => {
-        initializeMapState();
-
-        // Sync local state with signals
-        setPosition({ x: mapPosition.value.x, y: mapPosition.value.y });
-        setSize(mapSize.value);
-        setSelected(mapSelected.value);
-
-        // Subscribe to signal changes
-        const unsubPosition = mapPosition.subscribe((val) => setPosition({ x: val.x, y: val.y }));
-        const unsubSize = mapSize.subscribe((val) => {
-            setSize(val);
-            // Trigger map resize when size changes
+    const {
+        position,
+        size,
+        ready,
+        containerRef,
+        handleContainerPointerDown,
+        renderResizeHandles,
+    } = useTransformable({
+        initialPosition: { x: 100, y: 100 },
+        initialSize: 200,
+        minSize: MIN_SIZE,
+        storageKey: 'georail_map2d_state',
+        onSizeChange: () => {
             if (mapRef.current) {
                 mapRef.current.resize();
             }
-        });
-        const unsubSelected = mapSelected.subscribe((val) => setSelected(val));
-
-        // on resize, clamp position
-        const handleWindowResize = () => {
-            const clamped = clampPosition(mapPosition.value.x, mapPosition.value.y, mapSize.value);
-            mapPosition.value = clamped;
-            setPosition(clamped);
-        };
-
-        handleWindowResize();
-        window.addEventListener('resize', handleWindowResize);
-        setReady(true);
-
-        return () => {
-            unsubPosition();
-            unsubSize();
-            unsubSelected();
-            window.removeEventListener('resize', handleWindowResize);
-        };
-    }, []);
+        },
+        onResizeEnd: () => {
+            if (mapRef.current) {
+                mapRef.current.resize();
+            }
+        },
+    });
 
     // Resize map when size changes
     useEffect(() => {
@@ -200,177 +140,6 @@ function Maps2D() {
         };
     }, [mapLoaded]);
 
-    // Handle click outside to deselect
-    useEffect(() => {
-        const handlePointerDown = (e: PointerEvent) => {
-            if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-                mapSelected.value = false;
-            }
-        };
-        document.addEventListener('pointerdown', handlePointerDown);
-        return () => document.removeEventListener('pointerdown', handlePointerDown);
-    }, []);
-
-    // Handle drag and resize pointer events
-    useEffect(() => {
-        const cancelDrag = () => {
-            const capturedPointerId = dragState.current.pointerId;
-            dragState.current.isDragging = false;
-            dragState.current.isResizing = null;
-            dragState.current.pointerId = null;
-            // Release pointer capture so events flow to underlying canvas
-            if (capturedPointerId !== null && containerRef.current) {
-                try {
-                    containerRef.current.releasePointerCapture(capturedPointerId);
-                } catch (_) { /* ignore if already released */ }
-            }
-        };
-
-        const handlePointerDown = (e: PointerEvent) => {
-            activePointers.current.add(e.pointerId);
-            // Cancel drag/resize if a second finger touches
-            if (activePointers.current.size > 1) {
-                cancelDrag();
-            }
-        };
-
-        const handlePointerMove = (e: PointerEvent) => {
-            const state = dragState.current;
-            if (state.pointerId !== e.pointerId) return;
-            // Cancel drag/resize if multi-touch detected
-            if (activePointers.current.size > 1) {
-                cancelDrag();
-                return;
-            }
-
-            if (state.isDragging) {
-                const dx = e.clientX - state.startX;
-                const dy = e.clientY - state.startY;
-                const newPos = clampPosition(
-                    state.startPosX + dx,
-                    state.startPosY + dy,
-                    size
-                );
-                mapPosition.value = newPos;
-            } else if (state.isResizing) {
-                const dx = e.clientX - state.startX;
-                const dy = e.clientY - state.startY;
-                const corner = state.isResizing;
-
-                // Calculate delta based on corner - drag direction determines growth
-                let delta: number;
-                if (corner === 'br') {
-                    delta = (dx + dy) / 2;
-                } else if (corner === 'bl') {
-                    delta = (-dx + dy) / 2;
-                } else if (corner === 'tr') {
-                    delta = (dx - dy) / 2;
-                } else {
-                    delta = (-dx - dy) / 2;
-                }
-
-                const newSize = Math.max(MIN_SIZE, state.startSize + delta);
-                const sizeDiff = newSize - state.startSize;
-
-                let newX = state.startPosX;
-                let newY = state.startPosY;
-
-                // Adjust position for corners that resize from top or left
-                if (corner === 'tl') {
-                    newX = state.startPosX - sizeDiff;
-                    newY = state.startPosY - sizeDiff;
-                } else if (corner === 'tr') {
-                    newY = state.startPosY - sizeDiff;
-                } else if (corner === 'bl') {
-                    newX = state.startPosX - sizeDiff;
-                }
-
-                // Clamp position
-                const clamped = clampPosition(newX, newY, newSize);
-
-                mapSize.value = newSize;
-                mapPosition.value = clamped;
-            }
-        };
-
-        const handlePointerUp = (e: PointerEvent) => {
-            activePointers.current.delete(e.pointerId);
-
-            if (dragState.current.pointerId !== e.pointerId) return;
-
-            dragState.current.isDragging = false;
-            dragState.current.isResizing = null;
-            dragState.current.pointerId = null;
-            if (mapRef.current) {
-                mapRef.current.resize();
-            }
-        };
-
-        // Use capture phase for pointerdown so we track pointers before container handler runs
-        document.addEventListener('pointerdown', handlePointerDown, true);
-        document.addEventListener('pointermove', handlePointerMove);
-        document.addEventListener('pointerup', handlePointerUp);
-        document.addEventListener('pointercancel', handlePointerUp);
-        return () => {
-            document.removeEventListener('pointerdown', handlePointerDown, true);
-            document.removeEventListener('pointermove', handlePointerMove);
-            document.removeEventListener('pointerup', handlePointerUp);
-            document.removeEventListener('pointercancel', handlePointerUp);
-        };
-    }, [size]);
-
-    const handleContainerPointerDown = (e: PointerEvent) => {
-        const target = e.target as HTMLElement;
-        // Check if clicking on a resize handle
-        if (target.classList.contains(styles.resizeHandle) ||
-            target.classList.contains(styles.handleTL) ||
-            target.classList.contains(styles.handleTR) ||
-            target.classList.contains(styles.handleBL) ||
-            target.classList.contains(styles.handleBR)) {
-            return;
-        }
-
-        // Don't start drag if multi-touch (let inner canvas handle it)
-        if (activePointers.current.size > 1) {
-            return;
-        }
-
-        e.preventDefault();
-        e.stopPropagation();
-        containerRef.current?.setPointerCapture(e.pointerId);
-        mapSelected.value = true;
-        dragState.current = {
-            isDragging: true,
-            isResizing: null,
-            pointerId: e.pointerId,
-            startX: e.clientX,
-            startY: e.clientY,
-            startPosX: position.x,
-            startPosY: position.y,
-            startSize: size,
-        };
-    };
-
-    const handleResizePointerDown = (corner: ResizeCorner) => (e: PointerEvent) => {
-        // Don't start resize if multi-touch
-        if (activePointers.current.size > 1) {
-            return;
-        }
-
-        e.preventDefault();
-        e.stopPropagation();
-        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-        dragState.current = {
-            isDragging: false,
-            isResizing: corner,
-            pointerId: e.pointerId,
-            startX: e.clientX,
-            startY: e.clientY,
-            startPosX: position.x,
-            startPosY: position.y,
-            startSize: size,
-        };
-    };
 
     // Initialize MapLibre
     useEffect(() => {
@@ -515,8 +284,9 @@ function Maps2D() {
     // Map container is always at least BASE_MAP_SIZE (200px)
     // When container is >= 200px, map fills it at scale 1
     // When container is < 200px, map stays at 200px but scales down
-    const mapContainerSize = Math.max(size, BASE_MAP_SIZE);
-    const scale = size < BASE_MAP_SIZE ? size / BASE_MAP_SIZE : 1;
+    const currentSize = size ?? BASE_MAP_SIZE;
+    const mapContainerSize = Math.max(currentSize, BASE_MAP_SIZE);
+    const scale = currentSize < BASE_MAP_SIZE ? currentSize / BASE_MAP_SIZE : 1;
 
     return (
         <div
@@ -525,8 +295,8 @@ function Maps2D() {
             style={{
                 left: `${position.x}px`,
                 top: `${position.y}px`,
-                width: `${size}px`,
-                height: `${size}px`,
+                width: `${currentSize}px`,
+                height: `${currentSize}px`,
                 visibility: ready ? 'visible' : 'hidden',
             }}
             onPointerDown={handleContainerPointerDown}
@@ -555,14 +325,7 @@ function Maps2D() {
                 <div className={styles.compassNeedle}></div>
             </div>
 
-            {selected && (
-                <>
-                    <div className={`${styles.resizeHandle} ${styles.handleTL}`} onPointerDown={handleResizePointerDown('tl')} />
-                    <div className={`${styles.resizeHandle} ${styles.handleTR}`} onPointerDown={handleResizePointerDown('tr')} />
-                    <div className={`${styles.resizeHandle} ${styles.handleBL}`} onPointerDown={handleResizePointerDown('bl')} />
-                    <div className={`${styles.resizeHandle} ${styles.handleBR}`} onPointerDown={handleResizePointerDown('br')} />
-                </>
-            )}
+            {renderResizeHandles()}
         </div>
     );
 }
