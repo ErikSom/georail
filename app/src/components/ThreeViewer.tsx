@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'preact/hooks';
 import { World } from '../lib/World';
 import TravelPicker from './TravelPicker';
 import TrainControls from './HUD/TrainControls';
-import type { RouteData } from '../lib/Georail';
+import type { RouteData } from '../lib/api/navigation';
 import Maps2D from './HUD/Maps2D';
 import Tiles3DAttribution, { type Tiles3DAttributionCredits } from './HUD/Tiles3DAttribution';
 import styles from './ThreeViewer.module.css';

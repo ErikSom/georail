@@ -172,7 +172,7 @@ function EditorViewer() {
             <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
 
             <div className={styles.credits}>
-                {credits}
+                {credits ? credits.latLonStr : 'No coordinates available'}
             </div>
             {showPatchManagement ? (
                 <PatchManagement

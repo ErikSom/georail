@@ -18,7 +18,7 @@ import {
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { MapViewer } from './MapViewer';
-import { fetchRouteByName, type RouteData } from './Georail';
+import { fetchRouteByName, type RouteData } from './api/navigation';
 import { routePointToWorldPosition } from './utils/CoordinateHelpers';
 import { Sky } from './Sky';
 import { Train } from './train/Train';

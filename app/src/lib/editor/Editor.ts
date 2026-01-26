@@ -11,7 +11,7 @@ import { MapViewer } from '../MapViewer';
 import { FlightControls } from '../utils/FlightControls';
 import { Input } from '../utils/Input';
 import { RouteEditor } from './RouteEditor';
-import { fetchRouteByName, type RouteData } from '../Georail';
+import { fetchRouteByName, type RouteData } from '../api/navigation';
 import type { RouteInfo } from '../types/Patch';
 import { Sky } from '../Sky';
 import type { Tiles3DAttributionCredits } from '../../components/HUD/Tiles3DAttribution';

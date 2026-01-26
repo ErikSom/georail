@@ -2,7 +2,11 @@ import dotenv from 'dotenv';
 import path from 'path';
 import express from 'express';
 import { initializeSupabase } from './supabase.js';
+
 import navigationRoutes from './routes/navigation.js';
+import stationsRoutes from './routes/stations.js';
+import patchesRoutes from './routes/patches.js';
+import userRoutes from './routes/user.js';
 
 const envFile = '.env';
 dotenv.config({ path: path.resolve(process.cwd(), envFile) });
@@ -35,6 +39,9 @@ app.use((req, res, next) => {
 });
 
 app.use('/navi', navigationRoutes);
+app.use('/stations', stationsRoutes);
+app.use('/patches', patchesRoutes);
+app.use('/user', userRoutes);
 
 app.get('/', (req, res) => {
     res.json({ message: 'Server is running!' });

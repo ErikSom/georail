@@ -8,14 +8,16 @@ export interface UserProfile {
     role: UserRole;
 }
 
+const API_URL = `${import.meta.env.PUBLIC_GEORAIL_URL}/user/my`;
+
 // In-memory cache for the current user's profile
 let cachedProfile: UserProfile | null = null;
 
 /**
- * Fetch the current user's profile
+ * Fetch the current user's profile from the Fly.io server
  */
 export async function fetchUserProfile(): Promise<UserProfile | null> {
-    // Return cached profile if available
+    // Return cached profile if available to avoid unnecessary network calls
     if (cachedProfile) {
         return cachedProfile;
     }
@@ -26,24 +28,33 @@ export async function fetchUserProfile(): Promise<UserProfile | null> {
         return null;
     }
 
-    const { data, error } = await supabase
-        .from('profiles')
-        .select('id, username, role')
-        .eq('id', session.user.id)
-        .single();
+    try {
+        const response = await fetch(API_URL, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${session.access_token}`,
+                'Content-Type': 'application/json'
+            }
+        });
 
-    if (error) {
-        console.error('Error fetching user profile:', error);
+        if (!response.ok) {
+            if (response.status === 404) console.error('Profile not found on server');
+            return null;
+        }
+
+        const data = await response.json();
+
+        cachedProfile = {
+            id: data.id,
+            username: data.username,
+            role: (data.role as UserRole) || 'user'
+        };
+
+        return cachedProfile;
+    } catch (error) {
+        console.error('Error fetching user profile from server:', error);
         return null;
     }
-
-    cachedProfile = {
-        id: data.id,
-        username: data.username,
-        role: (data.role as UserRole) || 'editor'
-    };
-
-    return cachedProfile;
 }
 
 /**
@@ -68,12 +79,13 @@ export function getCachedProfile(): UserProfile | null {
     return cachedProfile;
 }
 
-// Listen for auth state changes to clear cache on logout and fetch on login
-supabase.auth.onAuthStateChange((event) => {
+// Listen for auth state changes to keep the cache in sync
+supabase.auth.onAuthStateChange(async (event) => {
     if (event === 'SIGNED_OUT') {
         clearProfileCache();
-    } else if (event === 'SIGNED_IN') {
-        // Fetch profile on login
-        fetchUserProfile();
+    } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        // Clear old cache and re-fetch to ensure the latest role/username
+        clearProfileCache();
+        await fetchUserProfile();
     }
 });

@@ -71,7 +71,11 @@ export const findRouteByName = async (req, res) => {
         });
     }
 
-    // === SUCCESS! Return the JSON ===
+    // === SUCCESS! Apply Caching and Return the JSON ===
+    // Cloudflare: 7 days | Browser: 10 mins
+    res.set('Cache-Control', 'public, s-maxage=604800, max-age=0, must-revalidate'); // we use this so we can vary on Authorization
+    res.set('Vary', 'Authorization, Accept-Encoding');
+
     res.json({
         type: "Feature",
         geometry: route,

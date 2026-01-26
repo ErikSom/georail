@@ -6,12 +6,13 @@ export interface StationTrackInfo {
 }
 
 export const fetchAllStations = async (): Promise<StationTrackInfo[]> => {
-    const { data, error } = await supabase.rpc('get_all_stations_with_tracks');
+    const url = new URL(`${import.meta.env.PUBLIC_GEORAIL_URL}/stations`);
 
-    if (error) {
-        console.error('Error fetching station list:', error);
+    const response = await fetch(url.toString());
+
+    if (!response.ok) {
         throw new Error('Could not fetch station list');
     }
 
-    return data || [];
+    return await response.json();
 };

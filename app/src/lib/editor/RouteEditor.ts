@@ -11,7 +11,7 @@ import {
     Line,
 } from 'three';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
-import type { RouteData } from '../Georail';
+import type { RouteData } from '../api/navigation';
 import type { MapViewer } from '../MapViewer';
 import type { PatchData } from '../types/Patch';
 import { Input } from '../utils/Input';

@@ -1,4 +1,4 @@
-import { supabase } from '../lib/Supabase';
+import { supabase } from '../Supabase';
 
 export interface EditorPoint {
     segment_id: number;

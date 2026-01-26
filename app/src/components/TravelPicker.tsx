@@ -1,7 +1,7 @@
 import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import { fetchAllStations, type StationTrackInfo } from '../lib/api/station';
-import { fetchRouteByName, type RouteData } from '../lib/Georail';
+import { fetchRouteByName, type RouteData } from '../lib/api/navigation';
 import styles from './TravelPicker.module.css';
 
 interface TravelPickerProps {
