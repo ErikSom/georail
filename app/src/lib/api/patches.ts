@@ -96,6 +96,23 @@ export async function updatePatchStatus(patchId: number, status: Patch['status']
 }
 
 /**
+ * Delete a patch (editing patches only)
+ */
+export async function deletePatch(patchId: number): Promise<void> {
+    const headers = await getAuthHeader();
+
+    const response = await fetch(`${API_BASE}/${patchId}`, {
+        method: 'DELETE',
+        headers,
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.error || 'Failed to delete patch');
+    }
+}
+
+/**
  * Re-mapped helper functions to use the new generic status handler
  */
 export const cancelPatch = (patchId: number) => updatePatchStatus(patchId, 'editing');

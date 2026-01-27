@@ -44,7 +44,15 @@ export default function Auth() {
 
     const handleLogout = async () => {
         setLoading(true);
-        await supabase.auth.signOut();
+        setMessage('');
+        const { error } = await supabase.auth.signOut();
+
+        // Stale/rotated sessions can fail to revoke server-side; clear locally.
+        if (error?.code === 'session_not_found') {
+            await supabase.auth.signOut({ scope: 'local' });
+        } else if (error) {
+            setMessage(error.message);
+        }
         setLoading(false);
     };
 
