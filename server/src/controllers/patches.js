@@ -1,4 +1,4 @@
-import { supabase } from '../supabase.js';
+import { supabase, getSupabaseForToken } from '../supabase.js';
 
 // GET /patches/my
 export const getMyPatches = async (req, res) => {
@@ -33,8 +33,9 @@ export const getAllPatches = async (req, res) => {
 // POST /patches/submit
 export const submitPatch = async (req, res) => {
     const { data: patch_data, patchId, fromStation, fromTrack, toStation, toTrack, description } = req.body;
+    const supabaseUser = getSupabaseForToken(req.authToken);
 
-    const { data, error } = await supabase.rpc('submit_patch', {
+    const { data, error } = await supabaseUser.rpc('submit_patch', {
         patch_data,
         patch_id_to_update: patchId || null,
         p_from_station: fromStation || null,
@@ -44,7 +45,10 @@ export const submitPatch = async (req, res) => {
         p_description: description || null
     });
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+        console.error('submit_patch RPC error:', error);
+        return res.status(500).json({ error: error.message });
+    }
 
     // Mutations should generally not be cached
     res.set('Cache-Control', 'no-store');
@@ -54,9 +58,13 @@ export const submitPatch = async (req, res) => {
 // POST /patches/approve
 export const approvePatch = async (req, res) => {
     const { patchId } = req.body;
-    const { data, error } = await supabase.rpc('approve_patch', { approved_patch_id: patchId });
+    const supabaseUser = getSupabaseForToken(req.authToken);
+    const { data, error } = await supabaseUser.rpc('approve_patch', { approved_patch_id: patchId });
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+        console.error('approve_patch RPC error:', error);
+        return res.status(500).json({ error: error.message });
+    }
 
     res.set('Cache-Control', 'no-store');
     res.json(data);

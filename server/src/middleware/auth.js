@@ -66,7 +66,10 @@ export const checkAuthStatus = async (token) => {
 			userId: user.id
 		};
 
-		authCache.set(token, authStatus);
+		// Only cache successful auth to avoid pinning transient failures.
+		if (authStatus.isAuthorized) {
+			authCache.set(token, authStatus);
+		}
 		return authStatus;
 	} catch (error) {
 		console.error('Auth check error:', error);
@@ -89,6 +92,7 @@ export const authenticateAndAuthorize = async (req, res, next) => {
 		}
 
 		req.userId = authStatus.userId;
+		req.authToken = token;
 		next();
 	} catch (error) {
 		console.error('Auth error:', error);
