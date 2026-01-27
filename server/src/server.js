@@ -26,6 +26,9 @@ app.use((req, res, next) => {
     const allowedOrigins = ['http://localhost:4321', 'https://georail-app.pages.dev', 'https://georail.app'];
     const origin = req.headers.origin;
 
+    // Dynamic CORS + CDN caching should vary by Origin.
+    res.append('Vary', 'Origin');
+
     if (allowedOrigins.includes(origin)) {
         res.header('Access-Control-Allow-Origin', origin);
         res.header('Access-Control-Allow-Credentials', 'true');

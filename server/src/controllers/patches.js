@@ -63,6 +63,18 @@ export const getMyPatches = async (req, res) => {
 // GET /patches/all (Moderator view)
 export const getAllPatches = async (req, res) => {
     const { status } = req.query;
+
+    // Service-role queries bypass RLS, so enforce moderator access here.
+    const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', req.userId)
+        .single();
+
+    if (profileError || profile?.role !== 'moderator') {
+        return res.status(403).json({ error: 'Forbidden' });
+    }
+
     let query = supabase.from('rail_patches').select('*, profiles(username)').neq('status', 'editing');
 
     if (status) query = query.eq('status', status);

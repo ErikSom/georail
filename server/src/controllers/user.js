@@ -12,7 +12,8 @@ export const getMyProfile = async (req, res) => {
             return res.status(404).json({ error: 'Profile not found' });
         }
 
-        res.set('Cache-Control', 'private, max-age=60');
+        // Avoid caching user-specific responses at any shared layer.
+        res.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
 
         res.json({
             id: data.id,
