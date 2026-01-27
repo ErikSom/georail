@@ -1,5 +1,5 @@
 import { supabase } from '../Supabase';
-import type { Patch, PatchWithData, PatchData, SubmitPatchInput } from '../types/Patch';
+import type { Patch, PatchWithData, SubmitPatchInput } from '../types/Patch';
 
 const API_BASE = `${import.meta.env.PUBLIC_GEORAIL_URL}/patches`;
 
@@ -137,30 +137,19 @@ export async function getPatchStats(): Promise<{ pending: number; approved: numb
 }
 
 /**
- * Fetch a single patch by ID with its data
- * NOTE: This still uses Supabase directly for now unless you've created a 
- * server endpoint for rail_patch_data.
+ * Fetch a single patch by ID with its data via the server
  */
 export async function fetchPatchWithData(patchId: number, bypassOwnerCheck: boolean = false): Promise<PatchWithData | null> {
-    // If you haven't moved 'rail_patch_data' fetching to the server yet, 
-    // keep this as the original Supabase logic you had.
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) throw new Error('User is not authenticated');
+    const headers = await getAuthHeader();
+    const url = new URL(`${API_BASE}/${patchId}`);
+    if (bypassOwnerCheck) url.searchParams.set('bypassOwnerCheck', 'true');
 
-    let query = supabase.from('rail_patches').select('*').eq('id', patchId);
-    if (!bypassOwnerCheck) query = query.eq('user_id', session.user.id);
+    const response = await fetch(url.toString(), { headers });
+    if (response.status === 404) return null;
+    if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.error || 'Failed to fetch patch');
+    }
 
-    const { data: patchData, error: patchError } = await query.single();
-    if (patchError) return null;
-
-    const { data: dataPoints, error: dataError } = await supabase
-        .from('rail_patch_data')
-        .select('*')
-        .eq('patch_id', patchId)
-        .order('segment_id', { ascending: true })
-        .order('point_index', { ascending: true });
-
-    if (dataError) return null;
-
-    return { ...patchData, data: dataPoints as PatchData[] } as PatchWithData;
+    return await response.json();
 }
