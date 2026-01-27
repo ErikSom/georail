@@ -1,3 +1,5 @@
+import { supabase } from '../supabase.js';
+
 export const getMyProfile = async (req, res) => {
     try {
         const { data, error } = await supabase

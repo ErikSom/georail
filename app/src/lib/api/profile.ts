@@ -1,3 +1,4 @@
+import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../Supabase';
 
 export type UserRole = 'user' | 'editor' | 'moderator';
@@ -28,6 +29,10 @@ export async function fetchUserProfile(): Promise<UserProfile | null> {
         return null;
     }
 
+    return fetchUserProfileWithSession(session);
+}
+
+async function fetchUserProfileWithSession(session: Session): Promise<UserProfile | null> {
     try {
         const response = await fetch(API_URL, {
             method: 'GET',
@@ -83,9 +88,18 @@ export function getCachedProfile(): UserProfile | null {
 supabase.auth.onAuthStateChange(async (event) => {
     if (event === 'SIGNED_OUT') {
         clearProfileCache();
-    } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        // Clear old cache and re-fetch to ensure the latest role/username
+    }
+});
+
+// Avoid awaiting Supabase auth methods inside the auth state callback.
+// Supabase may await callbacks while holding an internal lock; re-entering
+// auth methods there can deadlock and freeze the UI.
+supabase.auth.onAuthStateChange((event, session) => {
+    if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
         clearProfileCache();
-        await fetchUserProfile();
+        // Defer the profile fetch so the auth lock can be released first.
+        queueMicrotask(() => {
+            void fetchUserProfileWithSession(session);
+        });
     }
 });
