@@ -1,5 +1,50 @@
 import { supabase, getSupabaseForToken } from '../supabase.js';
 
+// GET /patches/:id
+export const getPatchWithData = async (req, res) => {
+    const { id } = req.params;
+    const bypassOwnerCheck = req.query.bypassOwnerCheck === 'true';
+    const supabaseUser = getSupabaseForToken(req.authToken);
+
+    let allowBypass = false;
+    if (bypassOwnerCheck) {
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', req.userId)
+            .single();
+
+        allowBypass = profile?.role === 'moderator';
+        if (!allowBypass) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
+    }
+
+    let patchQuery = supabaseUser.from('rail_patches').select('*').eq('id', id);
+    if (!allowBypass) {
+        patchQuery = patchQuery.eq('user_id', req.userId);
+    }
+
+    const { data: patch, error: patchError } = await patchQuery.single();
+    if (patchError || !patch) {
+        return res.status(404).json({ error: 'Patch not found' });
+    }
+
+    const { data: dataPoints, error: dataError } = await supabaseUser
+        .from('rail_patch_data')
+        .select('*')
+        .eq('patch_id', id)
+        .order('segment_id', { ascending: true })
+        .order('point_index', { ascending: true });
+
+    if (dataError) {
+        return res.status(500).json({ error: dataError.message });
+    }
+
+    res.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    res.json({ ...patch, data: dataPoints });
+};
+
 // GET /patches/my
 export const getMyPatches = async (req, res) => {
     const { status } = req.query;
@@ -52,7 +97,11 @@ export const submitPatch = async (req, res) => {
 
     // Mutations should generally not be cached
     res.set('Cache-Control', 'no-store');
-    res.json(data);
+    // Normalize RPC response keys for the client.
+    res.json({
+        success: Boolean(data?.success),
+        patchId: data?.patch_id ?? patchId ?? null,
+    });
 };
 
 // POST /patches/approve

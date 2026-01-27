@@ -1,6 +1,7 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import {
+    getPatchWithData,
     getMyPatches,
     getAllPatches,
     submitPatch,
@@ -38,6 +39,7 @@ const router = express.Router();
 
 // === USER ROUTES ===
 // Read routes
+router.get('/:id(\\d+)', patchReadLimiter, authenticateAndAuthorize, getPatchWithData);
 router.get('/my', patchReadLimiter, authenticateAndAuthorize, getMyPatches);
 router.get('/all', patchReadLimiter, authenticateAndAuthorize, getAllPatches);
 
