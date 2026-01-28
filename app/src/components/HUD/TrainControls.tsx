@@ -82,7 +82,7 @@ function TrainControls() {
     };
 
     return (
-        <div className={styles.container}>
+        <>
             {!isOpen &&
                 <IconButton
                     icon="/icons/controls.svg"
@@ -108,7 +108,7 @@ function TrainControls() {
                     <IconButton icon="/icons/controls-off.svg" className={styles.closeControls} onClick={() => setIsOpen(false)} ariaLabel="Close train controls" />
                 </div>
             </div>
-        </div>
+        </>
     );
 }
 

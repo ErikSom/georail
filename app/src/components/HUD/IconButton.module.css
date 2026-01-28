@@ -2,22 +2,20 @@
      width: 48px;
      height: 48px;
      border-radius: 50%;
-     background: radial-gradient(circle at 30% 30%, #3a3c42, var(--btn-bg));
+     background: var(--btn-bg);
      border: none;
      cursor: pointer;
      color: var(--text-dim);
      display: flex;
      align-items: center;
      justify-content: center;
-     box-shadow:
-         0 4px 6px -1px rgba(0, 0, 0, 0.3),
-         inset 0 1px 0 rgba(255, 255, 255, 0.05);
+     box-shadow: var(--btn-shadow);
      transition: all 0.1s ease;
  }
 
  .iconButton:active {
      transform: scale(0.96);
-     background: radial-gradient(circle at 30% 30%, #32343a, var(--btn-active));
+     background: var(--btn-bg-active);
  }
 
  .led {

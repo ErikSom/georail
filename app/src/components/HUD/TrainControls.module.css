@@ -1,5 +1,6 @@
 .container {
     --panel-bg: rgb(30 31 36);
+    --panel-shadow: rgba(0, 0, 0, 0.5) 0px 20px 50px, rgba(255, 255, 255, 0.08) 0px 1px 1px inset;
     --btn-bg: #2b2d33;
     --btn-active: #222428;
     --led-amber: #c8c8c8;
@@ -22,7 +23,7 @@
     z-index: 999;
     transform: translate(-50%, calc(100% + 56px));
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: rgba(0, 0, 0, 0.5) 0px 20px 50px, rgba(255, 255, 255, 0.08) 0px 1px 1px inset;
+    box-shadow: var(--panel-shadow);
     border-radius: 44px;
     margin: 20px 0;
     max-width: 335px;
