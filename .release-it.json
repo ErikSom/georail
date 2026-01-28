@@ -1,0 +1,21 @@
+{
+    "git": {
+        "commitMessage": "chore(release): v${version}",
+        "tagName": "v${version}",
+        "requireCleanWorkingDir": false
+    },
+    "npm": {
+        "publish": false
+    },
+    "plugins": {
+        "@release-it/conventional-changelog": {
+            "config": "./changelog.config.js",
+            "infile": "CHANGELOG.md",
+            "ignoreRecommendedBump": true,
+            "context": {
+                "linkCompare": false,
+                "linkReferences": false
+            }
+        }
+    }
+}

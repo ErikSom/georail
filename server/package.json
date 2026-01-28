@@ -1,5 +1,5 @@
 {
-  "name": "georail",
+  "name": "georail-server",
   "version": "0.0.1",
   "description": "Georail backend server",
   "main": "src/server.js",
