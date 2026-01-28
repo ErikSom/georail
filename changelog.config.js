@@ -1,7 +1,5 @@
-// changelog.config.js
 module.exports = {
     writerOpts: {
-        // 1. THIS IS THE NEW PART: Sort by Scope first, then by the message
         commitsSort: ['scope', 'subject'],
 
         transform: (commit, context) => {

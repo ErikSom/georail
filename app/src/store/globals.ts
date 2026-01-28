@@ -10,3 +10,9 @@ export const audioListener = signal<AudioListener | null>(null);
 
 // Main camera reference (optional, for future use)
 export const mainCamera = signal<PerspectiveCamera | null>(null);
+
+interface Configs {
+    unitSystem: 'metric' | 'imperial';
+}
+export const configs = signal<Configs>({ unitSystem: 'metric' });
+

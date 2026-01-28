@@ -29,6 +29,7 @@ body {
     --panel-shadow:
         rgba(0, 0, 0, 0.5) 0px 20px 50px,
         rgba(255, 255, 255, 0.08) 0px 1px 1px inset;
+    --panel-radius: 44px;
     --btn-bg: radial-gradient(circle at 30% 30%, #3a3c42, #2b2d33);
     --btn-bg-active: radial-gradient(circle at 30% 30%, #32343a, #222428);
     --btn-shadow:

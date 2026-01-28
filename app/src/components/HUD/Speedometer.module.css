@@ -1,0 +1,33 @@
+.speedometer {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    top: 0;
+    left: 0;
+    background: var(--panel-bg);
+    box-shadow: var(--panel-shadow);
+    border-radius: var(--panel-radius);
+    padding: 6px 16px 8px 16px;
+    width: 64px;
+    text-align: center;
+    font-family: monospace;
+    color: white;
+
+
+    span {
+        user-select: none;
+        pointer-events: none;
+    }
+}
+
+.speedValue {
+    font-size: 18px;
+    color: var(--led-amber);
+}
+
+.speedUnit {
+    font-size: 12px;
+    color: var(--text-dim);
+}

@@ -6,6 +6,7 @@ import type { RouteData } from '../lib/api/navigation';
 import Maps2D from './HUD/Maps2D';
 import Tiles3DAttribution, { type Tiles3DAttributionCredits } from './HUD/Tiles3DAttribution';
 import styles from './ThreeViewer.module.css';
+import Speedometer from './HUD/Speedometer';
 
 function ThreeViewer() {
     const mountRef = useRef<HTMLDivElement | null>(null);
@@ -39,8 +40,13 @@ function ThreeViewer() {
         <div className={styles.container}>
             <div ref={mountRef} className={styles.canvas} />
 
-            {!showPicker && <TrainControls />}
-            {!showPicker && <Maps2D />}
+            {!showPicker && (
+                <>
+                    <TrainControls />
+                    <Maps2D />
+                    <Speedometer />
+                </>
+            )}
 
             <Tiles3DAttribution attribution={attribution} />
 

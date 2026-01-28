@@ -152,9 +152,17 @@ export function useTransformable(options: UseTransformableOptions): UseTransform
     // Clamp position to keep container within screen bounds with padding
     const clampPosition = useCallback((x: number, y: number, sz?: number, snap = false): TransformablePosition => {
         if (typeof window === 'undefined') return { x, y };
-        const effectiveSize = sz ?? 0;
-        const maxX = window.innerWidth - effectiveSize - padding;
-        const maxY = window.innerHeight - effectiveSize - padding;
+
+        // Use explicit size if provided, otherwise measure the container element
+        let effectiveWidth = sz ?? 0;
+        let effectiveHeight = sz ?? 0;
+        if (sz === undefined && containerRef.current) {
+            effectiveWidth = containerRef.current.offsetWidth;
+            effectiveHeight = containerRef.current.offsetHeight;
+        }
+
+        const maxX = window.innerWidth - effectiveWidth - padding;
+        const maxY = window.innerHeight - effectiveHeight - padding;
         let clampedX = clamp(x, padding, Math.max(padding, maxX));
         let clampedY = clamp(y, padding, Math.max(padding, maxY));
         if (snap) {
