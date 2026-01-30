@@ -189,3 +189,172 @@
     color: #718096;
     font-size: 16px;
 }
+
+/* Departures List Styles */
+.departuresList {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+}
+
+.departureItem {
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.departureItem:last-child {
+    border-bottom: none;
+}
+
+.departureItem.cancelled {
+    opacity: 0.5;
+}
+
+.departureItem.cancelled .departureDestination {
+    text-decoration: line-through;
+}
+
+.departureHeader {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: background 0.2s;
+    gap: 12px;
+}
+
+.departureHeader:hover {
+    background: #f7fafc;
+}
+
+.departureTime {
+    font-weight: 600;
+    color: #667eea;
+    min-width: 50px;
+}
+
+.departureDestination {
+    flex: 1;
+    color: #1a202c;
+    font-weight: 500;
+}
+
+.departureTrack {
+    background: #e2e8f0;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    color: #4a5568;
+    min-width: 30px;
+    text-align: center;
+}
+
+.expandIcon {
+    color: #718096;
+    font-size: 12px;
+    transition: transform 0.2s;
+}
+
+.departureItem.expanded .expandIcon {
+    transform: rotate(0deg);
+}
+
+.departureDetails {
+    padding: 0 16px 16px;
+    background: #f7fafc;
+    border-top: 1px solid #e2e8f0;
+}
+
+.trainInfo {
+    font-size: 14px;
+    color: #718096;
+    margin-bottom: 8px;
+    padding-top: 12px;
+}
+
+.loadingStops {
+    text-align: center;
+    padding: 20px;
+    color: #718096;
+    font-size: 14px;
+}
+
+/* Timeline styles */
+.timeline {
+    margin: 16px 0;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.timelineStop {
+    display: flex;
+    align-items: flex-start;
+    min-height: 40px;
+}
+
+.timelineTime {
+    width: 50px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #4a5568;
+    padding-top: 2px;
+    flex-shrink: 0;
+}
+
+.timelineTrack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 24px;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.timelineDot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #f6ad55;
+    border: 2px solid #f6ad55;
+    z-index: 1;
+    flex-shrink: 0;
+}
+
+.timelineDot.origin {
+    background: white;
+    border: 3px solid #f6ad55;
+    width: 14px;
+    height: 14px;
+}
+
+.timelineDot.destination {
+    background: #f6ad55;
+}
+
+.timelineLine {
+    width: 3px;
+    flex: 1;
+    background: #f6ad55;
+    min-height: 28px;
+    margin-top: -1px;
+}
+
+.timelineStation {
+    flex: 1;
+    font-size: 14px;
+    color: #1a202c;
+    padding: 2px 0 0 12px;
+}
+
+.departureDetails .goButton {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+}
+
+.noDepartures {
+    text-align: center;
+    padding: 40px;
+    color: #718096;
+    font-size: 14px;
+}

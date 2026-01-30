@@ -2,7 +2,78 @@ import { supabase } from '../Supabase';
 
 export interface StationTrackInfo {
     name: string;
+    code: string;
     tracks: string[] | null;
+}
+
+export interface RouteStation {
+    uicCode: string;
+    mediumName: string;
+}
+
+export interface Product {
+    number: string;
+    categoryCode: string;
+    shortCategoryName: string;
+    longCategoryName: string;
+}
+
+export interface Departure {
+    direction: string;
+    name: string;
+    plannedDateTime: string;
+    plannedTimeZoneOffset?: number;
+    actualDateTime?: string;
+    actualTimeZoneOffset?: number;
+    plannedTrack?: string;
+    actualTrack?: string;
+    product: Product;
+    trainCategory: string;
+    cancelled: boolean;
+    journeyDetailRef?: string;
+    routeStations: RouteStation[];
+    messages: Array<{ message: string; style: string }>;
+    departureStatus: 'ON_STATION' | 'INCOMING' | 'DEPARTED' | 'UNKNOWN';
+}
+
+export interface DeparturesResponse {
+    code: string;
+    departures: Departure[];
+}
+
+export interface ArrivalOrDeparture {
+    product: Product;
+    plannedTime?: string;
+    actualTime?: string;
+    delayInSeconds?: number;
+    plannedTrack?: string;
+    actualTrack?: string;
+    cancelled: boolean;
+}
+
+export interface JourneyStop {
+    id: string;
+    stop: {
+        name: string;
+        uicCode: string;
+        countryCode: string;
+        lat: number;
+        lng: number;
+    };
+    previousStopId: string[];
+    nextStopId: string[];
+    destination?: string;
+    status?: 'ORIGIN' | 'SPLIT' | 'STOP' | 'PASSING' | 'COMBINE' | 'DESTINATION' | 'STOP_CHANGED_ORIGIN' | 'STOP_CHANGED_DESTINATION';
+    arrivals: ArrivalOrDeparture[];
+    departures: ArrivalOrDeparture[];
+}
+
+export interface Journey {
+    notes: Array<{ value?: string }>;
+    productNumbers: string[];
+    stops: JourneyStop[];
+    allowCrowdReporting: boolean;
+    source: string;
 }
 
 export const fetchAllStations = async (): Promise<StationTrackInfo[]> => {
