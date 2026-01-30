@@ -6,28 +6,27 @@ AS $$
   SELECT
     json_agg(
       json_build_object(
-        'name',
-        name,
-        'tracks',
-        -- Aggregate all unique, non-null track numbers into a JSON array
-        (
-          SELECT
-            json_agg(DISTINCT ref)
-          FROM
-            public.stations s2
-          WHERE
-            s2.name = s1.name
-            AND s2.ref IS NOT NULL
-        )
+        'name', name,
+        'code', code,
+        'tracks', CASE 
+            -- Check if the result is null or an empty array using JSONB
+            WHEN tracks_list IS NULL OR tracks_list::jsonb = '[]'::jsonb 
+            THEN json_build_array('1')
+            ELSE tracks_list
+          END
       )
       ORDER BY name
     )
-  FROM
-    (
-      -- Get all unique station names
-      SELECT
-        DISTINCT name
-      FROM
-        public.stations
-    ) s1;
+  FROM (
+    SELECT 
+      name, 
+      MAX(code) as code, 
+      json_agg(DISTINCT ref) FILTER (WHERE ref IS NOT NULL AND ref != '') as tracks_list
+    FROM 
+      public.stations 
+    WHERE 
+      code IS NOT NULL AND code != ''
+    GROUP BY 
+      name
+  ) s1;
 $$;
