@@ -1,44 +1,32 @@
-// server/src/controllers/departures.js
 import axios from 'axios';
-import { supabase } from '../supabase.js';
 
-const NS_API_URL = 'https://gateway.api.ns.nl/reisinformatie-api/api/v2/departures';
+const NS_API_BASE = 'https://gateway.apiportal.ns.nl/reisinformatie-api/api/v2';
 
 export const getStationDepartures = async (req, res) => {
-    const { station_name, dateTime } = req.query;
 
-    if (!station_name) {
-        return res.status(400).json({ error: 'Missing station_name parameter.' });
+    const { station, dateTime } = req.query;
+
+    if (!station) {
+        return res.status(400).json({ error: 'Missing station parameter.' });
     }
 
     try {
-        // 1. Find the station code from your database
-        const { data: station, error: dbError } = await supabase
-            .from('stations')
-            .select('ref, name')
-            .eq('name', station_name)
-            .limit(1)
-            .single();
-
-        if (dbError || !station) {
-            return res.status(404).json({ error: `Station ${station_name} not found in database.` });
-        }
-
-        // 2. Query the NS API using the 'ref' (station code)
-        const nsResponse = await axios.get(NS_API_URL, {
+        // [?lang][& station][& uicCode][& dateTime][& maxJourneys]
+        const nsResponse = await axios.get(`${NS_API_BASE}/departures`, {
             headers: {
+                'Cache-Control': 'no-cache',
                 'Ocp-Apim-Subscription-Key': process.env.NS_API_KEY
             },
             params: {
-                station: station.ref,
+                lang: 'en',
+                maxJourneys: 20,
+                station,
                 dateTime: dateTime // Optional: ISO8601 string
             }
         });
 
-        // 3. Return the payload
         res.json({
-            station: station.name,
-            code: station.ref,
+            code: station,
             departures: nsResponse.data.payload.departures
         });
 
@@ -46,6 +34,36 @@ export const getStationDepartures = async (req, res) => {
         console.error('NS API Error:', error.message);
         const status = error.response?.status || 500;
         const message = error.response?.data?.message || 'Failed to fetch departures';
+        res.status(status).json({ error: message });
+    }
+};
+
+export const getJourney = async (req, res) => {
+    const { train, dateTime } = req.query;
+
+    if (!train) {
+        return res.status(400).json({ error: 'Missing train parameter.' });
+    }
+
+    try {
+        // [?train][& dateTime]
+        const nsResponse = await axios.get(`${NS_API_BASE}/journey`, {
+            headers: {
+                'Cache-Control': 'no-cache',
+                'Ocp-Apim-Subscription-Key': process.env.NS_API_KEY
+            },
+            params: {
+                train,
+                dateTime // Optional: ISO8601 string
+            }
+        });
+
+        res.json(nsResponse.data.payload);
+
+    } catch (error) {
+        console.error('NS API Error:', error.message);
+        const status = error.response?.status || 500;
+        const message = error.response?.data?.message || 'Failed to fetch journey';
         res.status(status).json({ error: message });
     }
 };

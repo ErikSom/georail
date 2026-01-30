@@ -58,6 +58,7 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
         try {
             setLoading(true);
             const data = await fetchAllStations();
+            console.log("Stations fetched:", data);
             setStations(data);
             setError(null);
 

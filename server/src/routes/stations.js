@@ -1,9 +1,10 @@
 import express from 'express';
 
 import rateLimit from 'express-rate-limit';
+import { authenticateAndAuthorize } from '../middleware/auth.js';
 
 import { getAllStations } from '../controllers/stations.js';
-// import { getStationDepartures } from '../controllers/departures.js';
+import { getStationDepartures, getJourney } from '../controllers/departures.js';
 
 const staticLimiter = rateLimit({
     windowMs: 1000, // 1 second
@@ -21,7 +22,8 @@ const router = express.Router();
 
 router.get('/', staticLimiter, getAllStations);
 
-// Live NS data - No cache
-// router.get('/:name/departures', authenticateAndAuthorize, getStationDepartures);
+router.get('/departures', staticLimiter, authenticateAndAuthorize, getStationDepartures);
+
+router.get('/journey', staticLimiter, authenticateAndAuthorize, getJourney);
 
 export default router;
