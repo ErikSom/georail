@@ -113,14 +113,23 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
             return;
         }
 
+        // Look up station codes
+        const fromStationData = stations.find(s => s.name === fromStation);
+        const toStationData = stations.find(s => s.name === toStation);
+
+        if (!fromStationData?.code || !toStationData?.code) {
+            setError('Station code not found');
+            return;
+        }
+
         try {
             setFetchingRoute(true);
             setError(null);
 
-            // Build stops array for journey API
+            // Build stops array for journey API using station codes
             const stops: JourneyStopInput[] = [
-                fromTrack ? { name: fromStation, track: fromTrack } : { name: fromStation },
-                toTrack ? { name: toStation, track: toTrack } : { name: toStation }
+                { code: fromStationData.code, track: fromTrack || undefined },
+                { code: toStationData.code, track: toTrack || undefined }
             ];
 
             const journeyData = await fetchJourneyRoute(stops);
@@ -207,11 +216,20 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
         if (expandedJourney) {
             console.log('Journey:', expandedJourney);
 
-            // Convert journey stops to JourneyStopInput format
-            const stops: JourneyStopInput[] = expandedJourney.stops.map(stop => ({
-                name: stop.stop.name,
-                track: stop.departures[0]?.plannedTrack || stop.arrivals[0]?.plannedTrack
-            }));
+            // Convert journey stops to JourneyStopInput format using station codes
+            const stops: JourneyStopInput[] = [];
+            for (const stop of expandedJourney.stops) {
+                const stationData = stations.find(s => s.name === stop.stop.name);
+                if (stationData?.code) {
+                    const track = stop.departures[0]?.plannedTrack || stop.arrivals[0]?.plannedTrack;
+                    stops.push(track ? { code: stationData.code, track } : { code: stationData.code });
+                }
+            }
+
+            if (stops.length < 2) {
+                console.error('Not enough stations found in our database');
+                return;
+            }
 
             try {
                 const routeData = await fetchJourneyRoute(stops);

@@ -1,5 +1,5 @@
 -- Function to find a route for an entire journey (multiple stops)
--- Input: JSONB array of stops, each with { name: string, track?: string }
+-- Input: JSONB array of stops, each with { code: string, track?: string }
 -- Output: Combined route geometry for the whole journey
 --
 -- This reuses the same routing logic as find_rail_route but chains multiple
@@ -45,32 +45,32 @@ BEGIN
     current_stop := stops->i;
     next_stop := stops->(i + 1);
 
-    -- Find start station coordinates
+    -- Find start station coordinates (lookup by code)
     SELECT ARRAY[
       ST_X(geom),
       ST_Y(geom)
     ] INTO start_coords
     FROM stations
-    WHERE name = current_stop->>'name'
+    WHERE code = current_stop->>'code'
       AND (current_stop->>'track' IS NULL OR ref = current_stop->>'track')
     LIMIT 1;
 
     IF start_coords IS NULL THEN
-      RETURN json_build_object('error', format('Station not found: %s', current_stop->>'name'));
+      RETURN json_build_object('error', format('Station not found: %s', current_stop->>'code'));
     END IF;
 
-    -- Find end station coordinates
+    -- Find end station coordinates (lookup by code)
     SELECT ARRAY[
       ST_X(geom),
       ST_Y(geom)
     ] INTO end_coords
     FROM stations
-    WHERE name = next_stop->>'name'
+    WHERE code = next_stop->>'code'
       AND (next_stop->>'track' IS NULL OR ref = next_stop->>'track')
     LIMIT 1;
 
     IF end_coords IS NULL THEN
-      RETURN json_build_object('error', format('Station not found: %s', next_stop->>'name'));
+      RETURN json_build_object('error', format('Station not found: %s', next_stop->>'code'));
     END IF;
 
     -- Find start_node (same as find_rail_route)

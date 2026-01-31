@@ -16,6 +16,6 @@ const routeLimiter = rateLimit({
 
 const router = express.Router();
 
-router.post('/journey', routeLimiter, findJourneyRoute);
+router.get('/journey', routeLimiter, findJourneyRoute);
 
 export default router;

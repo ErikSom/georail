@@ -4,7 +4,7 @@ export interface EditorPoint {
 }
 
 export interface JourneyStopInput {
-    name: string;
+    code: string;  // Short station code (e.g., "ASD", "HN")
     track?: string;
 }
 
@@ -35,34 +35,36 @@ export interface RouteData {
     }
 }
 
-import { fnvHash } from '../../../../shared/hash.secure.js';
+/**
+ * Build compact stops string for URL: "ASD:7a,HN:1" or "ASD,HN" without tracks
+ */
+function encodeStops(stops: JourneyStopInput[]): string {
+    return stops.map(s => s.track ? `${s.code}:${s.track}` : s.code).join(',');
+}
 
 /**
  * Fetch route for an entire journey (multiple stops)
- * The stops array is hashed and sent as query param for Cloudflare caching
+ * Uses GET with compact URL format for Cloudflare caching
+ * Format: /navi/journey?s=ASD:7a,HN:1&editor=true
  */
 export const fetchJourneyRoute = async (stops: JourneyStopInput[], editor: boolean = false): Promise<JourneyRouteData> => {
     if (stops.length < 2) {
         throw new Error('At least 2 stops required');
     }
 
-    const stopsJson = JSON.stringify(stops);
-    console.log('Client stops JSON:', stopsJson);
-    const hash = fnvHash(stopsJson);
-    console.log('Client hash:', hash);
+    const stopsParam = encodeStops(stops);
     const url = new URL(`${import.meta.env.PUBLIC_GEORAIL_URL}/navi/journey`);
-    url.searchParams.append('h', hash);
+    url.searchParams.append('s', stopsParam);
     if (editor) {
         url.searchParams.append('editor', 'true');
     }
 
     try {
         const response = await fetch(url.toString(), {
-            method: 'POST',
+            method: 'GET',
             headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ stops })
+                'Accept': 'application/json'
+            }
         });
 
         if (!response.ok) {
