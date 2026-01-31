@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "preact/hooks";
+import { useEffect, useState, useCallback, useRef } from "preact/hooks";
 
 import { trainVelocityKmh, trainMaxSpeedKmh, updateTick } from "../../store/train";
 import { configs } from "../../store/globals";
@@ -27,6 +27,7 @@ function Speedometer() {
         position,
         ready,
         containerRef,
+        setPosition,
         handleContainerPointerDown,
     } = useTransformable({
         initialPosition: { x: 100, y: 100 },
@@ -50,6 +51,30 @@ function Speedometer() {
         localStorage.setItem(STORAGE_KEY_MODE, mode);
     }, [mode]);
 
+    // Re-clamp position when mode changes (size changes)
+    const prevMode = useRef(mode);
+    useEffect(() => {
+        if (prevMode.current === mode) return;
+        prevMode.current = mode;
+
+        // Wait for DOM to update with new size
+        requestAnimationFrame(() => {
+            if (!containerRef.current) return;
+
+            const padding = 10;
+            const rect = containerRef.current.getBoundingClientRect();
+            const maxX = window.innerWidth - rect.width - padding;
+            const maxY = window.innerHeight - rect.height - padding;
+
+            const clampedX = Math.max(padding, Math.min(position.x, maxX));
+            const clampedY = Math.max(padding, Math.min(position.y, maxY));
+
+            if (clampedX !== position.x || clampedY !== position.y) {
+                setPosition({ x: clampedX, y: clampedY });
+            }
+        });
+    }, [mode, position.x, position.y, setPosition, containerRef]);
+
     // Handle click outside to close selector
     useEffect(() => {
         if (!showSelector) return;
@@ -72,14 +97,34 @@ function Speedometer() {
         };
     }, [showSelector, containerRef]);
 
-    const handleContainerTap = useCallback((e: PointerEvent) => {
-        // Call the original handler for drag functionality
-        handleContainerPointerDown(e);
+    // Track if we're dragging to distinguish from taps
+    const pointerStartPos = useRef<{ x: number; y: number } | null>(null);
+    const didDrag = useRef(false);
 
-        // Toggle selector on tap (not drag)
-        // We'll show selector immediately, drag handler will handle movement
-        setShowSelector(prev => !prev);
+    const handlePointerDown = useCallback((e: PointerEvent) => {
+        pointerStartPos.current = { x: e.clientX, y: e.clientY };
+        didDrag.current = false;
+        handleContainerPointerDown(e);
     }, [handleContainerPointerDown]);
+
+    const handlePointerMove = useCallback((e: PointerEvent) => {
+        if (pointerStartPos.current) {
+            const dx = Math.abs(e.clientX - pointerStartPos.current.x);
+            const dy = Math.abs(e.clientY - pointerStartPos.current.y);
+            if (dx > 5 || dy > 5) {
+                didDrag.current = true;
+            }
+        }
+    }, []);
+
+    const handlePointerUp = useCallback(() => {
+        // Only toggle selector if we initiated the pointer on this element (not on buttons)
+        // and it was a tap (not a drag)
+        if (pointerStartPos.current !== null && !didDrag.current) {
+            setShowSelector(prev => !prev);
+        }
+        pointerStartPos.current = null;
+    }, []);
 
     const handleModeSelect = useCallback((newMode: SpeedometerMode) => {
         setMode(newMode);
@@ -96,7 +141,9 @@ function Speedometer() {
             ref={containerRef}
             className={`${styles.speedometer} ${mode === 'analog' ? styles.analogMode : ''}`}
             style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
-            onPointerDown={handleContainerTap}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
         >
             {mode === 'digital' ? (
                 <>
@@ -115,17 +162,16 @@ function Speedometer() {
                 <div
                     className={styles.modeSelector}
                     onPointerDown={(e) => e.stopPropagation()}
-                    onPointerUp={(e) => e.stopPropagation()}
                 >
                     <button
                         className={`${styles.modeButton} ${mode === 'digital' ? styles.active : ''}`}
-                        onPointerUp={() => handleModeSelect('digital')}
+                        onClick={() => handleModeSelect('digital')}
                     >
                         Digital
                     </button>
                     <button
                         className={`${styles.modeButton} ${mode === 'analog' ? styles.active : ''}`}
-                        onPointerUp={() => handleModeSelect('analog')}
+                        onClick={() => handleModeSelect('analog')}
                     >
                         Analog
                     </button>
