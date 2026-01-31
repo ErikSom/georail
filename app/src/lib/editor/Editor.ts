@@ -11,7 +11,7 @@ import { MapViewer } from '../MapViewer';
 import { FlightControls } from '../utils/FlightControls';
 import { Input } from '../utils/Input';
 import { RouteEditor } from './RouteEditor';
-import { fetchRouteByName, type RouteData } from '../api/navigation';
+import { fetchJourneyRoute, type RouteData, type JourneyStopInput } from '../api/navigation';
 import type { RouteInfo } from '../types/Patch';
 import { Sky } from '../Sky';
 import type { Tiles3DAttributionCredits } from '../../components/HUD/Tiles3DAttribution';
@@ -136,14 +136,25 @@ export class Editor {
 
     public async loadPatchRoute(routeInfo: RouteInfo, patchId: number, reviewMode: boolean = false): Promise<void> {
         try {
+            // Build stops array for journey API
+            const stops: JourneyStopInput[] = [
+                routeInfo.fromTrack ? { name: routeInfo.fromStation, track: routeInfo.fromTrack } : { name: routeInfo.fromStation },
+                routeInfo.toTrack ? { name: routeInfo.toStation, track: routeInfo.toTrack } : { name: routeInfo.toStation }
+            ];
+
             // Fetch route data with editor=true to get all points
-            const routeData = await fetchRouteByName(
-                routeInfo.fromStation,
-                routeInfo.fromTrack || null,
-                routeInfo.toStation,
-                routeInfo.toTrack || null,
-                true // editor mode
-            );
+            const journeyData = await fetchJourneyRoute(stops, true);
+
+            // Transform to RouteData format for compatibility
+            const routeData: RouteData = {
+                geometry: journeyData.geometry,
+                properties: {
+                    from_station: routeInfo.fromStation,
+                    from_track: routeInfo.fromTrack || null,
+                    to_station: routeInfo.toStation,
+                    to_track: routeInfo.toTrack || null
+                }
+            };
 
             // Fetch existing patch data to apply saved offsets
             // In review mode, bypass owner check to allow moderators to view any patch

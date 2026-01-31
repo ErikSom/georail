@@ -18,7 +18,7 @@ import {
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { MapViewer } from './MapViewer';
-import { fetchRouteByName, type RouteData } from './api/navigation';
+import { type RouteData } from './api/navigation';
 import { routePointToWorldPosition } from './utils/CoordinateHelpers';
 import { Sky } from './Sky';
 import { Train } from './train/Train';
@@ -216,16 +216,11 @@ export class World {
         try {
             let routeData = this.routeData;
 
-            // If no route data was provided in constructor, fetch hardcoded route (for backwards compatibility)
             if (!routeData) {
-                console.log('Fetching hardcoded route from Hoorn Kersenboogerd to Amsterdam Centraal...');
-                routeData = await fetchRouteByName(
-                    'Hoorn Kersenboogerd', '1',
-                    'Amsterdam Centraal', '4b'
-                );
-            } else {
-                console.log('Using provided route:', routeData.properties);
+                console.warn('No route data provided');
+                return;
             }
+            console.log('Using provided route:', routeData.properties);
 
             // More detailed logging to inspect the incoming data structure
             console.log('--- Raw Route Data Received ---');

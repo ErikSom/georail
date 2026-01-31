@@ -1,59 +1,58 @@
 import { supabase } from '../supabase.js';
+import { fnvHash } from '../../../shared/hash.secure.js';
 
-export const findRouteByName = async (req, res) => {
-    const { from_station, from_track, to_station, to_track, editor } = req.query;
+const MAX_BODY_SIZE = 500 * 1024; // 500KB max
+const MAX_STOPS = 100;
 
-    if (!from_station || !to_station) {
-        return res.status(400).json({ error: 'Missing from_station or to_station query parameter.' });
-    }
-
-    // === STEP 1: Find the stations in the 'stations' table ===
-    let startQuery = supabase
-        .from('stations')
-        .select('geom, name, ref')
-        .eq('name', from_station);
-
-    if (from_track) {
-        startQuery = startQuery.eq('ref', from_track);
-    }
-
-    let endQuery = supabase
-        .from('stations')
-        .select('geom, name, ref')
-        .eq('name', to_station);
-
-    if (to_track) {
-        endQuery = endQuery.eq('ref', to_track);
-    }
-
-    const [
-        { data: startStations, error: startError },
-        { data: endStations, error: endError }
-    ] = await Promise.all([
-        startQuery.limit(1),
-        endQuery.limit(1)
-    ]);
-
-    if (startError) return res.status(500).json({ error: `Start station query error: ${startError.message}` });
-    if (endError) return res.status(500).json({ error: `End station query error: ${endError.message}` });
-
-    if (!startStations?.length || !endStations?.length) {
-        return res.status(404).json({ error: 'One or both stations could not be found.' });
-    }
-
-    const startStation = startStations[0];
-    const endStation = endStations[0];
-    const startCoords = startStation.geom.coordinates;
-    const endCoords = endStation.geom.coordinates;
-
+/**
+ * Find route for an entire journey (multiple stops)
+ * POST body: { stops: [{ name: string, track?: string }, ...] }
+ * Query param 'h' is the hash of the body for Cloudflare caching (client generates it)
+ */
+export const findJourneyRoute = async (req, res) => {
+    const { h: hash, editor } = req.query;
+    const { stops } = req.body;
     const isEditorMode = (editor === 'true');
 
-    // === STEP 2: Call the 'find_rail_route' function ===
-    const { data: route, error: routeError } = await supabase.rpc('find_rail_route', {
-        start_lon: startCoords[0],
-        start_lat: startCoords[1],
-        end_lon: endCoords[0],
-        end_lat: endCoords[1],
+    // Validate hash is provided
+    if (!hash) {
+        return res.status(400).json({ error: 'Missing hash query parameter "h".' });
+    }
+
+    // Check body size (express.json should have already parsed, but check stringified size)
+    const bodyString = JSON.stringify(req.body);
+    if (bodyString.length > MAX_BODY_SIZE) {
+        return res.status(413).json({ error: 'Request body too large.' });
+    }
+
+    // Validate stops array
+    if (!stops || !Array.isArray(stops) || stops.length < 2) {
+        return res.status(400).json({ error: 'Body must contain "stops" array with at least 2 stops.' });
+    }
+
+    if (stops.length > MAX_STOPS) {
+        return res.status(400).json({ error: `Too many stops. Maximum is ${MAX_STOPS}.` });
+    }
+
+    // Validate each stop has required fields
+    for (const stop of stops) {
+        if (!stop.name) {
+            return res.status(400).json({ error: 'Each stop must have a "name" field.' });
+        }
+    }
+
+    // Verify hash matches body
+    const stopsJson = JSON.stringify(stops);
+    console.log('Server stops JSON:', stopsJson);
+    const expectedHash = fnvHash(stopsJson);
+    console.log('Server hash:', expectedHash, 'Client hash:', hash);
+    if (hash !== expectedHash) {
+        return res.status(400).json({ error: 'Hash does not match body content.' });
+    }
+
+    // Call the database function
+    const { data: route, error: routeError } = await supabase.rpc('find_journey_route', {
+        stops: stops,
         editor: isEditorMode
     });
 
@@ -61,13 +60,12 @@ export const findRouteByName = async (req, res) => {
         return res.status(500).json({ error: `Route finding error: ${routeError.message}` });
     }
 
-    if (!route) {
-        return res.status(404).json({ error: 'No path found between the selected stations.' });
+    if (!route || route.error) {
+        return res.status(404).json({ error: route?.error || 'No path found for the journey.' });
     }
 
-    // === SUCCESS! ===
-    // Cloudflare: 7 days | Browser: 0 (forces revalidation)
-    // We removed 'Authorization' from Vary because this is now a public cache.
+    // Cache based on the hash query param (Cloudflare caches by full URL including ?h=...)
+    // 7 days CDN cache, browser must revalidate
     res.set('Cache-Control', 'public, s-maxage=604800, max-age=0, must-revalidate');
     res.set('Vary', 'Accept-Encoding');
 
@@ -75,10 +73,7 @@ export const findRouteByName = async (req, res) => {
         type: "Feature",
         geometry: route,
         properties: {
-            from_station: startStation.name,
-            from_track: startStation.ref,
-            to_station: endStation.name,
-            to_track: endStation.ref
+            stop_count: stops.length
         }
     });
 };

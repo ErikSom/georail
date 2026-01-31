@@ -19,7 +19,8 @@ app.set('trust proxy', 1);
 
 initializeSupabase();
 
-app.use(express.json());
+// Limit body size - rejects during upload, not after
+app.use(express.json({ limit: '500kb' }));
 
 // ✅ 2. Refined CORS Middleware
 app.use((req, res, next) => {

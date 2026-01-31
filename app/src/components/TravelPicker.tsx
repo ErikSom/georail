@@ -1,7 +1,7 @@
 import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import { fetchAllStations, fetchStationDepartures, fetchJourney, type StationTrackInfo, type Departure, type Journey } from '../lib/api/station';
-import { fetchRouteByName, type RouteData } from '../lib/api/navigation';
+import { fetchJourneyRoute, type RouteData, type JourneyStopInput } from '../lib/api/navigation';
 import styles from './TravelPicker.module.css';
 
 interface TravelPickerProps {
@@ -117,13 +117,24 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
             setFetchingRoute(true);
             setError(null);
 
-            const routeData = await fetchRouteByName(
-                fromStation,
-                fromTrack || null,
-                toStation,
-                toTrack || null,
-                false
-            );
+            // Build stops array for journey API
+            const stops: JourneyStopInput[] = [
+                fromTrack ? { name: fromStation, track: fromTrack } : { name: fromStation },
+                toTrack ? { name: toStation, track: toTrack } : { name: toStation }
+            ];
+
+            const journeyData = await fetchJourneyRoute(stops);
+
+            // Transform to RouteData format
+            const routeData: RouteData = {
+                geometry: journeyData.geometry,
+                properties: {
+                    from_station: fromStation,
+                    from_track: fromTrack || null,
+                    to_station: toStation,
+                    to_track: toTrack || null
+                }
+            };
 
             onRouteSelected(routeData);
         } catch (err) {
@@ -192,9 +203,22 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
     };
 
     // Handle clicking GO on a departure
-    const handleDepartureGo = () => {
+    const handleDepartureGo = async () => {
         if (expandedJourney) {
             console.log('Journey:', expandedJourney);
+
+            // Convert journey stops to JourneyStopInput format
+            const stops: JourneyStopInput[] = expandedJourney.stops.map(stop => ({
+                name: stop.stop.name,
+                track: stop.departures[0]?.plannedTrack || stop.arrivals[0]?.plannedTrack
+            }));
+
+            try {
+                const routeData = await fetchJourneyRoute(stops);
+                console.log('Journey route:', routeData);
+            } catch (err) {
+                console.error('Failed to fetch journey route:', err);
+            }
         }
     };
 
