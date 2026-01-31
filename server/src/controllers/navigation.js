@@ -3,7 +3,7 @@ import { supabase } from '../supabase.js';
 const MAX_STOPS = 30; // Realistic max for NL train journeys
 
 /**
- * Parse compact stops string: "ASD:7a,HN:1" or "ASD,HN"
+ * Parse compact stops string: "ASD-7a,HN-1" or "ASD,HN"
  * Returns array of { code, track? }
  */
 function parseStopsParam(stopsParam) {
@@ -12,7 +12,7 @@ function parseStopsParam(stopsParam) {
     }
 
     const stops = stopsParam.split(',').map(s => {
-        const parts = s.trim().split(':');
+        const parts = s.trim().split('-');
         const code = parts[0];
         const track = parts[1] || null;
         return { code, track };
@@ -23,7 +23,7 @@ function parseStopsParam(stopsParam) {
 
 /**
  * Find route for an entire journey (multiple stops)
- * GET /navi/journey?s=ASD:7a,HN:1&editor=true
+ * GET /navi/journey?s=ASD-7a,HN-1&editor=true
  * Compact URL format for Cloudflare caching
  */
 export const findJourneyRoute = async (req, res) => {
@@ -34,7 +34,7 @@ export const findJourneyRoute = async (req, res) => {
     const stops = parseStopsParam(stopsParam);
 
     if (!stops || stops.length < 2) {
-        return res.status(400).json({ error: 'Query param "s" must contain at least 2 stops (e.g., s=ASD:7a,HN:1)' });
+        return res.status(400).json({ error: 'Query param "s" must contain at least 2 stops (e.g., s=ASD-7a,HN-1)' });
     }
 
     if (stops.length > MAX_STOPS) {

@@ -36,16 +36,20 @@ export interface RouteData {
 }
 
 /**
- * Build compact stops string for URL: "ASD:7a,HN:1" or "ASD,HN" without tracks
+ * Build compact stops string for URL: "ASD-7a,HN-1" or "ASD,HN" without tracks
+ * Encodes individual parts but keeps delimiters (- and ,) clean for readable URLs
  */
 function encodeStops(stops: JourneyStopInput[]): string {
-    return stops.map(s => s.track ? `${s.code}:${s.track}` : s.code).join(',');
+    return stops.map(s => {
+        const code = encodeURIComponent(s.code);
+        return s.track ? `${code}-${encodeURIComponent(s.track)}` : code;
+    }).join(',');
 }
 
 /**
  * Fetch route for an entire journey (multiple stops)
  * Uses GET with compact URL format for Cloudflare caching
- * Format: /navi/journey?s=ASD:7a,HN:1&editor=true
+ * Format: /navi/journey?s=ASD-7a,HN-1&editor=true
  */
 export const fetchJourneyRoute = async (stops: JourneyStopInput[], editor: boolean = false): Promise<JourneyRouteData> => {
     if (stops.length < 2) {
@@ -53,14 +57,11 @@ export const fetchJourneyRoute = async (stops: JourneyStopInput[], editor: boole
     }
 
     const stopsParam = encodeStops(stops);
-    const url = new URL(`${import.meta.env.PUBLIC_GEORAIL_URL}/navi/journey`);
-    url.searchParams.append('s', stopsParam);
-    if (editor) {
-        url.searchParams.append('editor', 'true');
-    }
+    const editorParam = editor ? '&editor=true' : '';
+    const url = `${import.meta.env.PUBLIC_GEORAIL_URL}/navi/journey?s=${stopsParam}${editorParam}`;
 
     try {
-        const response = await fetch(url.toString(), {
+        const response = await fetch(url, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json'
