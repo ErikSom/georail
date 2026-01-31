@@ -22,7 +22,7 @@ import { Pane } from 'tweakpane';
 import { dummyQuad, dummyVec3 } from './utils/Helper';
 import { FlightControls } from './utils/FlightControls';
 import { Input } from './utils/Input';
-import { trainInstance, updateTrainState } from '../store/train';
+import { trainInstance, updateTrainState, trainMaxSpeedKmh } from '../store/train';
 import { audioListener } from '../store/globals';
 import { getTrainConfiguration } from './train/configs/TrainConfigurations.secure';
 
@@ -147,6 +147,7 @@ export class TrainEditorWorld {
 
         // Set train instance in store for controls to use
         trainInstance.value = this.train;
+        trainMaxSpeedKmh.value = trainConfig.general?.maxSpeed ?? 120;
 
         // Controls - initialize before setting path
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);

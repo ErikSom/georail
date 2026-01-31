@@ -14,12 +14,18 @@
     text-align: center;
     font-family: monospace;
     color: white;
-
+    touch-action: none;
 
     span {
         user-select: none;
         pointer-events: none;
     }
+}
+
+.speedometer.analogMode {
+    width: auto;
+    padding: 8px;
+    border-radius: 50%;
 }
 
 .speedValue {
@@ -30,4 +36,101 @@
 .speedUnit {
     font-size: 12px;
     color: var(--text-dim);
+}
+
+/* Mode Selector */
+.modeSelector {
+    position: absolute;
+    bottom: -44px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 6px;
+    padding: 6px;
+    background: var(--panel-bg);
+    border-radius: 16px;
+    box-shadow: var(--panel-shadow);
+    z-index: 10;
+}
+
+.modeButton {
+    padding: 4px 10px;
+    border: none;
+    border-radius: 10px;
+    background: var(--btn-bg);
+    color: var(--text-dim);
+    font-size: 11px;
+    font-family: monospace;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+}
+
+.modeButton:hover {
+    background: var(--btn-bg-hover);
+}
+
+.modeButton.active {
+    background: var(--led-amber);
+    color: #1a1a1a;
+}
+
+/* Analog Dial SVG Styles */
+.analogDial {
+    display: block;
+    pointer-events: none;
+    user-select: none;
+}
+
+.tick {
+    stroke: rgba(255, 255, 255, 0.6);
+    stroke-width: 1.5;
+}
+
+.tickMicro {
+    stroke: rgba(255, 255, 255, 0.35);
+    stroke-width: 1;
+}
+
+.tickMajor {
+    stroke: rgba(255, 255, 255, 0.9);
+    stroke-width: 2.5;
+}
+
+.tickLabel {
+    fill: rgba(255, 255, 255, 0.9);
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    text-anchor: middle;
+    dominant-baseline: middle;
+}
+
+.needle {
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+    transition: transform 0.15s ease-out;
+}
+
+.centerCap {
+    fill: #2a2a2a;
+    stroke: #444;
+    stroke-width: 1;
+}
+
+.analogValue {
+    fill: rgba(255, 255, 255, 0.9);
+    font-family: "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
+    font-size: 16px;
+    font-weight: 600;
+    text-anchor: middle;
+    dominant-baseline: middle;
+    font-variant-numeric: tabular-nums;
+}
+
+.analogUnit {
+    fill: rgba(255, 255, 255, 0.6);
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 11px;
+    text-anchor: middle;
+    dominant-baseline: middle;
 }

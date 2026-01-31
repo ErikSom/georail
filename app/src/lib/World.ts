@@ -27,7 +27,7 @@ import { FlightControls } from './utils/FlightControls';
 import Path from './utils/Path';
 import { getTrainConfiguration, nssgmTrainType } from './train/configs/TrainConfigurations.secure';
 import Stats from 'stats-gl';
-import { trainInstance, updateTrainState, trainDebugMode, trainLatE7, trainLonE7, trainFrontLatE7, trainFrontLonE7, trainBackLatE7, trainBackLonE7, cameraYawRelativeToTrain } from '../store/train';
+import { trainInstance, updateTrainState, trainDebugMode, trainLatE7, trainLonE7, trainFrontLatE7, trainFrontLonE7, trainBackLatE7, trainBackLonE7, cameraYawRelativeToTrain, trainMaxSpeedKmh } from '../store/train';
 import { getPerformanceConfig, type PerformanceConfig } from './utils/PerformanceConfig';
 import type { Tiles3DAttributionCredits } from '../components/HUD/Tiles3DAttribution';
 import { Pane } from 'tweakpane';
@@ -118,6 +118,7 @@ export class World {
 
         // Set train instance in store for controls to use
         trainInstance.value = this.train;
+        trainMaxSpeedKmh.value = trainConfig.general?.maxSpeed ?? 120;
 
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
         this.controls.minDistance = 10;

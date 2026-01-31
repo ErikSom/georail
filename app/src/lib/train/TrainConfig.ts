@@ -100,7 +100,12 @@ export interface WagonConfig extends RollingStockConfig {
     // Additional wagon-specific properties can go here
 }
 
+export interface TrainGeneralConfig {
+    maxSpeed?: number; // Maximum speed in km/h - defaults to 120
+}
+
 export interface TrainConfig {
+    general?: TrainGeneralConfig;
     cab: CabConfig;
     wagons: WagonConfig[];
     rearCab?: CabConfig;
