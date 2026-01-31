@@ -3,6 +3,7 @@ import PatchList from './PatchList';
 import PatchCreator from './PatchCreator';
 import type { RouteInfo, Patch } from '../lib/types/Patch';
 import { fetchUserRole, type UserRole } from '../lib/api/profile';
+import { fetchAllStations, type StationTrackInfo } from '../lib/api/station';
 
 import styles from './PatchManagement.module.css';
 
@@ -17,10 +18,17 @@ function PatchManagement({ onClose, onStartEditing, activePatchId }: PatchManage
     const [patchListKey, setPatchListKey] = useState(0);
     const [moderatorMode, setModeratorMode] = useState(false);
     const [userRole, setUserRole] = useState<UserRole>('editor');
+    const [stations, setStations] = useState<StationTrackInfo[]>([]);
 
     useEffect(() => {
         fetchUserRole().then(setUserRole).catch(console.error);
+        fetchAllStations().then(setStations).catch(console.error);
     }, []);
+
+    const getStationCode = (stationName: string): string => {
+        const station = stations.find(s => s.name === stationName);
+        return station?.code || '';
+    };
 
     const handleCreateNew = () => {
         setShowCreator(true);
@@ -42,8 +50,10 @@ function PatchManagement({ onClose, onStartEditing, activePatchId }: PatchManage
         if (onStartEditing) {
             const routeInfo: RouteInfo = {
                 fromStation: patch.from_station || '',
+                fromStationCode: getStationCode(patch.from_station || ''),
                 fromTrack: patch.from_track || '',
                 toStation: patch.to_station || '',
+                toStationCode: getStationCode(patch.to_station || ''),
                 toTrack: patch.to_track || '',
                 description: patch.description,
             };
@@ -55,8 +65,10 @@ function PatchManagement({ onClose, onStartEditing, activePatchId }: PatchManage
         if (onStartEditing) {
             const routeInfo: RouteInfo = {
                 fromStation: patch.from_station || '',
+                fromStationCode: getStationCode(patch.from_station || ''),
                 fromTrack: patch.from_track || '',
                 toStation: patch.to_station || '',
+                toStationCode: getStationCode(patch.to_station || ''),
                 toTrack: patch.to_track || '',
                 description: patch.description,
             };

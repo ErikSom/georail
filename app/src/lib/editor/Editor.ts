@@ -136,10 +136,10 @@ export class Editor {
 
     public async loadPatchRoute(routeInfo: RouteInfo, patchId: number, reviewMode: boolean = false): Promise<void> {
         try {
-            // Build stops array for journey API
+            // Build stops array for journey API using station codes
             const stops: JourneyStopInput[] = [
-                routeInfo.fromTrack ? { name: routeInfo.fromStation, track: routeInfo.fromTrack } : { name: routeInfo.fromStation },
-                routeInfo.toTrack ? { name: routeInfo.toStation, track: routeInfo.toTrack } : { name: routeInfo.toStation }
+                routeInfo.fromTrack ? { code: routeInfo.fromStationCode, track: routeInfo.fromTrack } : { code: routeInfo.fromStationCode },
+                routeInfo.toTrack ? { code: routeInfo.toStationCode, track: routeInfo.toTrack } : { code: routeInfo.toStationCode }
             ];
 
             // Fetch route data with editor=true to get all points

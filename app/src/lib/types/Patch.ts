@@ -49,8 +49,10 @@ export interface SubmitPatchInput {
 
 export interface RouteInfo {
     fromStation: string;
+    fromStationCode: string;
     fromTrack: string;
     toStation: string;
+    toStationCode: string;
     toTrack: string;
     description?: string;
 }

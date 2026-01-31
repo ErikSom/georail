@@ -65,10 +65,16 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
 
             const patchId = result.patchId;
 
+            // Look up station codes
+            const fromStationData = stations.find(s => s.name === fromStation);
+            const toStationData = stations.find(s => s.name === toStation);
+
             onSubmit(patchId, {
                 fromStation,
+                fromStationCode: fromStationData?.code || '',
                 fromTrack,
                 toStation,
+                toStationCode: toStationData?.code || '',
                 toTrack,
                 description: description || undefined,
             });
