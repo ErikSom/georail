@@ -1,7 +1,7 @@
 import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import { fetchAllStations, fetchStationDepartures, fetchJourney, type StationTrackInfo, type Departure, type Journey } from '../lib/api/station';
-import { fetchJourneyRoute, type RouteData, type RouteStop, type JourneyStopInput } from '../lib/api/navigation';
+import { fetchJourneyRoute, calculateStopTimes, type RouteData, type RouteStop, type JourneyStopInput } from '../lib/api/navigation';
 import styles from './TravelPicker.module.css';
 
 interface TravelPickerProps {
@@ -184,11 +184,12 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
 
             const journeyData = await fetchJourneyRoute(journeyStops);
 
-            // Transform to RouteData format with all stops
-            const routeStops: RouteStop[] = stops.map(s => ({
-                station: s.station,
-                track: s.track || null
-            }));
+            // Calculate arrival/departure times from route metadata
+            const routeStops = calculateStopTimes(
+                stops.map(s => s.station),
+                stops.map(s => s.track || null),
+                journeyData.geometry
+            );
 
             const routeData: RouteData = {
                 geometry: journeyData.geometry,
@@ -289,11 +290,43 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
 
                 const journeyData = await fetchJourneyRoute(journeyStops);
 
-                // Transform to RouteData format with all stops
-                const routeStops: RouteStop[] = relevantStops.map(stop => ({
-                    station: stop.stop.name,
-                    track: stop.departures[0]?.plannedTrack || stop.arrivals[0]?.plannedTrack || null
-                }));
+                // Transform to RouteData format with all stops including timing
+                // Get the first stop's departure time as reference point (time = 0)
+                const firstStopTime = relevantStops[0]?.departures?.[0]?.plannedTime
+                    || relevantStops[0]?.arrivals?.[0]?.plannedTime;
+                const referenceTime = firstStopTime ? new Date(firstStopTime).getTime() : 0;
+
+                const routeStops: RouteStop[] = relevantStops.map((stop, idx) => {
+                    const arrivalTimeStr = stop.arrivals?.[0]?.plannedTime;
+                    const departureTimeStr = stop.departures?.[0]?.plannedTime;
+
+                    let arrivalTime: number;
+                    let departureTime: number;
+
+                    if (idx === 0) {
+                        // First stop: arrival = 0, departure = 1
+                        arrivalTime = 0;
+                        departureTime = 1;
+                    } else {
+                        // Calculate relative minutes from first stop
+                        const arrivalMs = arrivalTimeStr
+                            ? new Date(arrivalTimeStr).getTime() - referenceTime
+                            : new Date(departureTimeStr!).getTime() - referenceTime;
+                        arrivalTime = Math.round(arrivalMs / 60000);
+
+                        const departureMs = departureTimeStr
+                            ? new Date(departureTimeStr).getTime() - referenceTime
+                            : arrivalMs + 60000; // +1 minute if no departure time
+                        departureTime = Math.round(departureMs / 60000);
+                    }
+
+                    return {
+                        station: stop.stop.name,
+                        track: stop.departures[0]?.plannedTrack || stop.arrivals[0]?.plannedTrack || null,
+                        arrivalTime,
+                        departureTime
+                    };
+                });
 
                 const routeData: RouteData = {
                     geometry: journeyData.geometry,

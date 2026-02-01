@@ -38,6 +38,13 @@ DECLARE
   combined_route json;
   combined_editor json;
 
+  -- Metadata for timing calculations
+  segment_metadata json;
+  all_metadata json[] := ARRAY[]::json[];
+  combined_metadata json;
+  running_point_count int := 0;
+  stop_indices int[] := ARRAY[0]::int[];  -- First stop is always at index 0
+
   -- Security: distance tracking (straight-line between stops)
   MAX_DISTANCE_METERS float := 500000; -- 500 km total
   MAX_SEGMENT_METERS float := 150000; -- 150 km per stop
@@ -205,41 +212,50 @@ BEGIN
         COALESCE(
           ovr.world_offset,
           ARRAY[0.0, COALESCE(ST_Z(b.original_point_geom), 0.0), 0.0]::double precision[]
-        ) AS world_offset
+        ) AS world_offset,
+        -- Get maxspeed from rail_lines properties (default 0 km/h if null)
+        COALESCE((rl.properties->>'maxspeed')::int, 0) AS max_speed
       FROM route_points_base b
       LEFT JOIN rail_point_overrides ovr
         ON ovr.segment_id = b.segment_id
         AND ovr.point_index = b.original_point_index
+      JOIN rail_lines rl
+        ON rl.id = b.segment_id
     ),
-    route_array AS ( -- 5. Build route array
-      SELECT json_agg(
-        json_build_array(
-          ST_X(fp.point_geom_2d),
-          ST_Y(fp.point_geom_2d),
-          fp.world_offset[1],  -- x
-          fp.world_offset[2],  -- y (height)
-          fp.world_offset[3]   -- z
-        )
-        ORDER BY fp.path_seq, fp.point_index_in_route
-      ) AS arr
-      FROM final_points_data AS fp
-    ),
-    editor_array AS ( -- 6. Build editor array (segment_id + index for each point)
-      SELECT json_agg(
-        json_build_object(
-          'segment_id', fp.segment_id,
-          'index', fp.original_point_index
-        )
-        ORDER BY fp.path_seq, fp.point_index_in_route
-      ) AS arr
+    combined_arrays AS ( -- 5. Build all arrays in single pass
+      SELECT
+        json_agg(
+          json_build_array(
+            ST_X(fp.point_geom_2d),
+            ST_Y(fp.point_geom_2d),
+            fp.world_offset[1],  -- x
+            fp.world_offset[2],  -- y (height)
+            fp.world_offset[3]   -- z
+          )
+          ORDER BY fp.path_seq, fp.point_index_in_route
+        ) AS route_arr,
+        json_agg(
+          json_build_object(
+            'segment_id', fp.segment_id,
+            'index', fp.original_point_index
+          )
+          ORDER BY fp.path_seq, fp.point_index_in_route
+        ) AS editor_arr,
+        json_agg(
+          json_build_object(
+            'max_speed', fp.max_speed
+          )
+          ORDER BY fp.path_seq, fp.point_index_in_route
+        ) AS metadata_arr
       FROM final_points_data AS fp
     )
     SELECT
-      r.arr,
-      e.arr,
-      si.seg_edges
-    INTO segment_route, segment_editor, segment_edges
-    FROM route_array r, editor_array e, segment_info si;
+      ca.route_arr,
+      ca.editor_arr,
+      si.seg_edges,
+      ca.metadata_arr
+    INTO segment_route, segment_editor, segment_edges, segment_metadata
+    FROM combined_arrays ca, segment_info si;
 
     -- SECURITY: Check for direction conflicts (traversing same edge in opposite direction)
     IF segment_edges IS NOT NULL THEN
@@ -256,30 +272,54 @@ BEGIN
       all_traversed_edges := all_traversed_edges || segment_edges;
     END IF;
 
-    -- Add this segment's route and editor data to our collections
+    -- Add this segment's route, editor, and metadata to our collections
     IF segment_route IS NOT NULL THEN
       all_routes := array_append(all_routes, segment_route);
       all_editor := array_append(all_editor, segment_editor);
+      all_metadata := array_append(all_metadata, segment_metadata);
+
+      -- Track stop indices: after this segment, the next stop is at the end
+      -- For segments after the first, we skip the first point (duplicate), so subtract 1
+      IF i = 0 THEN
+        running_point_count := running_point_count + json_array_length(segment_route);
+      ELSE
+        running_point_count := running_point_count + json_array_length(segment_route) - 1;
+      END IF;
+      stop_indices := array_append(stop_indices, running_point_count - 1);
     END IF;
   END LOOP;
 
-  -- Combine all route segments into one array
-  SELECT json_agg(point)
+  -- Combine all route segments into one array, skipping duplicate points at segment boundaries
+  SELECT json_agg(point ORDER BY seg_idx, point_idx)
   INTO combined_route
   FROM (
-    SELECT json_array_elements(route_segment) AS point
-    FROM unnest(all_routes) AS route_segment
-  ) subq;
+    SELECT point, point_idx, seg_idx
+    FROM unnest(all_routes) WITH ORDINALITY AS segments(route_segment, seg_idx),
+    LATERAL json_array_elements(route_segment) WITH ORDINALITY AS points(point, point_idx)
+  ) subq
+  WHERE seg_idx = 1 OR point_idx > 1;  -- Keep all points from first segment, skip first point of subsequent segments
 
   -- Combine all editor segments into one array (only if editor mode)
   IF editor THEN
-    SELECT json_agg(point)
+    SELECT json_agg(point ORDER BY seg_idx, point_idx)
     INTO combined_editor
     FROM (
-      SELECT json_array_elements(editor_segment) AS point
-      FROM unnest(all_editor) AS editor_segment
-    ) subq;
+      SELECT point, point_idx, seg_idx
+      FROM unnest(all_editor) WITH ORDINALITY AS segments(editor_segment, seg_idx),
+      LATERAL json_array_elements(editor_segment) WITH ORDINALITY AS points(point, point_idx)
+    ) subq
+    WHERE seg_idx = 1 OR point_idx > 1;
   END IF;
+
+  -- Combine all metadata segments into one array
+  SELECT json_agg(point ORDER BY seg_idx, point_idx)
+  INTO combined_metadata
+  FROM (
+    SELECT point, point_idx, seg_idx
+    FROM unnest(all_metadata) WITH ORDINALITY AS segments(metadata_segment, seg_idx),
+    LATERAL json_array_elements(metadata_segment) WITH ORDINALITY AS points(point, point_idx)
+  ) subq
+  WHERE seg_idx = 1 OR point_idx > 1;
 
   -- Return in same format as find_rail_route
   IF editor THEN
@@ -287,13 +327,17 @@ BEGIN
       'start_node', first_start_node,
       'end_node', last_end_node,
       'route', combined_route,
+      'metadata', combined_metadata,
+      'stop_indices', stop_indices,
       'editor', combined_editor
     );
   ELSE
     RETURN json_build_object(
       'start_node', first_start_node,
       'end_node', last_end_node,
-      'route', combined_route
+      'route', combined_route,
+      'metadata', combined_metadata,
+      'stop_indices', stop_indices
     );
   END IF;
 END;
