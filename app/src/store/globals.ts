@@ -13,6 +13,15 @@ export const mainCamera = signal<PerspectiveCamera | null>(null);
 
 interface Configs {
     unitSystem: 'metric' | 'imperial';
+    // Dwell time settings (in minutes)
+    initialDwellTime: number;      // Dwell time at first stop (used in both regular and custom)
+    minStopDwellTime: number;      // Minimum random dwell time at intermediate stops (custom only)
+    maxStopDwellTime: number;      // Maximum random dwell time at intermediate stops (custom only)
 }
-export const configs = signal<Configs>({ unitSystem: 'metric' });
+export const configs = signal<Configs>({
+    unitSystem: 'metric',
+    initialDwellTime: 1,
+    minStopDwellTime: 1,
+    maxStopDwellTime: 6
+});
 

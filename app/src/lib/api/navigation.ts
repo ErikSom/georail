@@ -47,6 +47,8 @@ export interface RouteData {
     }
 }
 
+import { configs } from '../../store/globals';
+
 /**
  * Calculate distance between two points in meters using Haversine formula
  */
@@ -75,12 +77,17 @@ export function calculateStopTimes(
     const { route, metadata, stop_indices } = geometry;
     const DEFAULT_SPEED_KMH = 80;
 
+    const { initialDwellTime, minStopDwellTime, maxStopDwellTime } = configs.value;
+
     return stopNames.map((station, stopIdx) => {
         const track = stopTracks[stopIdx];
 
         if (stopIdx === 0) {
-            return { station, track, arrivalTime: 0, departureTime: 1 };
+            return { station, track, arrivalTime: 0, departureTime: initialDwellTime };
         }
+
+        // Random dwell time between min and max for intermediate stops
+        const dwellTime = Math.floor(Math.random() * (maxStopDwellTime - minStopDwellTime + 1)) + minStopDwellTime;
 
         // Get route indices for this segment
         const startRouteIdx = stop_indices[stopIdx - 1];
@@ -105,7 +112,9 @@ export function calculateStopTimes(
         const travelTimeMinutes = (segmentDistance / 1000) / avgSpeedKmh * 60;
 
         // Accumulate time from start (sum of all previous segments + dwell times)
-        let cumulativeTime = 1; // First stop departure at 1
+        // Use average of min/max for intermediate stop dwell estimates
+        const avgDwellTime = (minStopDwellTime + maxStopDwellTime) / 2;
+        let cumulativeTime = initialDwellTime; // First stop departure
         for (let prevIdx = 1; prevIdx < stopIdx; prevIdx++) {
             const prevStart = stop_indices[prevIdx - 1];
             const prevEnd = stop_indices[prevIdx];
@@ -121,11 +130,11 @@ export function calculateStopTimes(
             }
 
             const prevAvgSpeed = prevDistance > 0 ? prevWeightedSpeed / prevDistance : DEFAULT_SPEED_KMH;
-            cumulativeTime += (prevDistance / 1000) / prevAvgSpeed * 60 + 1; // +1 for dwell time
+            cumulativeTime += (prevDistance / 1000) / prevAvgSpeed * 60 + avgDwellTime;
         }
 
         const arrivalTime = Math.round(cumulativeTime + travelTimeMinutes);
-        const departureTime = arrivalTime + 1;
+        const departureTime = arrivalTime + dwellTime;
 
         return { station, track, arrivalTime, departureTime };
     });

@@ -2,6 +2,7 @@ import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import { fetchAllStations, fetchStationDepartures, fetchJourney, type StationTrackInfo, type Departure, type Journey } from '../lib/api/station';
 import { fetchJourneyRoute, calculateStopTimes, type RouteData, type RouteStop, type JourneyStopInput } from '../lib/api/navigation';
+import { configs } from '../store/globals';
 import styles from './TravelPicker.module.css';
 
 interface TravelPickerProps {
@@ -304,9 +305,9 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
                     let departureTime: number;
 
                     if (idx === 0) {
-                        // First stop: arrival = 0, departure = 1
+                        // First stop: arrival = 0, departure = initialDwellTime
                         arrivalTime = 0;
-                        departureTime = 1;
+                        departureTime = configs.value.initialDwellTime;
                     } else {
                         // Calculate relative minutes from first stop
                         const arrivalMs = arrivalTimeStr
