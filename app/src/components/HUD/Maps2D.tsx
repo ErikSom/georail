@@ -50,8 +50,9 @@ function Maps2D() {
         renderResizeHandles,
     } = useTransformable({
         initialPosition: { x: 100, y: 100 },
-        initialSize: 200,
-        minSize: MIN_SIZE,
+        initialSize: { width: 200, height: 200 },
+        minSize: { width: MIN_SIZE, height: MIN_SIZE },
+        keepAspectRatio: false,
         storageKey: 'georail_map2d_state',
         onSizeChange: () => {
             if (mapRef.current) {
@@ -281,12 +282,9 @@ function Maps2D() {
         };
     }, []);
 
-    // Map container is always at least BASE_MAP_SIZE (200px)
-    // When container is >= 200px, map fills it at scale 1
-    // When container is < 200px, map stays at 200px but scales down
-    const currentSize = size ?? BASE_MAP_SIZE;
-    const mapContainerSize = Math.max(currentSize, BASE_MAP_SIZE);
-    const scale = currentSize < BASE_MAP_SIZE ? currentSize / BASE_MAP_SIZE : 1;
+    // Map container dimensions
+    const currentWidth = size?.width ?? BASE_MAP_SIZE;
+    const currentHeight = size?.height ?? BASE_MAP_SIZE;
 
     return (
         <div
@@ -295,8 +293,8 @@ function Maps2D() {
             style={{
                 left: `${position.x}px`,
                 top: `${position.y}px`,
-                width: `${currentSize}px`,
-                height: `${currentSize}px`,
+                width: `${currentWidth}px`,
+                height: `${currentHeight}px`,
                 visibility: ready ? 'visible' : 'hidden',
             }}
             onPointerDown={handleContainerPointerDown}
@@ -305,10 +303,8 @@ function Maps2D() {
                 ref={mapContainerRef}
                 className={styles.mapContainer}
                 style={{
-                    width: `${mapContainerSize}px`,
-                    height: `${mapContainerSize}px`,
-                    transform: scale < 1 ? `scale(${scale})` : undefined,
-                    borderRadius: scale < 1 ? `${16 / scale}px` : undefined,
+                    width: `${currentWidth}px`,
+                    height: `${currentHeight}px`,
                 }}
             />
 

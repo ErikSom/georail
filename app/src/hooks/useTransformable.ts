@@ -9,13 +9,20 @@ export interface TransformablePosition {
     y: number;
 }
 
+export interface TransformableSize {
+    width: number;
+    height: number;
+}
+
 export interface UseTransformableOptions {
     /** Default position when no stored state exists. */
     initialPosition: TransformablePosition;
-    /** If provided, enables resizing. If omitted, only dragging is enabled. */
-    initialSize?: number;
-    /** Minimum size when resizing is enabled. Defaults to 100. */
-    minSize?: number;
+    /** If provided, enables resizing. */
+    initialSize?: TransformableSize;
+    /** Minimum size when resizing. Defaults to { width: 100, height: 100 }. */
+    minSize?: TransformableSize;
+    /** When true, resizing maintains aspect ratio. Defaults to true. */
+    keepAspectRatio?: boolean;
     /** Grid size for snapping position on load and drag end. Defaults to 10. */
     gridSize?: number;
     /** Padding from viewport edges. Defaults to 10. */
@@ -23,7 +30,7 @@ export interface UseTransformableOptions {
     /** If provided, persists state to localStorage under this key. */
     storageKey?: string;
     onPositionChange?: (position: TransformablePosition) => void;
-    onSizeChange?: (size: number) => void;
+    onSizeChange?: (size: TransformableSize) => void;
     onSelectedChange?: (selected: boolean) => void;
     onResizeEnd?: () => void;
 }
@@ -31,12 +38,12 @@ export interface UseTransformableOptions {
 export interface UseTransformableReturn {
     position: TransformablePosition;
     /** Size value. Only meaningful when resizing is enabled. */
-    size: number | undefined;
+    size: TransformableSize | undefined;
     selected: boolean;
     ready: boolean;
     containerRef: preact.RefObject<HTMLDivElement>;
     setPosition: (position: TransformablePosition) => void;
-    setSize: (size: number) => void;
+    setSize: (size: TransformableSize) => void;
     setSelected: (selected: boolean) => void;
     handleContainerPointerDown: (e: PointerEvent) => void;
     /** Whether resizing is enabled for this instance. */
@@ -52,7 +59,7 @@ function clamp(value: number, min: number, max: number): number {
 interface StoredState {
     x: number;
     y: number;
-    size?: number;
+    size?: TransformableSize;
 }
 
 function loadStoredState(key: string): StoredState | null {
@@ -62,11 +69,11 @@ function loadStoredState(key: string): StoredState | null {
         if (stored) {
             const parsed = JSON.parse(stored);
             if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
-                return {
-                    x: parsed.x,
-                    y: parsed.y,
-                    size: typeof parsed.size === 'number' ? parsed.size : undefined,
-                };
+                let size: TransformableSize | undefined;
+                if (typeof parsed.size?.width === 'number' && typeof parsed.size?.height === 'number') {
+                    size = { width: parsed.size.width, height: parsed.size.height };
+                }
+                return { x: parsed.x, y: parsed.y, size };
             }
         }
     } catch {
@@ -84,11 +91,14 @@ function saveStoredState(key: string, state: StoredState): void {
     }
 }
 
+const DEFAULT_MIN_SIZE: TransformableSize = { width: 100, height: 100 };
+
 export function useTransformable(options: UseTransformableOptions): UseTransformableReturn {
     const {
         initialPosition,
         initialSize,
-        minSize = 100,
+        minSize = DEFAULT_MIN_SIZE,
+        keepAspectRatio = true,
         gridSize = 10,
         padding = 10,
         storageKey,
@@ -119,7 +129,7 @@ export function useTransformable(options: UseTransformableOptions): UseTransform
     const containerRef = useRef<HTMLDivElement | null>(null);
 
     const [position, setPositionState] = useState<TransformablePosition>(effectiveInitialPosition);
-    const [size, setSizeState] = useState(effectiveInitialSize);
+    const [size, setSizeState] = useState<TransformableSize | undefined>(effectiveInitialSize);
     const [selected, setSelectedState] = useState(false);
     const [ready, setReady] = useState(false);
 
@@ -131,7 +141,7 @@ export function useTransformable(options: UseTransformableOptions): UseTransform
         startY: number;
         startPosX: number;
         startPosY: number;
-        startSize: number;
+        startSize: TransformableSize;
     }>({
         isDragging: false,
         isResizing: null,
@@ -140,7 +150,7 @@ export function useTransformable(options: UseTransformableOptions): UseTransform
         startY: 0,
         startPosX: 0,
         startPosY: 0,
-        startSize: 0,
+        startSize: { width: 0, height: 0 },
     });
 
     // Track active pointers to detect multi-touch
@@ -150,12 +160,12 @@ export function useTransformable(options: UseTransformableOptions): UseTransform
     const initialSnapDone = useRef(false);
 
     // Clamp position to keep container within screen bounds with padding
-    const clampPosition = useCallback((x: number, y: number, sz?: number, snap = false): TransformablePosition => {
+    const clampPosition = useCallback((x: number, y: number, sz?: TransformableSize, snap = false): TransformablePosition => {
         if (typeof window === 'undefined') return { x, y };
 
         // Use explicit size if provided, otherwise measure the container element
-        let effectiveWidth = sz ?? 0;
-        let effectiveHeight = sz ?? 0;
+        let effectiveWidth = sz?.width ?? 0;
+        let effectiveHeight = sz?.height ?? 0;
         if (sz === undefined && containerRef.current) {
             effectiveWidth = containerRef.current.offsetWidth;
             effectiveHeight = containerRef.current.offsetHeight;
@@ -178,7 +188,7 @@ export function useTransformable(options: UseTransformableOptions): UseTransform
         onPositionChange?.(newPosition);
     }, [onPositionChange]);
 
-    const setSize = useCallback((newSize: number) => {
+    const setSize = useCallback((newSize: TransformableSize) => {
         if (!resizable) return;
         setSizeState(newSize);
         onSizeChange?.(newSize);
@@ -280,33 +290,68 @@ export function useTransformable(options: UseTransformableOptions): UseTransform
                 const dy = e.clientY - state.startY;
                 const corner = state.isResizing;
 
-                // Calculate delta based on corner - drag direction determines growth
-                let delta: number;
-                if (corner === 'br') {
-                    delta = (dx + dy) / 2;
-                } else if (corner === 'bl') {
-                    delta = (-dx + dy) / 2;
-                } else if (corner === 'tr') {
-                    delta = (dx - dy) / 2;
-                } else {
-                    delta = (-dx - dy) / 2;
-                }
-
-                const newSize = Math.max(minSize, state.startSize + delta);
-                const sizeDiff = newSize - state.startSize;
-
+                let newWidth: number;
+                let newHeight: number;
                 let newX = state.startPosX;
                 let newY = state.startPosY;
 
-                // Adjust position for corners that resize from top or left
-                if (corner === 'tl') {
-                    newX = state.startPosX - sizeDiff;
-                    newY = state.startPosY - sizeDiff;
-                } else if (corner === 'tr') {
-                    newY = state.startPosY - sizeDiff;
-                } else if (corner === 'bl') {
-                    newX = state.startPosX - sizeDiff;
+                if (keepAspectRatio) {
+                    // Calculate delta based on corner - drag direction determines growth
+                    let delta: number;
+                    if (corner === 'br') {
+                        delta = (dx + dy) / 2;
+                    } else if (corner === 'bl') {
+                        delta = (-dx + dy) / 2;
+                    } else if (corner === 'tr') {
+                        delta = (dx - dy) / 2;
+                    } else {
+                        delta = (-dx - dy) / 2;
+                    }
+
+                    newWidth = Math.max(minSize.width, state.startSize.width + delta);
+                    newHeight = Math.max(minSize.height, state.startSize.height + delta);
+                    const widthDiff = newWidth - state.startSize.width;
+                    const heightDiff = newHeight - state.startSize.height;
+
+                    // Adjust position for corners that resize from top or left
+                    if (corner === 'tl') {
+                        newX = state.startPosX - widthDiff;
+                        newY = state.startPosY - heightDiff;
+                    } else if (corner === 'tr') {
+                        newY = state.startPosY - heightDiff;
+                    } else if (corner === 'bl') {
+                        newX = state.startPosX - widthDiff;
+                    }
+                } else {
+                    // Independent width/height resizing
+                    let deltaX = dx;
+                    let deltaY = dy;
+
+                    // Flip deltas based on corner
+                    if (corner === 'tl' || corner === 'bl') {
+                        deltaX = -dx;
+                    }
+                    if (corner === 'tl' || corner === 'tr') {
+                        deltaY = -dy;
+                    }
+
+                    newWidth = Math.max(minSize.width, state.startSize.width + deltaX);
+                    newHeight = Math.max(minSize.height, state.startSize.height + deltaY);
+                    const widthDiff = newWidth - state.startSize.width;
+                    const heightDiff = newHeight - state.startSize.height;
+
+                    // Adjust position for corners that resize from top or left
+                    if (corner === 'tl') {
+                        newX = state.startPosX - widthDiff;
+                        newY = state.startPosY - heightDiff;
+                    } else if (corner === 'tr') {
+                        newY = state.startPosY - heightDiff;
+                    } else if (corner === 'bl') {
+                        newX = state.startPosX - widthDiff;
+                    }
                 }
+
+                const newSize: TransformableSize = { width: newWidth, height: newHeight };
 
                 // Clamp position
                 const clamped = clampPosition(newX, newY, newSize);
@@ -355,7 +400,7 @@ export function useTransformable(options: UseTransformableOptions): UseTransform
             document.removeEventListener('pointerup', handlePointerUp);
             document.removeEventListener('pointercancel', handlePointerUp);
         };
-    }, [size, minSize, resizable, clampPosition, setPosition, setSize, onPositionChange, onResizeEnd]);
+    }, [size, minSize, keepAspectRatio, resizable, clampPosition, setPosition, setSize, onPositionChange, onResizeEnd]);
 
     const handleContainerPointerDown = useCallback((e: PointerEvent) => {
         const target = e.target as HTMLElement;
@@ -381,7 +426,7 @@ export function useTransformable(options: UseTransformableOptions): UseTransform
             startY: e.clientY,
             startPosX: position.x,
             startPosY: position.y,
-            startSize: size ?? 0,
+            startSize: size ?? { width: 0, height: 0 },
         };
     }, [position.x, position.y, size, setSelected]);
 
@@ -404,7 +449,7 @@ export function useTransformable(options: UseTransformableOptions): UseTransform
             startY: e.clientY,
             startPosX: position.x,
             startPosY: position.y,
-            startSize: size ?? 0,
+            startSize: size ?? { width: 0, height: 0 },
         };
     }, [resizable, position.x, position.y, size]);
 
