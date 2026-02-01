@@ -358,3 +358,128 @@
     color: #718096;
     font-size: 14px;
 }
+
+/* Multi-stop styles */
+.stopsList {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.stopRow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.stopLabel {
+    min-width: 60px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #4a5568;
+}
+
+.stopFields {
+    flex: 1;
+    display: flex;
+    gap: 8px;
+}
+
+.stopFields .select {
+    flex: 1;
+}
+
+.trackSelect {
+    width: 100px;
+    padding: 12px 16px;
+    font-size: 16px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    background: white;
+    color: #1a202c;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.trackSelect:hover {
+    border-color: #cbd5e0;
+}
+
+.trackSelect:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.trackSelect:disabled {
+    background: #f7fafc;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.removeStopButton {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 50%;
+    background: #fed7d7;
+    color: #c53030;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.removeStopButton:hover {
+    background: #fc8181;
+    color: white;
+}
+
+.removeStopButton:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.addStopButton {
+    width: 100%;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #667eea;
+    background: #f7fafc;
+    border: 2px dashed #e2e8f0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 16px;
+}
+
+.addStopButton:hover {
+    background: #edf2f7;
+    border-color: #667eea;
+}
+
+.addStopButton:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.returnCheckbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: #4a5568;
+    cursor: pointer;
+    margin-bottom: 20px;
+}
+
+.returnCheckbox input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #667eea;
+}

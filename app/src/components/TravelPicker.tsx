@@ -10,6 +10,12 @@ interface TravelPickerProps {
 
 type TabType = 'regular' | 'custom';
 
+interface Stop {
+    station: string;
+    track: string;
+    availableTracks: string[];
+}
+
 export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
     const [activeTab, setActiveTab] = useState<TabType>('custom');
     const [stations, setStations] = useState<StationTrackInfo[]>([]);
@@ -17,15 +23,14 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
     const [error, setError] = useState<string | null>(null);
     const [fetchingRoute, setFetchingRoute] = useState(false);
 
-    // Form state
-    const [fromStation, setFromStation] = useState<string>('');
-    const [fromTrack, setFromTrack] = useState<string>('');
-    const [toStation, setToStation] = useState<string>('');
-    const [toTrack, setToTrack] = useState<string>('');
-
-    // Available tracks for selected stations
-    const [fromTracks, setFromTracks] = useState<string[]>([]);
-    const [toTracks, setToTracks] = useState<string[]>([]);
+    // Form state - multi-stop support
+    const [stops, setStops] = useState<Stop[]>([
+        { station: '', track: '', availableTracks: [] },
+        { station: '', track: '', availableTracks: [] }
+    ]);
+    const [returnToStart, setReturnToStart] = useState(false);
+    const MAX_STOPS = 10;
+    const STORAGE_KEY = 'travelPickerStops';
 
     // Regular mode state
     const [departures, setDepartures] = useState<Departure[]>([]);
@@ -38,38 +43,61 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
         loadStations();
     }, []);
 
-    // Update available tracks when station selection changes
+    // Save stops to localStorage when they change (only if stations are loaded)
     useEffect(() => {
-        if (fromStation) {
-            const station = stations.find(s => s.name === fromStation);
-            setFromTracks(station?.tracks || []);
-            setFromTrack('');
-        } else {
-            setFromTracks([]);
-            setFromTrack('');
+        if (stations.length === 0) return;
+        // Only save if at least one stop has a station selected
+        const hasSelection = stops.some(s => s.station);
+        if (hasSelection) {
+            const toSave = stops.map(s => ({ station: s.station, track: s.track }));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({ stops: toSave, returnToStart }));
         }
-    }, [fromStation, stations]);
-
-    useEffect(() => {
-        if (toStation) {
-            const station = stations.find(s => s.name === toStation);
-            setToTracks(station?.tracks || []);
-            setToTrack('');
-        } else {
-            setToTracks([]);
-            setToTrack('');
-        }
-    }, [toStation, stations]);
+    }, [stops, returnToStart, stations]);
 
     // Fetch departures when switching to Regular tab with a station already selected
     useEffect(() => {
+        const fromStation = stops[0]?.station;
         if (activeTab === 'regular' && fromStation && stations.length > 0 && departures.length === 0) {
             const station = stations.find(s => s.name === fromStation);
             if (station?.code) {
                 fetchDepartures(station.code);
             }
         }
-    }, [activeTab, fromStation, stations]);
+    }, [activeTab, stops[0]?.station, stations]);
+
+    // Stop management functions
+    const updateStop = (index: number, field: 'station' | 'track', value: string) => {
+        setStops(prev => {
+            const newStops = [...prev];
+            if (field === 'station') {
+                const stationData = stations.find(s => s.name === value);
+                newStops[index] = {
+                    station: value,
+                    track: '',
+                    availableTracks: stationData?.tracks || []
+                };
+            } else {
+                newStops[index] = { ...newStops[index], track: value };
+            }
+            return newStops;
+        });
+    };
+
+    const addStop = () => {
+        if (stops.length >= MAX_STOPS) return;
+        setStops(prev => {
+            const newStops = [...prev];
+            // Insert before the last stop
+            newStops.splice(prev.length - 1, 0, { station: '', track: '', availableTracks: [] });
+            return newStops;
+        });
+    };
+
+    const removeStop = (index: number) => {
+        if (stops.length <= 2) return;
+        if (index === 0 || index === stops.length - 1) return; // Can't remove first or last
+        setStops(prev => prev.filter((_, i) => i !== index));
+    };
 
     const fetchDepartures = async (stationCode: string) => {
         try {
@@ -78,7 +106,6 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
             const response = await fetchStationDepartures(stationCode);
             if (response?.departures) {
                 setDepartures(response.departures);
-
                 console.log("Departures fetched:", response.departures);
             } else {
                 setError('Could not fetch departures. Please make sure you are logged in.');
@@ -98,7 +125,29 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
             setStations(data);
             setError(null);
 
-            handleDebug(); // to do remove later
+            // Load saved stops from localStorage
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                try {
+                    const { stops: savedStops, returnToStart: savedReturn } = JSON.parse(saved);
+                    if (Array.isArray(savedStops) && savedStops.length >= 2) {
+                        const restoredStops = savedStops.map((s: { station: string; track: string }) => {
+                            const stationData = data.find(st => st.name === s.station);
+                            return {
+                                station: s.station || '',
+                                track: s.track || '',
+                                availableTracks: stationData?.tracks || []
+                            };
+                        });
+                        setStops(restoredStops);
+                        if (typeof savedReturn === 'boolean') {
+                            setReturnToStart(savedReturn);
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to parse saved stops:', e);
+                }
+            }
         } catch (err) {
             setError('Failed to load stations. Please try again.');
             console.error(err);
@@ -108,17 +157,24 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
     };
 
     const handleGo = async () => {
-        if (!fromStation || !toStation) {
-            setError('Please select both from and to stations');
+        // Validate all stops have stations
+        const emptyStops = stops.filter(s => !s.station);
+        if (emptyStops.length > 0) {
+            setError('Please select all stations');
             return;
         }
 
-        // Look up station codes
-        const fromStationData = stations.find(s => s.name === fromStation);
-        const toStationData = stations.find(s => s.name === toStation);
+        // Build stops array for journey API
+        const journeyStops: JourneyStopInput[] = stops.map(stop => {
+            const stationData = stations.find(s => s.name === stop.station);
+            return {
+                code: stationData?.code || '',
+                track: stop.track || undefined
+            };
+        }).filter(s => s.code);
 
-        if (!fromStationData?.code || !toStationData?.code) {
-            setError('Station code not found');
+        if (journeyStops.length < 2) {
+            setError('Could not find station codes');
             return;
         }
 
@@ -126,22 +182,16 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
             setFetchingRoute(true);
             setError(null);
 
-            // Build stops array for journey API using station codes
-            const stops: JourneyStopInput[] = [
-                { code: fromStationData.code, track: fromTrack || undefined },
-                { code: toStationData.code, track: toTrack || undefined }
-            ];
-
-            const journeyData = await fetchJourneyRoute(stops);
+            const journeyData = await fetchJourneyRoute(journeyStops);
 
             // Transform to RouteData format
             const routeData: RouteData = {
                 geometry: journeyData.geometry,
                 properties: {
-                    from_station: fromStation,
-                    from_track: fromTrack || null,
-                    to_station: toStation,
-                    to_track: toTrack || null
+                    from_station: stops[0].station,
+                    from_track: stops[0].track || null,
+                    to_station: stops[stops.length - 1].station,
+                    to_track: stops[stops.length - 1].track || null
                 }
             };
 
@@ -154,19 +204,9 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
         }
     };
 
-    const handleDebug = () => {
-        setFromStation('Hoorn Kersenboogerd');
-        setToStation('Amsterdam Centraal');
-
-        setTimeout(() => {
-            setFromTrack('1');
-            setToTrack('4b');
-        }, 100);
-    };
-
     // Fetch departures when station is selected in Regular mode
     const handleRegularStationSelect = async (stationName: string) => {
-        setFromStation(stationName);
+        updateStop(0, 'station', stationName);
         setDepartures([]);
         setExpandedDeparture(null);
         setError(null);
@@ -217,22 +257,22 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
             console.log('Journey:', expandedJourney);
 
             // Convert journey stops to JourneyStopInput format using station codes
-            const stops: JourneyStopInput[] = [];
+            const journeyStops: JourneyStopInput[] = [];
             for (const stop of expandedJourney.stops) {
                 const stationData = stations.find(s => s.name === stop.stop.name);
                 if (stationData?.code) {
                     const track = stop.departures[0]?.plannedTrack || stop.arrivals[0]?.plannedTrack;
-                    stops.push(track ? { code: stationData.code, track } : { code: stationData.code });
+                    journeyStops.push(track ? { code: stationData.code, track } : { code: stationData.code });
                 }
             }
 
-            if (stops.length < 2) {
+            if (journeyStops.length < 2) {
                 console.error('Not enough stations found in our database');
                 return;
             }
 
             try {
-                const routeData = await fetchJourneyRoute(stops);
+                const routeData = await fetchJourneyRoute(journeyStops);
                 console.log('Journey route:', routeData);
             } catch (err) {
                 console.error('Failed to fetch journey route:', err);
@@ -246,7 +286,15 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
         return date.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
     };
 
-    const canSubmit = fromStation && toStation && !fetchingRoute;
+    // Get label for a stop
+    const getStopLabel = (index: number): string => {
+        if (index === 0) return 'From';
+        if (index === stops.length - 1) return 'To';
+        return `Stop ${index + 1}`;
+    };
+
+    const canSubmit = stops.every(s => s.station) && !fetchingRoute;
+    const fromStation = stops[0]?.station || '';
 
     return (
         <div className={styles.overlay}>
@@ -401,100 +449,76 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
                     ) : (
                         /* Custom Tab Content */
                         <>
-                            {/* From Station */}
-                            <div className={styles.field}>
-                                <label className={styles.label}>From</label>
-                                <select
-                                    className={styles.select}
-                                    value={fromStation}
-                                    onChange={(e) => setFromStation((e.target as HTMLSelectElement).value)}
-                                    disabled={fetchingRoute}
-                                >
-                                    <option value="">Select station</option>
-                                    {stations.map((station) => (
-                                        <option key={station.name} value={station.name}>
-                                            {station.name}
-                                        </option>
-                                    ))}
-                                </select>
+                            {/* Stops List */}
+                            <div className={styles.stopsList}>
+                                {stops.map((stop, index) => (
+                                    <div key={index} className={styles.stopRow}>
+                                        <div className={styles.stopLabel}>{getStopLabel(index)}</div>
+                                        <div className={styles.stopFields}>
+                                            <select
+                                                className={styles.select}
+                                                value={stop.station}
+                                                onChange={(e) => updateStop(index, 'station', (e.target as HTMLSelectElement).value)}
+                                                disabled={fetchingRoute}
+                                            >
+                                                <option value="">Select station</option>
+                                                {stations.map((station) => (
+                                                    <option key={station.name} value={station.name}>
+                                                        {station.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            {stop.availableTracks.length > 0 && (
+                                                <select
+                                                    className={styles.trackSelect}
+                                                    value={stop.track}
+                                                    onChange={(e) => updateStop(index, 'track', (e.target as HTMLSelectElement).value)}
+                                                    disabled={fetchingRoute}
+                                                >
+                                                    <option value="">Any track</option>
+                                                    {stop.availableTracks.map((track: string) => (
+                                                        <option key={track} value={track}>
+                                                            {track}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            )}
+                                        </div>
+                                        {index > 0 && index < stops.length - 1 && (
+                                            <button
+                                                className={styles.removeStopButton}
+                                                onClick={() => removeStop(index)}
+                                                disabled={fetchingRoute}
+                                                title="Remove stop"
+                                            >
+                                                ×
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
                             </div>
 
-                            {/* From Track */}
-                            {fromTracks.length > 0 && (
-                                <div className={styles.field}>
-                                    <label className={styles.label}>From Track (optional)</label>
-                                    <select
-                                        className={styles.select}
-                                        value={fromTrack}
-                                        onChange={(e) => setFromTrack((e.target as HTMLSelectElement).value)}
-                                        disabled={fetchingRoute}
-                                    >
-                                        <option value="">Any track</option>
-                                        {fromTracks.map((track) => (
-                                            <option key={track} value={track}>
-                                                {track}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                            )}
-
-                            {/* Swap button */}
-                            <div className={styles.swapContainer}>
+                            {/* Add Stop Button */}
+                            {stops.length < MAX_STOPS && (
                                 <button
-                                    className={styles.swapButton}
-                                    onClick={() => {
-                                        const tempStation = fromStation;
-                                        const tempTrack = fromTrack;
-                                        setFromStation(toStation);
-                                        setFromTrack(toTrack);
-                                        setToStation(tempStation);
-                                        setToTrack(tempTrack);
-                                    }}
+                                    className={styles.addStopButton}
+                                    onClick={addStop}
                                     disabled={fetchingRoute}
-                                    title="Swap stations"
                                 >
-                                    ⇅
+                                    + Add Stop
                                 </button>
-                            </div>
-
-                            {/* To Station */}
-                            <div className={styles.field}>
-                                <label className={styles.label}>To</label>
-                                <select
-                                    className={styles.select}
-                                    value={toStation}
-                                    onChange={(e) => setToStation((e.target as HTMLSelectElement).value)}
-                                    disabled={fetchingRoute}
-                                >
-                                    <option value="">Select station</option>
-                                    {stations.map((station) => (
-                                        <option key={station.name} value={station.name}>
-                                            {station.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* To Track */}
-                            {toTracks.length > 0 && (
-                                <div className={styles.field}>
-                                    <label className={styles.label}>To Track (optional)</label>
-                                    <select
-                                        className={styles.select}
-                                        value={toTrack}
-                                        onChange={(e) => setToTrack((e.target as HTMLSelectElement).value)}
-                                        disabled={fetchingRoute}
-                                    >
-                                        <option value="">Any track</option>
-                                        {toTracks.map((track) => (
-                                            <option key={track} value={track}>
-                                                {track}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
                             )}
+
+                            {/* Return to Start Checkbox */}
+                            <label className={styles.returnCheckbox}>
+                                <input
+                                    type="checkbox"
+                                    checked={returnToStart}
+                                    onChange={(e) => setReturnToStart((e.target as HTMLInputElement).checked)}
+                                    disabled={fetchingRoute}
+                                />
+                                Return to start
+                            </label>
 
                             {/* Error message */}
                             {error && <div className={styles.error}>{error}</div>}

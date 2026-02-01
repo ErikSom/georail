@@ -41,11 +41,16 @@ export const findJourneyRoute = async (req, res) => {
         return res.status(400).json({ error: `Too many stops. Maximum is ${MAX_STOPS}.` });
     }
 
-    // Validate each stop has a code
+    // Validate each stop has a code and check for duplicates
+    const seenCodes = new Set();
     for (const stop of stops) {
         if (!stop.code) {
             return res.status(400).json({ error: 'Each stop must have a station code.' });
         }
+        if (seenCodes.has(stop.code)) {
+            return res.status(400).json({ error: 'Each station can only appear once in the route.' });
+        }
+        seenCodes.add(stop.code);
     }
 
     // Call the database function (now using codes)
