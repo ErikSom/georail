@@ -8,6 +8,7 @@ export const trainMaxSpeedKmh = signal(120); // Max speed from train config, def
 export const trainTractiveEffort = signal(0); // 0 to 1 (normalized)
 export const trainInstance = signal<Train | null>(null);
 export const trainDebugMode = signal(false); // Enable debug visualization
+export const debugZones = signal(true); // Enable stop zone debug visualization
 
 // Train geographic position - stored as integers to preserve precision
 // lat/lon are multiplied by 1e7 (0.0000001 degree precision ~ 1cm)
@@ -41,6 +42,11 @@ export const updateTick = signal(0);
 // Delta time in milliseconds for frame-based calculations
 export const deltaTimeMs = signal(16); // Default to ~60fps
 
+// Train path progress
+export const trainDistanceTraveled = signal(0); // Distance traveled along the path in meters
+export const trainPathTotalLength = signal(0);  // Total path length in meters
+export const trainLength = signal(0);           // Total train length in meters
+
 // Computed values
 export const trainPowerPercent = computed(() => trainPower.value * 100);
 
@@ -64,6 +70,9 @@ export function updateTrainState() {
     if (train) {
         trainVelocityKmh.value = train.getVelocityKmh();
         trainTractiveEffort.value = train.getNormalizedTractiveEffort();
+        trainDistanceTraveled.value = train.distanceTraveled;
+        trainPathTotalLength.value = train.getPath()?.getTotalLength() ?? 0;
+        trainLength.value = train.getTotalLength();
     }
 
     // Calculate delta time

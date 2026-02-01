@@ -25,9 +25,10 @@ import { Train } from './train/Train';
 import { Input } from './utils/Input';
 import { FlightControls } from './utils/FlightControls';
 import Path from './utils/Path';
+import { StopZoneVisualizer } from './debug/StopZoneVisualizer';
 import { getTrainConfiguration, nssgmTrainType } from './train/configs/TrainConfigurations.secure';
 import Stats from 'stats-gl';
-import { trainInstance, updateTrainState, trainDebugMode, trainLatE7, trainLonE7, trainFrontLatE7, trainFrontLonE7, trainBackLatE7, trainBackLonE7, cameraYawRelativeToTrain, trainMaxSpeedKmh } from '../store/train';
+import { trainInstance, updateTrainState, trainDebugMode, debugZones, trainLatE7, trainLonE7, trainFrontLatE7, trainFrontLonE7, trainBackLatE7, trainBackLonE7, cameraYawRelativeToTrain, trainMaxSpeedKmh } from '../store/train';
 import { getPerformanceConfig, type PerformanceConfig } from './utils/PerformanceConfig';
 import type { Tiles3DAttributionCredits } from '../components/HUD/Tiles3DAttribution';
 import { Pane } from 'tweakpane';
@@ -56,6 +57,7 @@ export class World {
     private setCreditsCallback: (credits: Tiles3DAttributionCredits) => void;
     private routeData: RouteData | null = null;
     private freeFlyCameraMode: boolean = false;
+    private stopZoneVisualizer: StopZoneVisualizer | null = null;
 
 
     constructor(mountElement: HTMLDivElement, setCreditsCallback: (credits: Tiles3DAttributionCredits) => void, routeData?: RouteData) {
@@ -187,6 +189,11 @@ export class World {
             this.flightControls.cleanup();
         }
 
+        if (this.stopZoneVisualizer) {
+            this.stopZoneVisualizer.dispose();
+            this.stopZoneVisualizer = null;
+        }
+
         if (this.stats) {
             this.stats.dom.remove();
         }
@@ -272,6 +279,15 @@ export class World {
             const path = new Path(pathPoints);
             this.train.setPath(path);
             this.train.positionOnPath();
+
+            // Create stop zone debug visualization if enabled
+            if (debugZones.value) {
+                // Ensure train length is calculated before creating zones
+                updateTrainState();
+                this.stopZoneVisualizer = new StopZoneVisualizer();
+                this.stopZoneVisualizer.createZones(path);
+                this.scene.add(this.stopZoneVisualizer.group);
+            }
 
             // Focus camera on train
             this.camera.position.set(

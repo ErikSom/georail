@@ -163,8 +163,14 @@ export class Train implements IPhysicsTarget {
 
         const trainPosition = this.path!.getPointAtDistance(this.distanceTraveled, this.group.position);
 
-        // Position cab
-        let currentDistance = this.distanceTraveled;
+        // distanceTraveled represents the train CENTER position
+        // Calculate offset to position cab center relative to train center
+        const totalLength = this.getTotalLength();
+        const cabLength = this.config.cab.length;
+        const cabCenterOffset = totalLength / 2 - cabLength / 2;
+
+        // Position cab (cab center is ahead of train center)
+        let currentDistance = this.distanceTraveled + cabCenterOffset;
         this.cab.positionOnPath(currentDistance, this.path!);
 
         // Position wagons behind cab
@@ -577,6 +583,27 @@ export class Train implements IPhysicsTarget {
      */
     public getCabRailPositions() {
         return this.cab.getRailPositions();
+    }
+
+    /**
+     * Get the total length of the train (cab + wagons + rear cab + couplers) in meters
+     */
+    public getTotalLength(): number {
+        let length = this.config.cab.length;
+        length += this.config.cab.couplerLengthRear;
+
+        for (const wagonConfig of this.config.wagons) {
+            length += wagonConfig.couplerLengthFront;
+            length += wagonConfig.length;
+            length += wagonConfig.couplerLengthRear;
+        }
+
+        if (this.config.rearCab) {
+            length += this.config.rearCab.couplerLengthFront;
+            length += this.config.rearCab.length;
+        }
+
+        return length;
     }
 
     public update(delta: number): void {

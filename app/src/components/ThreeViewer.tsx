@@ -4,9 +4,11 @@ import TravelPicker from './TravelPicker';
 import TrainControls from './HUD/TrainControls';
 import type { RouteData } from '../lib/api/navigation';
 import Maps2D from './HUD/Maps2D';
+import Transit from './HUD/Transit';
 import Tiles3DAttribution, { type Tiles3DAttributionCredits } from './HUD/Tiles3DAttribution';
 import styles from './ThreeViewer.module.css';
 import Speedometer from './HUD/Speedometer';
+import { startJourney, resetJourney } from '../store/journey';
 
 function ThreeViewer() {
     const mountRef = useRef<HTMLDivElement | null>(null);
@@ -34,7 +36,15 @@ function ThreeViewer() {
     const handleRouteSelected = (route: RouteData) => {
         setRouteData(route);
         setShowPicker(false);
+        startJourney(route);
     };
+
+    // Reset journey on unmount
+    useEffect(() => {
+        return () => {
+            resetJourney();
+        };
+    }, []);
 
     return (
         <div className={styles.container}>
@@ -44,6 +54,7 @@ function ThreeViewer() {
                 <>
                     <TrainControls />
                     <Maps2D />
+                    <Transit />
                     <Speedometer />
                 </>
             )}

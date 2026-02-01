@@ -188,6 +188,7 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
             // Calculate arrival/departure times from route metadata
             const routeStops = calculateStopTimes(
                 stops.map(s => s.station),
+                journeyStops.map(s => s.code),
                 stops.map(s => s.track || null),
                 journeyData.geometry
             );
@@ -300,6 +301,7 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
                 const routeStops: RouteStop[] = relevantStops.map((stop, idx) => {
                     const arrivalTimeStr = stop.arrivals?.[0]?.plannedTime;
                     const departureTimeStr = stop.departures?.[0]?.plannedTime;
+                    const stationCode = journeyStops[idx]?.code || '';
 
                     let arrivalTime: number;
                     let departureTime: number;
@@ -323,6 +325,7 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
 
                     return {
                         station: stop.stop.name,
+                        code: stationCode,
                         track: stop.departures[0]?.plannedTrack || stop.arrivals[0]?.plannedTrack || null,
                         arrivalTime,
                         departureTime

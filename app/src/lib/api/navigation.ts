@@ -28,6 +28,7 @@ export interface JourneyRouteData {
 
 export interface RouteStop {
     station: string;
+    code: string;          // Station code (e.g., "ASD", "HN")
     track: string | null;
     arrivalTime: number;   // Minutes from journey start (first stop = 0)
     departureTime: number; // Minutes from journey start (first stop = arrivalTime + 1)
@@ -65,12 +66,14 @@ function haversineDistance(lon1: number, lat1: number, lon2: number, lat2: numbe
 /**
  * Calculate arrival and departure times for each stop based on route geometry and speed data
  * @param stopNames - Array of station names for each stop
+ * @param stopCodes - Array of station codes for each stop
  * @param stopTracks - Array of track identifiers (or null) for each stop
  * @param geometry - The journey geometry containing route, metadata, and stop_indices
  * @returns Array of RouteStop with calculated arrival/departure times
  */
 export function calculateStopTimes(
     stopNames: string[],
+    stopCodes: string[],
     stopTracks: (string | null)[],
     geometry: JourneyRouteData['geometry']
 ): RouteStop[] {
@@ -80,10 +83,11 @@ export function calculateStopTimes(
     const { initialDwellTime, minStopDwellTime, maxStopDwellTime } = configs.value;
 
     return stopNames.map((station, stopIdx) => {
+        const code = stopCodes[stopIdx] || '';
         const track = stopTracks[stopIdx];
 
         if (stopIdx === 0) {
-            return { station, track, arrivalTime: 0, departureTime: initialDwellTime };
+            return { station, code, track, arrivalTime: 0, departureTime: initialDwellTime };
         }
 
         // Random dwell time between min and max for intermediate stops
@@ -136,7 +140,7 @@ export function calculateStopTimes(
         const arrivalTime = Math.round(cumulativeTime + travelTimeMinutes);
         const departureTime = arrivalTime + dwellTime;
 
-        return { station, track, arrivalTime, departureTime };
+        return { station, code, track, arrivalTime, departureTime };
     });
 }
 

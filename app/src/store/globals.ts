@@ -17,11 +17,14 @@ interface Configs {
     initialDwellTime: number;      // Dwell time at first stop (used in both regular and custom)
     minStopDwellTime: number;      // Minimum random dwell time at intermediate stops (custom only)
     maxStopDwellTime: number;      // Maximum random dwell time at intermediate stops (custom only)
+    // Station stop detection - zone is centered on station, length = train length + this leniency
+    stationStopLeniencyM: number;  // Extra meters added to train length for stop zone (default: 15m)
 }
 export const configs = signal<Configs>({
     unitSystem: 'metric',
     initialDwellTime: 1,
     minStopDwellTime: 1,
-    maxStopDwellTime: 6
+    maxStopDwellTime: 6,
+    stationStopLeniencyM: 15,
 });
 
