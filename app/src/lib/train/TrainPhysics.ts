@@ -186,7 +186,6 @@ export class TrainPhysics {
             v = Math.max(0, Math.min(v, 120));
         }
 
-        console.log(`[TrainPhysics] Target speed for power ${this.powerSetting.toFixed(2)}: ${(v * 3.6).toFixed(1)} km/h`);
         return Math.sign(this.powerSetting) * v;
     }
 

@@ -20,6 +20,11 @@ export interface JourneyRouteData {
     };
 }
 
+export interface RouteStop {
+    station: string;
+    track: string | null;
+}
+
 export interface RouteData {
     geometry: {
         start_node: number;
@@ -28,10 +33,7 @@ export interface RouteData {
         editor?: EditorPoint[];
     };
     properties: {
-        from_station: string;
-        from_track: string | null;
-        to_station: string;
-        to_track: string | null;
+        stops: RouteStop[];
     }
 }
 

@@ -1,7 +1,7 @@
 import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import { fetchAllStations, fetchStationDepartures, fetchJourney, type StationTrackInfo, type Departure, type Journey } from '../lib/api/station';
-import { fetchJourneyRoute, type RouteData, type JourneyStopInput } from '../lib/api/navigation';
+import { fetchJourneyRoute, type RouteData, type RouteStop, type JourneyStopInput } from '../lib/api/navigation';
 import styles from './TravelPicker.module.css';
 
 interface TravelPickerProps {
@@ -184,14 +184,16 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
 
             const journeyData = await fetchJourneyRoute(journeyStops);
 
-            // Transform to RouteData format
+            // Transform to RouteData format with all stops
+            const routeStops: RouteStop[] = stops.map(s => ({
+                station: s.station,
+                track: s.track || null
+            }));
+
             const routeData: RouteData = {
                 geometry: journeyData.geometry,
                 properties: {
-                    from_station: stops[0].station,
-                    from_track: stops[0].track || null,
-                    to_station: stops[stops.length - 1].station,
-                    to_track: stops[stops.length - 1].track || null
+                    stops: routeStops
                 }
             };
 
@@ -256,9 +258,19 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
         if (expandedJourney) {
             console.log('Journey:', expandedJourney);
 
-            // Convert journey stops to JourneyStopInput format using station codes
+            // Find departure station index
+            const startIdx = expandedJourney.stops.findIndex(
+                stop => stop.stop.name === fromStation
+            );
+
+            // Get stops from departure station onwards, excluding PASSING stops
+            const relevantStops = expandedJourney.stops
+                .slice(startIdx >= 0 ? startIdx : 0)
+                .filter(stop => stop.status !== 'PASSING');
+
+            // Convert to JourneyStopInput format using station codes
             const journeyStops: JourneyStopInput[] = [];
-            for (const stop of expandedJourney.stops) {
+            for (const stop of relevantStops) {
                 const stationData = stations.find(s => s.name === stop.stop.name);
                 if (stationData?.code) {
                     const track = stop.departures[0]?.plannedTrack || stop.arrivals[0]?.plannedTrack;
@@ -267,15 +279,35 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
             }
 
             if (journeyStops.length < 2) {
-                console.error('Not enough stations found in our database');
+                setError('Not enough stations found in our database');
                 return;
             }
 
             try {
-                const routeData = await fetchJourneyRoute(journeyStops);
-                console.log('Journey route:', routeData);
+                setFetchingRoute(true);
+                setError(null);
+
+                const journeyData = await fetchJourneyRoute(journeyStops);
+
+                // Transform to RouteData format with all stops
+                const routeStops: RouteStop[] = relevantStops.map(stop => ({
+                    station: stop.stop.name,
+                    track: stop.departures[0]?.plannedTrack || stop.arrivals[0]?.plannedTrack || null
+                }));
+
+                const routeData: RouteData = {
+                    geometry: journeyData.geometry,
+                    properties: {
+                        stops: routeStops
+                    }
+                };
+
+                onRouteSelected(routeData);
             } catch (err) {
+                setError(err instanceof Error ? err.message : 'Failed to fetch route');
                 console.error('Failed to fetch journey route:', err);
+            } finally {
+                setFetchingRoute(false);
             }
         }
     };

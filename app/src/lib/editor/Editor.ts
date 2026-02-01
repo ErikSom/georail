@@ -149,10 +149,10 @@ export class Editor {
             const routeData: RouteData = {
                 geometry: journeyData.geometry,
                 properties: {
-                    from_station: routeInfo.fromStation,
-                    from_track: routeInfo.fromTrack || null,
-                    to_station: routeInfo.toStation,
-                    to_track: routeInfo.toTrack || null
+                    stops: [
+                        { station: routeInfo.fromStation, track: routeInfo.fromTrack || null },
+                        { station: routeInfo.toStation, track: routeInfo.toTrack || null }
+                    ]
                 }
             };
 
