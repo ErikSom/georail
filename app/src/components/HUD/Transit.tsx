@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'preact/hooks';
+import { useRef, useEffect, useState, useLayoutEffect } from 'preact/hooks';
 import { useTransformable } from '../../hooks/useTransformable';
 import {
     stops,
@@ -11,61 +11,25 @@ import {
     stopStatuses,
     updateStopStatuses,
     formatTimeDelta,
+    getRunningDelayMinutes,
+    getCurrentGameTime,
+    getScheduledTime,
+    formatClockTime,
     elapsedMinutes,
     type StopStatus,
 } from '../../store/journey';
-import { updateTick, trainDistanceTraveled, trainVelocityKmh, trainMaxSpeedKmh } from '../../store/train';
+import { updateTick, trainDistanceTraveled } from '../../store/train';
 import styles from './Transit.module.css';
 
 const MIN_WIDTH = 200;
 const MIN_HEIGHT = 180;
 const COMPACT_WIDTH_THRESHOLD = 280;
 
-/**
- * Format countdown with optional predicted delta
- * e.g., "26m" or "26m(+4)" if running late
- */
-function formatCountdownWithDelta(
-    timeRemaining: number,
-    scheduledTime: number,
-    currentElapsed: number,
-    distanceKm: number,
-    velocityKmh: number,
-    maxSpeedKmh: number
-): { time: string; delta: string | null; isLate: boolean } {
-    const rounded = Math.round(timeRemaining);
-
-    // Calculate predicted arrival time based on current speed
-    // Only show prediction when at cruising speed (> 40% of max speed)
-    // to avoid misleading predictions during acceleration/deceleration
-    let predictedDelta: number | null = null;
-    const cruisingThreshold = maxSpeedKmh * 0.4;
-
-    if (velocityKmh > cruisingThreshold && distanceKm > 0) {
-        // Use a weighted estimate: blend current speed with expected average
-        // (assumes train will maintain roughly current speed)
-        const estimatedAvgSpeed = velocityKmh;
-        const hoursToArrive = distanceKm / estimatedAvgSpeed;
-        const minutesToArrive = hoursToArrive * 60;
-        const predictedArrivalTime = currentElapsed + minutesToArrive;
-        predictedDelta = Math.round(predictedArrivalTime - scheduledTime);
-    }
-
-    const timeStr = rounded === 0 ? '0m' : rounded > 0 ? `${rounded}m` : `${rounded}m`;
-    const isLate = rounded < 0;
-
-    // Only show delta if we have a prediction and it's significant (> 1 min)
-    let deltaStr: string | null = null;
-    if (predictedDelta !== null && Math.abs(predictedDelta) > 1) {
-        deltaStr = predictedDelta > 0 ? `(+${predictedDelta})` : `(${predictedDelta})`;
-    }
-
-    return { time: timeStr, delta: deltaStr, isLate };
-}
-
 function Transit() {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const stopRefs = useRef<(HTMLDivElement | null)[]>([]);
     const [, forceUpdate] = useState(0);
+    const [dotPositions, setDotPositions] = useState<number[]>([]);
 
     const {
         position,
@@ -92,6 +56,31 @@ function Transit() {
         return unsub;
     }, []);
 
+    // Calculate dot positions after render
+    useLayoutEffect(() => {
+        if (!scrollContainerRef.current) return;
+
+        const container = scrollContainerRef.current;
+        const containerRect = container.getBoundingClientRect();
+
+        const positions: number[] = [];
+        stopRefs.current.forEach((ref) => {
+            if (ref) {
+                const rect = ref.getBoundingClientRect();
+                // Position dot at the center of the station header (first line)
+                // Station header is at top of stopContent, ~15px from top of stop row
+                const dotY = rect.top - containerRect.top + container.scrollTop + 15;
+                positions.push(dotY);
+            }
+        });
+
+        // Only update if positions actually changed
+        if (positions.length !== dotPositions.length ||
+            positions.some((p, i) => Math.abs(p - (dotPositions[i] ?? 0)) > 1)) {
+            setDotPositions(positions);
+        }
+    }, [stops.value.length]);
+
     // Don't render if no journey
     if (!journeyStartTime.value || stops.value.length === 0) {
         return null;
@@ -104,8 +93,8 @@ function Transit() {
     const distances = stopDistances.value;
     const statuses = stopStatuses.value;
     const trainDistance = trainDistanceTraveled.value / 1000; // km
-    const velocity = trainVelocityKmh.value;
-    const maxSpeed = trainMaxSpeedKmh.value;
+    const runningDelay = getRunningDelayMinutes();
+    const currentTime = getCurrentGameTime();
     const elapsed = elapsedMinutes.value;
 
     // Find current segment
@@ -116,13 +105,31 @@ function Transit() {
             break;
         }
         if (i === distances.length - 2 && trainDistance >= distances[i + 1]) {
-            currentSegmentFrom = i;
+            currentSegmentFrom = distances.length - 1;
         }
     }
 
     const segmentProgress = currentSegmentFrom < stopsArr.length - 1
         ? getProgressBetweenStops(currentSegmentFrom, currentSegmentFrom + 1)
         : 1;
+
+    // Calculate timeline positions
+    const firstDotY = dotPositions[0] ?? 15;
+    const lastDotY = dotPositions[dotPositions.length - 1] ?? 15;
+    const baseLineTop = firstDotY;
+    const baseLineHeight = Math.max(0, lastDotY - firstDotY);
+
+    // Calculate progress line height (up to current position)
+    let progressLineHeight = 0;
+    if (dotPositions.length > 1 && currentSegmentFrom < dotPositions.length) {
+        const segmentStartY = dotPositions[currentSegmentFrom] ?? 0;
+        const segmentEndY = dotPositions[currentSegmentFrom + 1] ?? segmentStartY;
+        const currentY = segmentStartY + (segmentEndY - segmentStartY) * segmentProgress;
+        progressLineHeight = currentY - firstDotY;
+    }
+
+    // Train indicator Y position
+    const trainIndicatorY = firstDotY + progressLineHeight;
 
     return (
         <div
@@ -137,7 +144,61 @@ function Transit() {
             }}
             onPointerDown={handleContainerPointerDown}
         >
+            {/* Header with current time */}
+            <div className={styles.header}>
+                <span className={styles.currentTime}>{formatClockTime(currentTime)}</span>
+            </div>
+
             <div ref={scrollContainerRef} className={styles.stopList}>
+                {/* Timeline layer */}
+                <div className={styles.timelineContainer}>
+                    {/* Base line (gray) */}
+                    <div
+                        className={styles.timelineBase}
+                        style={{
+                            top: `${baseLineTop}px`,
+                            height: `${baseLineHeight}px`,
+                        }}
+                    />
+                    {/* Progress line (green) */}
+                    <div
+                        className={styles.timelineProgress}
+                        style={{
+                            top: `${baseLineTop}px`,
+                            height: `${Math.max(0, progressLineHeight)}px`,
+                        }}
+                    />
+                    {/* Station dots */}
+                    {dotPositions.map((y, idx) => {
+                        const status: StopStatus = statuses[idx] || {
+                            arrived: false,
+                            departed: false,
+                            actualArrivalTime: null,
+                            actualDepartureTime: null,
+                            arrivalDelta: null,
+                            departureDelta: null,
+                        };
+                        const isFirst = idx === 0;
+                        const isLast = idx === stopsArr.length - 1;
+                        const isPast = status.departed || (isLast && status.arrived);
+                        const isAtStation = status.arrived && !status.departed;
+
+                        return (
+                            <div
+                                key={idx}
+                                className={`${styles.dot} ${isFirst ? styles.origin : ''} ${isLast ? styles.destination : ''} ${isPast ? styles.past : ''} ${isAtStation ? styles.atStation : ''}`}
+                                style={{ top: `${y}px` }}
+                            />
+                        );
+                    })}
+                    {/* Train indicator */}
+                    <div
+                        className={styles.trainIndicator}
+                        style={{ top: `${trainIndicatorY}px` }}
+                    />
+                </div>
+
+                {/* Stop rows */}
                 {stopsArr.map((stop, idx) => {
                     const status: StopStatus = statuses[idx] || {
                         arrived: false,
@@ -152,29 +213,11 @@ function Transit() {
                     const isFirst = idx === 0;
                     const isLast = idx === stopsArr.length - 1;
                     const isPast = status.departed || (isLast && status.arrived);
-                    const isCurrentSegmentStart = idx === currentSegmentFrom && idx < stopsArr.length - 1;
+                    const isAtStation = status.arrived && !status.departed;
 
-                    // Time calculations with predicted deltas
-                    const timeUntilArr = stop.arrivalTime - elapsed;
-                    const timeUntilDep = stop.departureTime - elapsed;
-
-                    const arrDisplay = formatCountdownWithDelta(
-                        timeUntilArr,
-                        stop.arrivalTime,
-                        elapsed,
-                        distance,
-                        velocity,
-                        maxSpeed
-                    );
-
-                    const depDisplay = formatCountdownWithDelta(
-                        timeUntilDep,
-                        stop.departureTime,
-                        elapsed,
-                        0, // For departure, we're already at the station
-                        0,
-                        maxSpeed
-                    );
+                    // Scheduled times as clock times
+                    const scheduledArr = formatClockTime(getScheduledTime(stop.arrivalTime));
+                    const scheduledDep = formatClockTime(getScheduledTime(stop.departureTime));
 
                     // Format deltas for completed events
                     const arrDelta = formatTimeDelta(status.arrivalDelta);
@@ -183,27 +226,9 @@ function Transit() {
                     return (
                         <div
                             key={idx}
-                            className={`${styles.stop} ${isPast ? styles.past : ''}`}
+                            ref={(el) => { stopRefs.current[idx] = el; }}
+                            className={`${styles.stop} ${isPast ? styles.past : ''} ${isAtStation ? styles.atStation : ''}`}
                         >
-                            {/* Timeline */}
-                            <div className={styles.timeline}>
-                                {idx > 0 && (
-                                    <div className={`${styles.lineAbove} ${isPast || idx <= currentSegmentFrom ? styles.traveled : ''}`} />
-                                )}
-                                <div className={`${styles.dot} ${isFirst ? styles.origin : ''} ${isLast ? styles.destination : ''} ${isPast ? styles.pastDot : ''}`} />
-                                {!isLast && (
-                                    <div className={styles.lineContainer}>
-                                        <div className={`${styles.lineBelow} ${isPast ? styles.traveled : ''}`} />
-                                        {isCurrentSegmentStart && (
-                                            <>
-                                                <div className={styles.progressLine} style={{ height: `${segmentProgress * 100}%` }} />
-                                                <div className={styles.trainIndicator} style={{ top: `${segmentProgress * 100}%` }} />
-                                            </>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-
                             {/* Station info */}
                             <div className={styles.stopContent}>
                                 <div className={styles.stationHeader}>
@@ -219,42 +244,46 @@ function Transit() {
                                     {!isFirst && (
                                         <div className={styles.scheduleRow}>
                                             <span className={styles.scheduleLabel}>Arr</span>
+                                            <span className={styles.scheduleTime}>{scheduledArr}</span>
                                             {status.arrived ? (
                                                 <span className={`${styles.scheduleDelta} ${styles[arrDelta.status]}`}>
                                                     {arrDelta.text}
                                                 </span>
                                             ) : (
-                                                <span className={styles.scheduleValue}>
-                                                    <span className={`${styles.scheduleCountdown} ${arrDisplay.isLate ? styles.late : ''}`}>
-                                                        {arrDisplay.time}
+                                                runningDelay !== 0 && (
+                                                    <span className={`${styles.scheduleDelta} ${runningDelay > 0 ? styles.late : styles.early}`}>
+                                                        {runningDelay > 0 ? `(+${runningDelay})` : `(${runningDelay})`}
                                                     </span>
-                                                    {arrDisplay.delta && (
-                                                        <span className={`${styles.predictedDelta} ${arrDisplay.delta.includes('+') ? styles.late : styles.early}`}>
-                                                            {arrDisplay.delta}
-                                                        </span>
-                                                    )}
-                                                </span>
+                                                )
                                             )}
                                         </div>
                                     )}
 
                                     {/* Departure row (not for last stop) */}
-                                    {!isLast && (
-                                        <div className={styles.scheduleRow}>
-                                            <span className={styles.scheduleLabel}>Dep</span>
-                                            {status.departed ? (
-                                                <span className={`${styles.scheduleDelta} ${styles[depDelta.status]}`}>
-                                                    {depDelta.text}
-                                                </span>
-                                            ) : (
-                                                <span className={styles.scheduleValue}>
-                                                    <span className={`${styles.scheduleCountdown} ${depDisplay.isLate ? styles.late : ''}`}>
-                                                        {depDisplay.time}
+                                    {!isLast && (() => {
+                                        // Calculate departure delay when at station but not yet departed
+                                        const waitingDelay = status.arrived && !status.departed
+                                            ? Math.floor(elapsed - stop.departureTime)
+                                            : 0;
+
+                                        return (
+                                            <div className={styles.scheduleRow}>
+                                                <span className={styles.scheduleLabel}>Dep</span>
+                                                <span className={styles.scheduleTime}>{scheduledDep}</span>
+                                                {status.departed ? (
+                                                    <span className={`${styles.scheduleDelta} ${styles[depDelta.status]}`}>
+                                                        {depDelta.text}
                                                     </span>
-                                                </span>
-                                            )}
-                                        </div>
-                                    )}
+                                                ) : (
+                                                    waitingDelay > 0 && (
+                                                        <span className={`${styles.scheduleDelta} ${styles.late}`}>
+                                                            (+{waitingDelay})
+                                                        </span>
+                                                    )
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             </div>
 
@@ -262,6 +291,8 @@ function Transit() {
                             <div className={styles.stopMeta}>
                                 {isPast ? (
                                     <span className={styles.checkmark}>✓</span>
+                                ) : isAtStation ? (
+                                    <span className={styles.distance}>0 m</span>
                                 ) : (
                                     <span className={styles.distance}>{formatDistance(distance)}</span>
                                 )}

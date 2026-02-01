@@ -193,10 +193,12 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
                 journeyData.geometry
             );
 
+            // For custom routes, use real time (user can set custom time in the future)
             const routeData: RouteData = {
                 geometry: journeyData.geometry,
                 properties: {
-                    stops: routeStops
+                    stops: routeStops,
+                    startTime: Date.now() // Custom routes use real time
                 }
             };
 
@@ -332,10 +334,18 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
                     };
                 });
 
+                // Calculate the journey start time based on the actual schedule
+                // First stop departure time minus initial dwell = arrival/start time
+                const firstDepartureTimeStr = relevantStops[0]?.departures?.[0]?.plannedTime;
+                const scheduleStartTime = firstDepartureTimeStr
+                    ? new Date(firstDepartureTimeStr).getTime() - (configs.value.initialDwellTime * 60 * 1000)
+                    : undefined;
+
                 const routeData: RouteData = {
                     geometry: journeyData.geometry,
                     properties: {
-                        stops: routeStops
+                        stops: routeStops,
+                        startTime: scheduleStartTime
                     }
                 };
 

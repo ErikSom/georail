@@ -45,6 +45,7 @@ export interface RouteData {
     };
     properties: {
         stops: RouteStop[];
+        startTime?: number; // Optional custom start time (timestamp) for the journey clock
     }
 }
 

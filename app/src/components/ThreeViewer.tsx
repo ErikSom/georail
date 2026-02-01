@@ -36,7 +36,7 @@ function ThreeViewer() {
     const handleRouteSelected = (route: RouteData) => {
         setRouteData(route);
         setShowPicker(false);
-        startJourney(route);
+        startJourney(route, route.properties.startTime);
     };
 
     // Reset journey on unmount

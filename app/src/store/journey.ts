@@ -61,7 +61,7 @@ export function updateStopStatuses(): void {
     const elapsed = elapsedMinutes.value;
     const trainCenterKm = trainDistanceTraveled.value / 1000; // Train center position in km
     const velocity = trainVelocityKmh.value;
-    const isStopped = velocity < 1;
+    const isStopped = Math.abs(velocity) < 1;
 
     if (distances.length === 0 || stopsArr.length === 0) return;
 
@@ -193,6 +193,130 @@ export const stopDistances = computed<number[]>(() => {
 });
 
 /**
+ * Get expected position (in km) based on elapsed time according to the schedule.
+ * Interpolates between stops based on departure/arrival times.
+ */
+export function getExpectedPositionKm(elapsed: number): number {
+    const stopsArr = stops.value;
+    const distances = stopDistances.value;
+
+    if (stopsArr.length === 0 || distances.length === 0) return 0;
+
+    // Before first departure - at first station
+    if (elapsed <= stopsArr[0].departureTime) {
+        return 0;
+    }
+
+    // After last arrival - at last station
+    const lastStop = stopsArr[stopsArr.length - 1];
+    if (elapsed >= lastStop.arrivalTime) {
+        return distances[distances.length - 1];
+    }
+
+    // Find which segment we're in based on schedule
+    for (let i = 0; i < stopsArr.length - 1; i++) {
+        const fromStop = stopsArr[i];
+        const toStop = stopsArr[i + 1];
+
+        // If we're at a station (between arrival and departure)
+        if (elapsed >= fromStop.arrivalTime && elapsed <= fromStop.departureTime) {
+            return distances[i];
+        }
+
+        // If we're traveling between stops
+        if (elapsed > fromStop.departureTime && elapsed < toStop.arrivalTime) {
+            const segmentDuration = toStop.arrivalTime - fromStop.departureTime;
+            const timeIntoSegment = elapsed - fromStop.departureTime;
+            const progress = segmentDuration > 0 ? timeIntoSegment / segmentDuration : 0;
+
+            const fromDistance = distances[i];
+            const toDistance = distances[i + 1];
+            return fromDistance + (toDistance - fromDistance) * progress;
+        }
+    }
+
+    return distances[distances.length - 1];
+}
+
+/**
+ * Calculate the running delay in minutes based on position.
+ * Positive = behind schedule (late), Negative = ahead of schedule (early)
+ * This is stable and doesn't fluctuate with speed changes.
+ *
+ * Handles overshoot: if the train has passed a stop without properly arriving,
+ * the delay accounts for the need to return to that stop.
+ */
+export function getRunningDelayMinutes(): number {
+    const stopsArr = stops.value;
+    const distances = stopDistances.value;
+    const statuses = stopStatuses.value;
+    const elapsed = elapsedMinutes.value;
+    const actualPositionKm = trainDistanceTraveled.value / 1000;
+
+    if (stopsArr.length < 2 || distances.length < 2) return 0;
+
+    // Find the next stop that hasn't been properly serviced (arrived = false)
+    let nextUnservicedIdx = -1;
+    for (let i = 0; i < stopsArr.length; i++) {
+        const status = statuses[i];
+        if (!status || !status.arrived) {
+            nextUnservicedIdx = i;
+            break;
+        }
+    }
+
+    // If all stops have been serviced, no delay to calculate
+    if (nextUnservicedIdx === -1) return 0;
+
+    const targetStopDistanceKm = distances[nextUnservicedIdx];
+    const distanceToTargetKm = targetStopDistanceKm - actualPositionKm;
+
+    // Check if we've overshot the next unserviced stop
+    const isOvershot = distanceToTargetKm < 0;
+
+    // Calculate expected position based on schedule
+    const expectedPositionKm = getExpectedPositionKm(elapsed);
+
+    // Find the segment we should use for speed calculation
+    // Use the segment leading TO the next unserviced stop
+    const segmentIdx = Math.max(0, nextUnservicedIdx - 1);
+    const fromStop = stopsArr[segmentIdx];
+    const toStop = stopsArr[Math.min(segmentIdx + 1, stopsArr.length - 1)];
+    const segmentDistanceKm = distances[segmentIdx + 1] - distances[segmentIdx];
+    const segmentTimeMinutes = toStop.arrivalTime - fromStop.departureTime;
+
+    // Avoid division by zero
+    if (segmentTimeMinutes <= 0 || segmentDistanceKm <= 0) return 0;
+
+    const avgSpeedKmPerMin = segmentDistanceKm / segmentTimeMinutes;
+
+    let delayMinutes: number;
+
+    if (isOvershot) {
+        // Overshot: calculate when we'd actually arrive if we turn back now
+        // Delay = (expected arrival time if we return now) - (scheduled arrival time)
+        const overshootDistanceKm = Math.abs(distanceToTargetKm);
+        const timeToReturnMinutes = overshootDistanceKm / avgSpeedKmPerMin;
+
+        const scheduledArrival = stopsArr[nextUnservicedIdx].arrivalTime;
+        const expectedArrivalIfReturnNow = elapsed + timeToReturnMinutes;
+
+        delayMinutes = expectedArrivalIfReturnNow - scheduledArrival;
+    } else {
+        // Not overshot: normal calculation
+        // expectedPositionKm - actualPositionKm
+        // Positive = train behind expected = late
+        // Negative = train ahead of expected = early
+        const positionDeltaKm = expectedPositionKm - actualPositionKm;
+        delayMinutes = positionDeltaKm / avgSpeedKmPerMin;
+    }
+
+    // Use floor for positive (late), ceil for negative (early) to be conservative
+    // This way +50s shows as 0, +61s shows as +1, -50s shows as 0, -61s shows as -1
+    return delayMinutes >= 0 ? Math.floor(delayMinutes) : Math.ceil(delayMinutes);
+}
+
+/**
  * Find current stop index based on elapsed time
  * Returns the index of the stop we're currently at or traveling from
  */
@@ -264,6 +388,7 @@ export const timeToNextEvent = computed(() => {
 /**
  * Calculate distance from current train position to a specific stop
  * Uses the train's distance traveled along the path
+ * Returns negative values if train has passed the stop
  */
 export function distanceToStop(stopIndex: number): number {
     const distances = stopDistances.value;
@@ -275,8 +400,8 @@ export function distanceToStop(stopIndex: number): number {
     const trainDistance = trainDistanceTraveled.value / 1000; // Convert m to km
     const stopDistance = distances[stopIndex];
 
-    // Return remaining distance (0 if already past)
-    return Math.max(0, stopDistance - trainDistance);
+    // Return remaining distance (negative if past the stop)
+    return stopDistance - trainDistance;
 }
 
 /**
@@ -311,11 +436,45 @@ export function getProgressBetweenStops(fromStopIndex: number, toStopIndex: numb
 
 /**
  * Start a new journey
+ * @param route - The route data
+ * @param customStartTime - Optional custom start time (Date timestamp). If not provided, uses Date.now()
  */
-export function startJourney(route: RouteData): void {
+export function startJourney(route: RouteData, customStartTime?: number): void {
     routeData.value = route;
-    journeyStartTime.value = Date.now();
+    journeyStartTime.value = customStartTime ?? Date.now();
     currentRouteIndex.value = 0;
+    elapsedMinutes.value = 0;
+
+    // Initialize stop statuses and mark first stop as arrived
+    // (we start at the first station, so it's already "arrived")
+    const stopsArr = route.properties?.stops ?? [];
+    if (stopsArr.length > 0) {
+        stopStatuses.value = stopsArr.map((_, idx) => ({
+            arrived: idx === 0, // First stop starts as arrived
+            departed: false,
+            actualArrivalTime: idx === 0 ? 0 : null,
+            actualDepartureTime: null,
+            arrivalDelta: idx === 0 ? 0 : null, // Arrived exactly on time at start
+            departureDelta: null,
+        }));
+    }
+}
+
+/**
+ * Calculate a schedule-based start time for regular routes.
+ * Returns a timestamp where the first departure would be at a nice round time (e.g., XX:05, XX:10)
+ * @param initialDwellMinutes - Minutes the train waits at the first station before departure
+ */
+export function getScheduleBasedStartTime(initialDwellMinutes: number): number {
+    const now = new Date();
+    // Round up to next 5-minute mark for the departure time
+    const minutes = now.getMinutes();
+    const roundedMinutes = Math.ceil((minutes + 1) / 5) * 5;
+    const departureTime = new Date(now);
+    departureTime.setMinutes(roundedMinutes, 0, 0);
+
+    // Journey start time is departure time minus initial dwell
+    return departureTime.getTime() - (initialDwellMinutes * 60 * 1000);
 }
 
 /**
@@ -351,12 +510,15 @@ export function formatRelativeTime(minutes: number): string {
 
 /**
  * Format distance in km or m based on value
+ * Handles negative values (overshoot) with a minus sign
  */
 export function formatDistance(km: number): string {
-    if (km < 1) {
-        return `${Math.round(km * 1000)} m`;
+    const sign = km < 0 ? '-' : '';
+    const absKm = Math.abs(km);
+    if (absKm < 1) {
+        return `${sign}${Math.round(absKm * 1000)} m`;
     }
-    return `${km.toFixed(1)} km`;
+    return `${sign}${absKm.toFixed(1)} km`;
 }
 
 /**
@@ -366,6 +528,36 @@ export function formatScheduleTime(minutes: number): string {
     const mins = Math.round(minutes);
     if (mins === 0) return "0m";
     return `+${mins}m`;
+}
+
+/**
+ * Get current game time as a Date object
+ * Based on journey start time + elapsed minutes
+ */
+export function getCurrentGameTime(): Date | null {
+    const startTime = journeyStartTime.value;
+    if (!startTime) return null;
+    return new Date(startTime + elapsedMinutes.value * 60 * 1000);
+}
+
+/**
+ * Get scheduled time as a Date object
+ * @param minutesFromStart - Minutes from journey start
+ */
+export function getScheduledTime(minutesFromStart: number): Date | null {
+    const startTime = journeyStartTime.value;
+    if (!startTime) return null;
+    return new Date(startTime + minutesFromStart * 60 * 1000);
+}
+
+/**
+ * Format a Date as HH:MM (24-hour format)
+ */
+export function formatClockTime(date: Date | null): string {
+    if (!date) return '--:--';
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
 }
 
 /**
