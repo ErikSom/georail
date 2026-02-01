@@ -1,7 +1,7 @@
 import { signal, computed } from "@preact/signals";
 import type { RouteData, RouteStop } from "../lib/api/navigation";
 import { trainDistanceTraveled, trainPathTotalLength, trainVelocityKmh, trainLength } from "./train";
-import { configs } from "./globals";
+import { configs, scaledDeltaTime } from "./globals";
 
 /**
  * Journey state for tracking route progress during gameplay
@@ -139,13 +139,15 @@ export const elapsedMinutes = signal(0);
 
 /**
  * Update elapsed time - call this on each game tick
+ * Accumulates time based on scaledDeltaTime to respect timeScale
  */
 export function updateElapsedTime(): void {
     if (!journeyStartTime.value) {
         elapsedMinutes.value = 0;
         return;
     }
-    elapsedMinutes.value = (Date.now() - journeyStartTime.value) / 60000;
+    // Accumulate scaled time (convert seconds to minutes)
+    elapsedMinutes.value += (scaledDeltaTime.value / 60);
 }
 
 /**

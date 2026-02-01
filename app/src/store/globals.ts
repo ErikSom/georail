@@ -5,11 +5,23 @@ import { AudioListener, PerspectiveCamera } from "three";
  * Global state for Three.js objects that need to be shared across systems
  */
 
+const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+
 // Audio listener for positional audio (typically attached to the camera)
 export const audioListener = signal<AudioListener | null>(null);
 
 // Main camera reference (optional, for future use)
 export const mainCamera = signal<PerspectiveCamera | null>(null);
+
+// Global time scale - multiply all delta times by this value
+// 1.0 = normal speed, 2.0 = double speed, 0.5 = half speed
+export const timeScale = signal(searchParams.get('timeScale') ? parseFloat(searchParams.get('timeScale')!) : 1.0);
+
+console.log(`Time scale set to ${timeScale.value}`);
+
+// Scaled delta time in seconds - updated by World.ts each frame
+// Use this for any time-based calculations that should respect timeScale
+export const scaledDeltaTime = signal(0);
 
 interface Configs {
     unitSystem: 'metric' | 'imperial';

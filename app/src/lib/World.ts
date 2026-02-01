@@ -32,7 +32,7 @@ import { trainInstance, updateTrainState, trainDebugMode, debugZones, trainLatE7
 import { getPerformanceConfig, type PerformanceConfig } from './utils/PerformanceConfig';
 import type { Tiles3DAttributionCredits } from '../components/HUD/Tiles3DAttribution';
 import { Pane } from 'tweakpane';
-import { audioListener } from '../store/globals';
+import { audioListener, timeScale, scaledDeltaTime } from '../store/globals';
 
 export class World {
     private scene!: Scene;
@@ -332,7 +332,11 @@ export class World {
 
     private animate(): void {
         this.rafId = requestAnimationFrame(this.animate);
-        const deltaTime = this.clock.getDelta();
+        const rawDeltaTime = this.clock.getDelta();
+        const deltaTime = rawDeltaTime * timeScale.value;
+
+        // Set global scaled delta time for other systems to use
+        scaledDeltaTime.value = deltaTime;
 
         // Update Input
         this.handleInput();
