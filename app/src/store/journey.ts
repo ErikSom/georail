@@ -270,9 +270,7 @@ export function getRunningDelayMinutes(): number {
 
     const targetStopDistanceKm = distances[nextUnservicedIdx];
     const distanceToTargetKm = targetStopDistanceKm - actualPositionKm;
-
-    // Check if we've overshot the next unserviced stop
-    const isOvershot = distanceToTargetKm < 0;
+    const absDistanceToTargetKm = Math.abs(distanceToTargetKm);
 
     // Calculate expected position based on schedule
     const expectedPositionKm = getExpectedPositionKm(elapsed);
@@ -289,26 +287,38 @@ export function getRunningDelayMinutes(): number {
     if (segmentTimeMinutes <= 0 || segmentDistanceKm <= 0) return 0;
 
     const avgSpeedKmPerMin = segmentDistanceKm / segmentTimeMinutes;
+    const scheduledArrival = stopsArr[nextUnservicedIdx].arrivalTime;
 
+    // Time-based minimum delay: if we're past scheduled arrival, we're at least this late
+    // This handles cases where the train is oscillating around a stop
+    const timeBasedDelay = elapsed - scheduledArrival;
+
+    // Position-based delay calculation
+    let positionBasedDelay: number;
+
+    // Calculate time needed to reach the stop from current position
+    const timeToReachStopMinutes = absDistanceToTargetKm / avgSpeedKmPerMin;
+    const expectedArrivalTime = elapsed + timeToReachStopMinutes;
+    positionBasedDelay = expectedArrivalTime - scheduledArrival;
+
+    // If we're past the scheduled arrival time, use the worse of the two delays
+    // This prevents weird negative delays when oscillating around a stop
     let delayMinutes: number;
-
-    if (isOvershot) {
-        // Overshot: calculate when we'd actually arrive if we turn back now
-        // Delay = (expected arrival time if we return now) - (scheduled arrival time)
-        const overshootDistanceKm = Math.abs(distanceToTargetKm);
-        const timeToReturnMinutes = overshootDistanceKm / avgSpeedKmPerMin;
-
-        const scheduledArrival = stopsArr[nextUnservicedIdx].arrivalTime;
-        const expectedArrivalIfReturnNow = elapsed + timeToReturnMinutes;
-
-        delayMinutes = expectedArrivalIfReturnNow - scheduledArrival;
+    if (timeBasedDelay > 0) {
+        // We're past scheduled arrival - take the worse delay
+        delayMinutes = Math.max(timeBasedDelay, positionBasedDelay);
     } else {
-        // Not overshot: normal calculation
-        // expectedPositionKm - actualPositionKm
-        // Positive = train behind expected = late
-        // Negative = train ahead of expected = early
-        const positionDeltaKm = expectedPositionKm - actualPositionKm;
-        delayMinutes = positionDeltaKm / avgSpeedKmPerMin;
+        // We're before scheduled arrival - use position-based calculation
+        // but only allow negative (early) if we're actually approaching the stop normally
+        const isApproachingNormally = distanceToTargetKm > 0 && actualPositionKm <= targetStopDistanceKm;
+        if (isApproachingNormally) {
+            // Normal approach - can show early or late based on position
+            const positionDeltaKm = expectedPositionKm - actualPositionKm;
+            delayMinutes = positionDeltaKm / avgSpeedKmPerMin;
+        } else {
+            // Overshot or reversed - use time to reach as delay estimate
+            delayMinutes = positionBasedDelay;
+        }
     }
 
     // Use floor for positive (late), ceil for negative (early) to be conservative
@@ -551,13 +561,26 @@ export function getScheduledTime(minutesFromStart: number): Date | null {
 }
 
 /**
- * Format a Date as HH:MM (24-hour format)
+ * Format a Date as HH:MM or HH:MM:SS (24-hour format)
  */
-export function formatClockTime(date: Date | null): string {
-    if (!date) return '--:--';
+export function formatClockTime(date: Date | null, includeSeconds = false): string {
+    if (!date) return includeSeconds ? '--:--:--' : '--:--';
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
+    if (includeSeconds) {
+        const seconds = date.getSeconds().toString().padStart(2, '0');
+        return `${hours}:${minutes}:${seconds}`;
+    }
     return `${hours}:${minutes}`;
+}
+
+/**
+ * Get predicted arrival time (scheduled + delay) as a Date
+ */
+export function getPredictedTime(scheduledMinutesFromStart: number, delayMinutes: number): Date | null {
+    const startTime = journeyStartTime.value;
+    if (!startTime) return null;
+    return new Date(startTime + (scheduledMinutesFromStart + delayMinutes) * 60 * 1000);
 }
 
 /**

@@ -351,6 +351,16 @@ export function useTransformable(options: UseTransformableOptions): UseTransform
                     }
                 }
 
+                // Clamp size to not exceed screen bounds
+                const maxWidth = window.innerWidth - newX - padding;
+                const maxHeight = window.innerHeight - newY - padding;
+                newWidth = Math.min(newWidth, maxWidth);
+                newHeight = Math.min(newHeight, maxHeight);
+
+                // Re-enforce minimum size after max clamping
+                newWidth = Math.max(minSize.width, newWidth);
+                newHeight = Math.max(minSize.height, newHeight);
+
                 const newSize: TransformableSize = { width: newWidth, height: newHeight };
 
                 // Clamp position
@@ -409,11 +419,15 @@ export function useTransformable(options: UseTransformableOptions): UseTransform
             return;
         }
 
+        // Check if clicking inside an element marked as no-drag (e.g., scroll areas)
+        if (target.closest('[data-no-drag]')) {
+            return;
+        }
+
         // Don't start drag if multi-touch (let inner canvas handle it)
         if (activePointers.current.size > 1) {
             return;
         }
-
         e.preventDefault();
         e.stopPropagation();
         containerRef.current?.setPointerCapture(e.pointerId);

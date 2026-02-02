@@ -1,13 +1,7 @@
 .container {
     position: absolute;
-    background: var(--panel-bg);
-    box-shadow: var(--panel-shadow);
-    border-radius: 16px;
     cursor: grab;
     touch-action: none;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
     user-select: none;
 }
 
@@ -15,19 +9,36 @@
     cursor: grabbing;
 }
 
+/* Scale wrapper - handles scaling when container is below base size */
+.scaleWrapper {
+    transform-origin: top left;
+}
+
+/* Inner content wrapper - handles overflow and border-radius */
+.content {
+    width: 100%;
+    height: 100%;
+    background: var(--panel-bg);
+    box-shadow: var(--panel-shadow);
+    border-radius: var(--ui-radius);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
 /* Header with current time */
 .header {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 10px 12px;
+    padding: 8px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     flex-shrink: 0;
 }
 
 .currentTime {
-    color: rgba(255, 255, 255, 0.95);
-    font-size: 24px;
+    color: var(--led-amber);
+    font-size: 18px;
     font-family: monospace;
     font-weight: 600;
     letter-spacing: 2px;
@@ -39,9 +50,9 @@
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 12px 0;
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+    touch-action: none;
 }
 
 .stopList::-webkit-scrollbar {
@@ -60,7 +71,7 @@
 /* Timeline container - absolute positioned over the stop list */
 .timelineContainer {
     position: absolute;
-    left: 18px;
+    left: 10px;
     top: 0;
     bottom: 0;
     width: 20px;
@@ -94,7 +105,7 @@
     width: 12px;
     height: 12px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.3);
+    background: var(--panel-bg);
     border: 2px solid rgba(255, 255, 255, 0.5);
     box-sizing: border-box;
     z-index: 2;
@@ -123,9 +134,12 @@
 }
 
 @keyframes pulse {
-    0%, 100% {
+
+    0%,
+    100% {
         box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6);
     }
+
     50% {
         box-shadow: 0 0 0 6px rgba(74, 222, 128, 0);
     }
@@ -149,7 +163,7 @@
 .stop {
     display: flex;
     align-items: flex-start;
-    padding: 0 12px 0 36px; /* Left padding for timeline space */
+    padding: 0 10px 0 28px;
     min-height: 60px;
 }
 
@@ -168,7 +182,7 @@
 .stopContent {
     flex: 1;
     min-width: 0;
-    padding: 8px 12px;
+    padding: 8px 4px 8px 10px;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
@@ -230,6 +244,18 @@
     font-weight: 500;
 }
 
+.scheduleTime.ontime {
+    color: #4ade80;
+}
+
+.scheduleTime.early {
+    color: #60a5fa;
+}
+
+.scheduleTime.late {
+    color: #f87171;
+}
+
 .scheduleDelta {
     font-size: 12px;
     font-family: monospace;
@@ -248,6 +274,8 @@
     color: #f87171;
 }
 
+
+
 /* Stop metadata (distance/checkmark) */
 .stopMeta {
     flex-shrink: 0;
@@ -259,10 +287,28 @@
     padding-top: 8px;
 }
 
+/* bounce appear */
+@keyframes bounceIn {
+    0% {
+        transform: scale(0.5);
+        opacity: 0;
+    }
+
+    60% {
+        transform: scale(1.2);
+        opacity: 1;
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
 .checkmark {
     color: #4ade80;
     font-size: 16px;
-    font-weight: bold;
+    margin-right: -4px;
+    animation: bounceIn 0.4s ease forwards;
 }
 
 .distance {
@@ -271,4 +317,3 @@
     font-family: monospace;
     text-align: right;
 }
-
