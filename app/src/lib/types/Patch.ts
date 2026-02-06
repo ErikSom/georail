@@ -56,3 +56,36 @@ export interface RouteInfo {
     toTrack: string;
     description?: string;
 }
+
+export interface LineCoverage {
+    line_ref: string;
+    description: string | null;
+    segment_count: number;
+    total_points: number;
+    covered_points: number;
+    coverage_pct: number | null;
+    length_km: number;
+}
+
+export interface NetworkCoverage {
+    summary: {
+        total_segments: number;
+        total_points: number;
+        covered_points: number;
+        coverage_pct: number | null;
+        total_length_km: number;
+    };
+    lines: LineCoverage[];
+}
+
+export interface OpenRoute {
+    station_a: string;
+    station_b: string;
+    code_a: string;
+    code_b: string;
+    line_ref: string | null;
+    line_description: string | null;
+    segment_count: number;
+    points_to_do: number;
+    length_km: number;
+}

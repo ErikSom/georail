@@ -4,7 +4,7 @@ export const getMyProfile = async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('profiles')
-            .select('id, username, role')
+            .select('id, username, role, nodes_edited, nodes_reviewed')
             .eq('id', req.userId)
             .single();
 
@@ -18,7 +18,9 @@ export const getMyProfile = async (req, res) => {
         res.json({
             id: data.id,
             username: data.username,
-            role: data.role || 'user'
+            role: data.role || 'user',
+            nodes_edited: data.nodes_edited || 0,
+            nodes_reviewed: data.nodes_reviewed || 0
         });
     } catch (error) {
         res.status(500).json({ error: 'Server error' });

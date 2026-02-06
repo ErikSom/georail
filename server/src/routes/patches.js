@@ -7,7 +7,9 @@ import {
     submitPatch,
     approvePatch,
     updatePatchStatus,
-    deletePatch
+    deletePatch,
+    getNetworkCoverage,
+    getOpenRoutes
 } from '../controllers/patches.js';
 import { authenticateAndAuthorize } from '../middleware/auth.js';
 
@@ -17,6 +19,17 @@ const patchReadLimiter = rateLimit({
     max: 10,
     message: 'Too many requests.',
     // identify unique users behind Cloudflare
+    keyGenerator: (req) => {
+        return req.headers['cf-connecting-ip'] || req.ip;
+    },
+    validate: { trustProxy: true }
+});
+
+// Heavy query limiter for coverage/open-routes (expensive DB operations)
+const coverageLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 5,              // Max 5 per minute
+    message: 'Too many coverage requests. Please wait a minute.',
     keyGenerator: (req) => {
         return req.headers['cf-connecting-ip'] || req.ip;
     },
@@ -36,6 +49,10 @@ const patchActionLimiter = rateLimit({
 });
 
 const router = express.Router();
+
+// === COVERAGE ROUTES ===
+router.get('/coverage', coverageLimiter, authenticateAndAuthorize, getNetworkCoverage);
+router.get('/open-routes', coverageLimiter, authenticateAndAuthorize, getOpenRoutes);
 
 // === USER ROUTES ===
 // Read routes

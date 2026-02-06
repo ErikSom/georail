@@ -8,6 +8,7 @@ AS $$
 DECLARE
   v_editor_id uuid;
   v_reviewer_id uuid;
+  v_node_count integer;
 BEGIN
   -- Add this permission check
   IF get_my_role() <> 'moderator' THEN
@@ -38,6 +39,21 @@ BEGIN
     editor_id = EXCLUDED.editor_id,
     reviewer_id = EXCLUDED.reviewer_id,
     keynode = EXCLUDED.keynode;
+
+  -- Count nodes in this patch for contribution tracking
+  SELECT COUNT(*)::int INTO v_node_count
+  FROM public.rail_patch_data
+  WHERE patch_id = approved_patch_id;
+
+  -- Update editor's contribution count
+  UPDATE public.profiles
+  SET nodes_edited = nodes_edited + v_node_count
+  WHERE id = v_editor_id;
+
+  -- Update reviewer's contribution count
+  UPDATE public.profiles
+  SET nodes_reviewed = nodes_reviewed + v_node_count
+  WHERE id = v_reviewer_id;
 
   UPDATE public.rail_patches
   SET status = 'approved',

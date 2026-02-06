@@ -1,0 +1,3 @@
+ALTER TABLE profiles
+  ADD COLUMN IF NOT EXISTS nodes_edited integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS nodes_reviewed integer NOT NULL DEFAULT 0;

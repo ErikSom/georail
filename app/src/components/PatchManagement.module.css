@@ -36,6 +36,47 @@
     align-items: center;
     padding: 20px;
     padding-left: 120px;
+    gap: 12px;
+}
+
+.coverageInfo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.coverageTrack {
+    width: 100px;
+    height: 6px;
+    background-color: #3a3a3a;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.coverageFill {
+    height: 100%;
+    background-color: #22c55e;
+    border-radius: 3px;
+    min-width: 1px;
+    transition: width 0.3s;
+}
+
+.coverageText {
+    font-size: 13px;
+    color: #888;
+    white-space: nowrap;
+}
+
+.contributionInfo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.contributionStat {
+    font-size: 13px;
+    color: #888;
+    white-space: nowrap;
 }
 
 .viewSwitcher {

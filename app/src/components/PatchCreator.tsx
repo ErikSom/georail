@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
-import type { RouteInfo } from '../lib/types/Patch';
+import type { RouteInfo, OpenRoute } from '../lib/types/Patch';
 import { fetchAllStations, type StationTrackInfo } from '../lib/api/station';
 
 import styles from './PatchCreator.module.css';
@@ -17,6 +17,10 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
     const [toStation, setToStation] = useState('');
     const [toTrack, setToTrack] = useState('');
     const [description, setDescription] = useState('');
+    const [suggesting, setSuggesting] = useState(false);
+    const [suggestion, setSuggestion] = useState<OpenRoute | null>(null);
+    const [cachedRoutes, setCachedRoutes] = useState<OpenRoute[]>([]);
+    const [routeIndex, setRouteIndex] = useState(0);
 
     useEffect(() => {
         loadStations();
@@ -86,6 +90,55 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
         }
     };
 
+    const applySuggestion = (route: OpenRoute) => {
+        setSuggestion(route);
+
+        const fromMatch = stations.find(s => s.name === route.station_a);
+        const toMatch = stations.find(s => s.name === route.station_b);
+
+        setFromStation(fromMatch?.name || route.station_a);
+        setFromTrack(fromMatch?.tracks?.[0] || '');
+        setToStation(toMatch?.name || route.station_b);
+        setToTrack(toMatch?.tracks?.[0] || '');
+    };
+
+    const fetchAndApplyRoutes = async () => {
+        try {
+            setSuggesting(true);
+            const { fetchOpenRoutes } = await import('../lib/api/patches');
+            const routes = await fetchOpenRoutes({ limit: 10 });
+            if (routes.length === 0) {
+                alert('No open routes found!');
+                return;
+            }
+            setCachedRoutes(routes);
+            setRouteIndex(0);
+            applySuggestion(routes[0]);
+        } catch (err) {
+            console.error('Error fetching open routes:', err);
+            alert('Failed to fetch route suggestions.');
+        } finally {
+            setSuggesting(false);
+        }
+    };
+
+    const handleSuggestRoute = async () => {
+        if (cachedRoutes.length === 0) {
+            await fetchAndApplyRoutes();
+            return;
+        }
+
+        const nextIndex = routeIndex + 1;
+        if (nextIndex >= cachedRoutes.length) {
+            // Exhausted cache, fetch a fresh batch
+            setCachedRoutes([]);
+            await fetchAndApplyRoutes();
+        } else {
+            setRouteIndex(nextIndex);
+            applySuggestion(cachedRoutes[nextIndex]);
+        }
+    };
+
     const getTitle = () => {
         if (!fromStation || !toStation) return 'New Patch';
         const fromTrackText = fromTrack ? ` (${fromTrack})` : '';
@@ -121,6 +174,22 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
                         <div className={styles.previewLabel}>Patch Title:</div>
                         <div className={styles.previewTitle}>{getTitle()}</div>
                     </div>
+
+                    <button
+                        type="button"
+                        onClick={handleSuggestRoute}
+                        className={styles.suggestButton}
+                        disabled={suggesting}
+                    >
+                        {suggesting ? 'Finding route...' : 'Suggest a route'}
+                    </button>
+                    {suggestion && (
+                        <div className={styles.suggestionInfo}>
+                            {suggestion.line_description || `Line ${suggestion.line_ref}`}
+                            {' — '}
+                            {suggestion.length_km} km, {suggestion.points_to_do} points
+                        </div>
+                    )}
 
                     <div className={styles.section}>
                         <h3 className={styles.sectionTitle}>From Station</h3>

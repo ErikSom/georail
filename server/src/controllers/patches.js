@@ -160,6 +160,40 @@ export const updatePatchStatus = async (req, res) => {
     res.json({ success: true });
 };
 
+// GET /patches/coverage
+export const getNetworkCoverage = async (req, res) => {
+    try {
+        const { data, error } = await supabase.rpc('get_network_coverage');
+        if (error) throw error;
+
+        res.set('Cache-Control', 'private, max-age=60');
+        res.json(data || { summary: {}, lines: [] });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+// GET /patches/open-routes
+export const getOpenRoutes = async (req, res) => {
+    try {
+        const { limit, line } = req.query;
+        const maxResults = Math.min(limit ? parseInt(limit, 10) : 10, 10);
+
+        const { data, error } = await supabase.rpc('find_open_routes', {
+            max_results: maxResults,
+            line_filter: line || null
+        });
+        if (error) throw error;
+
+        res.set('Cache-Control', 'private, max-age=60');
+        res.json(data || []);
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
 // DELETE /patches/:id
 export const deletePatch = async (req, res) => {
     const { id } = req.params;

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'preact/hooks';
 import PatchList from './PatchList';
 import PatchCreator from './PatchCreator';
-import type { RouteInfo, Patch } from '../lib/types/Patch';
-import { fetchUserRole, type UserRole } from '../lib/api/profile';
+import type { RouteInfo, Patch, NetworkCoverage } from '../lib/types/Patch';
+import { fetchUserProfile, type UserRole, type UserProfile } from '../lib/api/profile';
 import { fetchAllStations, type StationTrackInfo } from '../lib/api/station';
 
 import styles from './PatchManagement.module.css';
@@ -18,11 +18,19 @@ function PatchManagement({ onClose, onStartEditing, activePatchId }: PatchManage
     const [patchListKey, setPatchListKey] = useState(0);
     const [moderatorMode, setModeratorMode] = useState(false);
     const [userRole, setUserRole] = useState<UserRole>('editor');
+    const [profile, setProfile] = useState<UserProfile | null>(null);
     const [stations, setStations] = useState<StationTrackInfo[]>([]);
+    const [coverage, setCoverage] = useState<NetworkCoverage | null>(null);
 
     useEffect(() => {
-        fetchUserRole().then(setUserRole).catch(console.error);
+        fetchUserProfile().then((p) => {
+            setProfile(p);
+            setUserRole(p?.role || 'user');
+        }).catch(console.error);
         fetchAllStations().then(setStations).catch(console.error);
+        import('../lib/api/patches').then(({ fetchNetworkCoverage }) =>
+            fetchNetworkCoverage().then(setCoverage).catch(() => {})
+        );
     }, []);
 
     const getStationCode = (stationName: string): string => {
@@ -116,6 +124,31 @@ function PatchManagement({ onClose, onStartEditing, activePatchId }: PatchManage
                     <button onClick={onClose} className={styles.closeButton}>
                         ✕ Close
                     </button>
+                )}
+                {coverage?.summary && (
+                    <div className={styles.coverageInfo}>
+                        <div className={styles.coverageTrack}>
+                            <div
+                                className={styles.coverageFill}
+                                style={{ width: `${coverage.summary.coverage_pct ?? 0}%` }}
+                            />
+                        </div>
+                        <span className={styles.coverageText}>
+                            {coverage.summary.coverage_pct ?? 0}% coverage
+                        </span>
+                    </div>
+                )}
+                {profile && (
+                    <div className={styles.contributionInfo}>
+                        <span className={styles.contributionStat}>
+                            {profile.nodes_edited.toLocaleString()} nodes edited
+                        </span>
+                        {profile.nodes_reviewed > 0 && (
+                            <span className={styles.contributionStat}>
+                                {profile.nodes_reviewed.toLocaleString()} reviewed
+                            </span>
+                        )}
+                    </div>
                 )}
                 {userRole === 'moderator' && (
                     <div className={styles.viewSwitcher}>

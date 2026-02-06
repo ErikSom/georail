@@ -7,6 +7,8 @@ export interface UserProfile {
     id: string;
     username?: string;
     role: UserRole;
+    nodes_edited: number;
+    nodes_reviewed: number;
 }
 
 const API_URL = `${import.meta.env.PUBLIC_GEORAIL_URL}/user/my`;
@@ -52,7 +54,9 @@ async function fetchUserProfileWithSession(session: Session): Promise<UserProfil
         cachedProfile = {
             id: data.id,
             username: data.username,
-            role: (data.role as UserRole) || 'user'
+            role: (data.role as UserRole) || 'user',
+            nodes_edited: data.nodes_edited || 0,
+            nodes_reviewed: data.nodes_reviewed || 0
         };
 
         return cachedProfile;

@@ -1,5 +1,5 @@
 import { supabase } from '../Supabase';
-import type { Patch, PatchWithData, SubmitPatchInput } from '../types/Patch';
+import type { Patch, PatchWithData, SubmitPatchInput, NetworkCoverage, OpenRoute } from '../types/Patch';
 
 const API_BASE = `${import.meta.env.PUBLIC_GEORAIL_URL}/patches`;
 
@@ -151,5 +151,29 @@ export async function fetchPatchWithData(patchId: number, bypassOwnerCheck: bool
         throw new Error(error?.error || 'Failed to fetch patch');
     }
 
+    return await response.json();
+}
+
+/**
+ * Fetch network-wide altitude coverage per railway line
+ */
+export async function fetchNetworkCoverage(): Promise<NetworkCoverage> {
+    const headers = await getAuthHeader();
+    const response = await fetch(`${API_BASE}/coverage`, { headers });
+    if (!response.ok) throw new Error('Failed to fetch network coverage');
+    return await response.json();
+}
+
+/**
+ * Fetch open routes that need altitude work
+ */
+export async function fetchOpenRoutes(options?: { limit?: number; line?: string }): Promise<OpenRoute[]> {
+    const headers = await getAuthHeader();
+    const url = new URL(`${API_BASE}/open-routes`);
+    if (options?.limit) url.searchParams.append('limit', String(options.limit));
+    if (options?.line) url.searchParams.append('line', options.line);
+
+    const response = await fetch(url.toString(), { headers });
+    if (!response.ok) throw new Error('Failed to fetch open routes');
     return await response.json();
 }
