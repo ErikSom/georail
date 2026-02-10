@@ -15,7 +15,7 @@
     "@supabase/supabase-js": "^2.75.1",
     "@tweakpane/plugin-essentials": "^0.2.1",
     "3d-tiles-renderer": "^0.4.18",
-    "astro": "^5.16.15",
+    "astro": "^5.17.1",
     "fbx2gltf": "^0.9.7-p1",
     "ffmpeg-static": "^5.3.0",
     "fs-extra": "^11.3.2",

@@ -541,6 +541,17 @@ export class Train implements IPhysicsTarget {
     }
 
     /**
+     * Open or close doors on all rolling stock.
+     * @param open true = play doors animation forward, false = play in reverse
+     */
+    public setDoorsOpen(open: boolean): void {
+        const reverse = !open;
+        this.cab?.playAnimationGroup('doors', reverse);
+        this.wagons.forEach(wagon => wagon.playAnimationGroup('doors', reverse));
+        this.rearCab?.playAnimationGroup('doors', reverse);
+    }
+
+    /**
      * Set train power control
      * @param power -1 to 1 where 1 is full forward, 0 is brake, -1 is full reverse
      */

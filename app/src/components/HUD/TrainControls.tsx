@@ -3,7 +3,7 @@ import styles from './TrainControls.module.css';
 import BipolarDial from './BipolarDial';
 import IconButton from './IconButton';
 import { Input } from '../../lib/utils/Input';
-import { trainPower, trainPowerPercent, resetTrain, updateTick, deltaTimeMs } from '../../store/train';
+import { trainPower, trainPowerPercent, trainDoorsOpen, resetTrain, updateTick, deltaTimeMs } from '../../store/train';
 
 function TrainControls() {
     const [isOpen, setIsOpen] = useState(false);
@@ -105,6 +105,7 @@ function TrainControls() {
                         size={220}
                     />
                     <IconButton toggle icon="/icons/lightbulb.svg" className={styles.lightIcon} onClick={handleReset} ariaLabel="Reset power" />
+                    <IconButton toggle icon={trainDoorsOpen.value ? "/icons/doors-open.svg" : "/icons/doors-close.svg"} className={styles.doorIcon} onClick={() => trainDoorsOpen.value = !trainDoorsOpen.value} ariaLabel="Toggle doors" />
                     <IconButton icon="/icons/controls-off.svg" className={styles.closeControls} onClick={() => setIsOpen(false)} ariaLabel="Close train controls" />
                 </div>
             </div>

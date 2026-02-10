@@ -100,7 +100,7 @@ export class RollingStockAnimator {
         return this.getGroupAPI(name);
     }
 
-    private getGroupAPI(name: string): AnimationGroupAPI {
+    public getGroupAPI(name: string): AnimationGroupAPI {
         return {
             play: (reverse = false, loop = false, alternate = false) => {
                 const group = this.animGroups.get(name);

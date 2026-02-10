@@ -1002,6 +1002,16 @@ export class RollingStock {
         return exported;
     }
 
+    /**
+     * Plays a named animation group with the given settings.
+     * If the group doesn't exist in the animator, this is a no-op.
+     */
+    public playAnimationGroup(name: string, reverse: boolean = false, loop: boolean = false, alternate: boolean = false): void {
+        if (!this.animator) return;
+        const api = this.animator.getGroupAPI(name);
+        api.play(reverse, loop, alternate);
+    }
+
     public update(delta: number, distanceDelta: number = 0): void {
         if (this.animator) {
             this.animator.update(delta);
