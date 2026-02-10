@@ -48,3 +48,16 @@
     height: 100%;
     padding: 20px 40px;
 }
+
+.dialError {
+    --led-amber: var(--led-error);
+}
+
+.doorError {
+    animation: errorPulse 0.15s ease 2;
+}
+
+@keyframes errorPulse {
+    0%, 100% { box-shadow: var(--btn-shadow); }
+    50% { box-shadow: 0 0 12px var(--led-error), 0 0 4px var(--led-error) inset; }
+}

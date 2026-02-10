@@ -40,8 +40,11 @@ function BipolarDial({
     const isStuckAtZero = useRef(false);
     const stickiness = useRef(0);
 
-    // --- “Internal” knob value (parity with original this.value) ---
+    // --- "Internal" knob value (parity with original this.value) ---
     const internalValueRef = useRef<number>(value);
+
+    const latestParentValue = useRef(value);
+    latestParentValue.current = value;
 
     // --- Rendering State (parity: display is based on stepped value, not physics angle) ---
     const [displayAngle, setDisplayAngle] = useState(0); // snapped angle derived from internal value
@@ -236,6 +239,10 @@ function BipolarDial({
             isDragging.current = false;
             rollingDelta.current.length = 0;
             setTooltipPos(null);
+
+            // Sync with parent value on release (handles cases where parent
+            // rejected the change, e.g. doors-open guard resetting to 0)
+            updateByValue(latestParentValue.current, true);
 
             if (Math.abs(currentAngleRef.current) < 0.1) {
                 isStuckAtZero.current = false;

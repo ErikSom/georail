@@ -1,19 +1,38 @@
-import { useState, useEffect, useRef } from 'preact/hooks';
+import { useState, useEffect, useRef, useCallback } from 'preact/hooks';
 import styles from './TrainControls.module.css';
 import BipolarDial from './BipolarDial';
 import IconButton from './IconButton';
 import { Input } from '../../lib/utils/Input';
-import { trainPower, trainPowerPercent, trainDoorsOpen, resetTrain, updateTick, deltaTimeMs } from '../../store/train';
+import { trainPower, trainPowerPercent, trainVelocityKmh, trainDoorsOpen, resetTrain, updateTick, deltaTimeMs } from '../../store/train';
 
 function TrainControls() {
     const [isOpen, setIsOpen] = useState(false);
+    const [dialError, setDialError] = useState(false);
+    const [doorError, setDoorError] = useState(false);
     const holdTimeRef = useRef(0);
     const initialPowerRef = useRef(0);
+    const dialErrorTimer = useRef<ReturnType<typeof setTimeout>>();
+    const doorErrorTimer = useRef<ReturnType<typeof setTimeout>>();
 
-    // Handle keyboard input - triggered by updateTick from game loop
+    const flashDialError = useCallback(() => {
+        setDialError(true);
+        clearTimeout(dialErrorTimer.current);
+        dialErrorTimer.current = setTimeout(() => setDialError(false), 600);
+    }, []);
+
+    const flashDoorError = useCallback(() => {
+        setDoorError(true);
+        clearTimeout(doorErrorTimer.current);
+        doorErrorTimer.current = setTimeout(() => setDoorError(false), 600);
+    }, []);
+
     useEffect(() => {
-        // Subscribe to updateTick to sync with game loop
         const unsubscribe = updateTick.subscribe(() => {
+            if (trainDoorsOpen.value) {
+                holdTimeRef.current = 0;
+                return;
+            }
+
             // W/UP key = increase power, S/DOWN key = decrease power
             const increasePressed = Input.isDown('KeyW') || Input.isDown('ArrowUp');
             const decreasePressed = Input.isDown('KeyS') || Input.isDown('ArrowDown');
@@ -71,9 +90,22 @@ function TrainControls() {
     }, []);
 
     const handleDialChange = (value: number) => {
-        // Convert dial value (-100 to 100) to power (-1 to 1)
+        if (trainDoorsOpen.value) {
+            trainPower.value = 0;
+            flashDialError();
+            return;
+        }
+
         trainPower.value = value / 100;
-        holdTimeRef.current = 0; // Reset hold time when using dial
+        holdTimeRef.current = 0;
+    };
+
+    const handleDoorToggle = () => {
+        if (!trainDoorsOpen.value && Math.abs(trainVelocityKmh.value) > 3) {
+            flashDoorError();
+            return;
+        }
+        trainDoorsOpen.value = !trainDoorsOpen.value;
     };
 
     const handleReset = () => {
@@ -93,10 +125,8 @@ function TrainControls() {
                 />
             }
 
-            {/* Control Panel - Bottom of Screen */}
             <div className={`${styles.controlPanel} ${isOpen ? styles.controlPanelOpen : ''}`}>
-                {/* Center Content - BipolarDial */}
-                <div className={styles.dialContainer}>
+                <div className={`${styles.dialContainer} ${dialError ? styles.dialError : ''}`}>
                     <BipolarDial
                         value={trainPowerPercent.value}
                         onChange={handleDialChange}
@@ -105,7 +135,7 @@ function TrainControls() {
                         size={220}
                     />
                     <IconButton toggle icon="/icons/lightbulb.svg" className={styles.lightIcon} onClick={handleReset} ariaLabel="Reset power" />
-                    <IconButton toggle icon={trainDoorsOpen.value ? "/icons/doors-open.svg" : "/icons/doors-close.svg"} className={styles.doorIcon} onClick={() => trainDoorsOpen.value = !trainDoorsOpen.value} ariaLabel="Toggle doors" />
+                    <IconButton toggle on={trainDoorsOpen.value} icon={trainDoorsOpen.value ? "/icons/doors-open.svg" : "/icons/doors-close.svg"} className={`${styles.doorIcon} ${doorError ? styles.doorError : ''}`} onClick={handleDoorToggle} ariaLabel="Toggle doors" />
                     <IconButton icon="/icons/controls-off.svg" className={styles.closeControls} onClick={() => setIsOpen(false)} ariaLabel="Close train controls" />
                 </div>
             </div>

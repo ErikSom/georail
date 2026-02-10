@@ -15,11 +15,13 @@ type IconButtonProps = {
 
 
 function IconButton({ icon, onClick, toggle, on, className, ariaLabel, iconSize = 20 }: IconButtonProps) {
-    const [isOn, setIsOn] = useState(on ?? false);
+    const controlled = on !== undefined;
+    const [internalOn, setInternalOn] = useState(on ?? false);
+    const isOn = controlled ? on : internalOn;
 
     const handleClick = () => {
         if (toggle) {
-            setIsOn(!isOn);
+            if (!controlled) setInternalOn(!isOn);
             if (onClick) onClick(!isOn);
         } else {
             if (onClick) onClick();
