@@ -92,8 +92,23 @@ export interface RollingStockConfig {
     interiorMaterial: InteriorMaterialConfig;
 }
 
+export type LightRole = 'headlight' | 'taillight';
+
+export interface LightConfig {
+    role: LightRole;
+    offset: { x: number; y: number; z: number };
+    target: { x: number; y: number; z: number };
+    color: number;
+    intensity: number;
+    distance: number;
+    angle: number;
+    penumbra: number;
+    decay: number;
+    lensFlareSize: number;
+}
+
 export interface CabConfig extends RollingStockConfig {
-    // Additional cab-specific properties can go here
+    lights?: LightConfig[];
 }
 
 export interface WagonConfig extends RollingStockConfig {

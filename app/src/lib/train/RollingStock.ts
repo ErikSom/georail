@@ -194,7 +194,7 @@ export class RollingStock {
                         if (regex.test(name)) {
                             const standardMat = mat as MeshStandardMaterial;
                             standardMat.emissive = new Color(this.config.interiorMaterial.emissiveColor);
-                            standardMat.emissiveIntensity = this.config.interiorMaterial.emissiveIntensity;
+                            standardMat.emissiveIntensity = 0;
                             if (standardMat.map) {
                                 standardMat.emissiveMap = standardMat.map;
                             }
@@ -946,10 +946,10 @@ export class RollingStock {
         // Initial build
         rebuildWheelUI();
 
-        // --- 7. Interior Material Configuration ---
-        const interiorKey = getFolderKey([...basePath, 'Interior Material']);
+        // --- 7. Lights ---
+        const interiorKey = getFolderKey([...basePath, 'Lights']);
         const interiorFolder = this.paneFolder.addFolder({
-            title: 'Interior Material',
+            title: 'Lights',
             expanded: getFolderExpanded(interiorKey, false)
         });
         registerFolder(interiorFolder, interiorKey);
@@ -1006,6 +1006,23 @@ export class RollingStock {
      * Plays a named animation group with the given settings.
      * If the group doesn't exist in the animator, this is a no-op.
      */
+    public setEmissiveEnabled(enabled: boolean): void {
+        if (!this.model || !this.config.interiorMaterial.pattern) return;
+        const regex = new RegExp(this.config.interiorMaterial.pattern);
+        const targetIntensity = enabled ? this.config.interiorMaterial.emissiveIntensity : 0;
+
+        this.model.traverse((child) => {
+            if (child instanceof Mesh) {
+                const mats = Array.isArray(child.material) ? child.material : [child.material];
+                for (const mat of mats) {
+                    if (regex.test(mat.name?.toLowerCase() || '')) {
+                        (mat as MeshStandardMaterial).emissiveIntensity = targetIntensity;
+                    }
+                }
+            }
+        });
+    }
+
     public playAnimationGroup(name: string, reverse: boolean = false, loop: boolean = false, alternate: boolean = false): void {
         if (!this.animator) return;
         const api = this.animator.getGroupAPI(name);

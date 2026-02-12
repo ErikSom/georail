@@ -30,7 +30,7 @@ export class Train implements IPhysicsTarget {
     private readonly paneFolderExpandedState = new Map<string, boolean>();
     private audio: TrainAudio;
     private physics: TrainPhysics;
-
+    private lightsOn: boolean = false;
 
     constructor(config: TrainConfig, debug: boolean = false) {
 
@@ -220,7 +220,7 @@ export class Train implements IPhysicsTarget {
         // Cab
         this.cab.createDebugUI(physical, this.config, (updatedConfig: TrainConfig) => {
             this.updateConfig(updatedConfig);
-        }, null, null, this.registerFolder.bind(this), [...rootPath, 'Visual & Physics'], this.getFolderExpanded.bind(this));
+        }, () => this.createDebugUI(), null, this.registerFolder.bind(this), [...rootPath, 'Visual & Physics'], this.getFolderExpanded.bind(this));
 
         // Wagons folder
         const wagonsKey = getFolderKey([...rootPath, 'Visual & Physics', 'Wagons']);
@@ -255,7 +255,7 @@ export class Train implements IPhysicsTarget {
         if (this.rearCab && this.config.rearCab) {
             this.rearCab.createDebugUI(physical, this.config, (updatedConfig: TrainConfig) => {
                 this.updateConfig(updatedConfig);
-            }, null, null, this.registerFolder.bind(this), [...rootPath, 'Visual & Physics'], this.getFolderExpanded.bind(this));
+            }, () => this.createDebugUI(), null, this.registerFolder.bind(this), [...rootPath, 'Visual & Physics'], this.getFolderExpanded.bind(this));
         }
 
         // Add/Remove Rear Cab button
@@ -551,6 +551,43 @@ export class Train implements IPhysicsTarget {
         this.rearCab?.playAnimationGroup('doors', reverse);
     }
 
+    public setTrainLightsOn(on: boolean): void {
+        this.lightsOn = on;
+
+        // Emissive interior lights on all rolling stock
+        this.cab.setEmissiveEnabled(on);
+        this.wagons.forEach(w => w.setEmissiveEnabled(on));
+        this.rearCab?.setEmissiveEnabled(on);
+
+        if (!on) {
+            this.cab.setHeadlights(false);
+            this.cab.setTaillights(false);
+            this.rearCab?.setHeadlights(false);
+            this.rearCab?.setTaillights(false);
+            return;
+        }
+
+        // Apply current direction
+        this.setTrainLightDirection();
+    }
+
+    public setTrainLightDirection(): void {
+        if (!this.lightsOn) return;
+
+        const forward = this.physics.getVelocity() >= 0;
+
+        if (this.rearCab) {
+            this.cab.setHeadlights(forward);
+            this.cab.setTaillights(!forward);
+            this.rearCab.setHeadlights(!forward);
+            this.rearCab.setTaillights(forward);
+        } else {
+            // No rear cab: front lights stay on
+            this.cab.setHeadlights(true);
+            this.cab.setTaillights(false);
+        }
+    }
+
     /**
      * Set train power control
      * @param power -1 to 1 where 1 is full forward, 0 is brake, -1 is full reverse
@@ -634,6 +671,9 @@ export class Train implements IPhysicsTarget {
         this.cab?.update(delta, distanceDelta);
         this.wagons.forEach(wagon => wagon.update(delta, distanceDelta));
         this.rearCab?.update(delta, distanceDelta);
+
+        // Update light direction based on velocity
+        this.setTrainLightDirection();
 
         // Update audio engine (evaluates curves and updates audio properties)
         this.audio.update();

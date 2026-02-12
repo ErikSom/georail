@@ -53,6 +53,14 @@
     --led-amber: var(--led-error);
 }
 
+.dialError .lightIcon {
+    --led-amber: #c8c8c8;
+}
+
+.dialError .closeControls {
+    --led-amber: #c8c8c8;
+}
+
 .doorError {
     animation: errorPulse 0.15s ease 2;
 }

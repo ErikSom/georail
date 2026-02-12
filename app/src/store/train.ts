@@ -7,7 +7,8 @@ export const trainVelocityKmh = signal(0);
 export const trainMaxSpeedKmh = signal(120); // Max speed from train config, default 120
 export const trainTractiveEffort = signal(0); // 0 to 1 (normalized)
 export const trainInstance = signal<Train | null>(null);
-export const trainDoorsOpen = signal(false); // Door state: true = open, false = closed
+export const trainDoorsOpen = signal(false);
+export const trainHeadlightsOn = signal(false);
 export const trainDebugMode = signal(false); // Enable debug visualization
 export const debugZones = signal(true); // Enable stop zone debug visualization
 
@@ -63,12 +64,16 @@ effect(() => {
     train.setPower(trainPower.value);
 });
 
-// Sync door state to train animation
 effect(() => {
     const train = trainInstance.value;
     if (!train) return;
-
     train.setDoorsOpen(trainDoorsOpen.value);
+});
+
+effect(() => {
+    const train = trainInstance.value;
+    if (!train) return;
+    train.setTrainLightsOn(trainHeadlightsOn.value);
 });
 
 /**

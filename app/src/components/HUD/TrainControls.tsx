@@ -3,7 +3,7 @@ import styles from './TrainControls.module.css';
 import BipolarDial from './BipolarDial';
 import IconButton from './IconButton';
 import { Input } from '../../lib/utils/Input';
-import { trainPower, trainPowerPercent, trainVelocityKmh, trainDoorsOpen, resetTrain, updateTick, deltaTimeMs } from '../../store/train';
+import { trainPower, trainPowerPercent, trainVelocityKmh, trainDoorsOpen, trainHeadlightsOn, updateTick, deltaTimeMs } from '../../store/train';
 
 function TrainControls() {
     const [isOpen, setIsOpen] = useState(false);
@@ -108,9 +108,8 @@ function TrainControls() {
         trainDoorsOpen.value = !trainDoorsOpen.value;
     };
 
-    const handleReset = () => {
-        resetTrain();
-        holdTimeRef.current = 0;
+    const handleHeadlights = () => {
+        trainHeadlightsOn.value = !trainHeadlightsOn.value;
     };
 
     return (
@@ -134,7 +133,7 @@ function TrainControls() {
                         max={100}
                         size={220}
                     />
-                    <IconButton toggle icon="/icons/lightbulb.svg" className={styles.lightIcon} onClick={handleReset} ariaLabel="Reset power" />
+                    <IconButton toggle on={trainHeadlightsOn.value} icon="/icons/lightbulb.svg" className={styles.lightIcon} onClick={handleHeadlights} ariaLabel="Toggle headlights" />
                     <IconButton toggle on={trainDoorsOpen.value} icon={trainDoorsOpen.value ? "/icons/doors-open.svg" : "/icons/doors-close.svg"} className={`${styles.doorIcon} ${doorError ? styles.doorError : ''}`} onClick={handleDoorToggle} ariaLabel="Toggle doors" />
                     <IconButton icon="/icons/controls-off.svg" className={styles.closeControls} onClick={() => setIsOpen(false)} ariaLabel="Close train controls" />
                 </div>
