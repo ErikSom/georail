@@ -1054,6 +1054,24 @@ export class RollingStock {
         }
     }
 
+    protected findMeshesByPattern(pattern: string): Mesh[] {
+        const results: Mesh[] = [];
+        if (!this.model) return results;
+
+        try {
+            const regex = new RegExp(pattern, 'i');
+            this.model.traverse((child) => {
+                if (child instanceof Mesh && regex.test(child.name || '')) {
+                    results.push(child);
+                }
+            });
+        } catch (e) {
+            console.warn(`[RollingStock] Invalid mesh pattern regex: ${pattern}`, e);
+        }
+
+        return results;
+    }
+
     public cleanup(): void {
         // Clean up model
         if (this.model) {

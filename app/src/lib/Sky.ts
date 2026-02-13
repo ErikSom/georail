@@ -18,6 +18,7 @@ import {
     MathUtils,
     Object3D
 } from 'three';
+import { Lensflare } from './train/Lensflare';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import * as Tweakpane from 'tweakpane';
 
@@ -601,6 +602,9 @@ export class Sky {
             this.hemiDayIntensity,
             dayFactor
         ) + (moonFactor * this.hemiMoonBoost);
+
+        // Lensflares are bright at night, dim during the day
+        Lensflare.globalIntensity = MathUtils.lerp(1.0, 0.30, dayFactor);
     }
 
     public cleanup(): void {

@@ -105,10 +105,33 @@ export interface LightConfig {
     penumbra: number;
     decay: number;
     lensFlareSize: number;
+    meshPattern?: string;
+}
+
+export interface EmissivePolygon {
+    type: 'polygon';
+    points: { x: number; y: number }[];
+}
+
+export interface EmissiveCircle {
+    type: 'circle';
+    center: { x: number; y: number };
+    radius: number;
+}
+
+export type EmissiveShape = EmissivePolygon | EmissiveCircle;
+
+export interface EmissiveTextureConfig {
+    shapes: EmissiveShape[];
+    blur: number;
+    resolution: number;
+    color: number;       // Hex color matching the light (e.g. 0xfff4e0)
+    intensity: number;   // 0-1 emissive intensity
 }
 
 export interface CabConfig extends RollingStockConfig {
     lights?: LightConfig[];
+    emissiveTextures?: Record<string, EmissiveTextureConfig>;
 }
 
 export interface WagonConfig extends RollingStockConfig {

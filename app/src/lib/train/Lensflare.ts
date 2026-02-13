@@ -102,9 +102,9 @@ const Geometry = (() => {
     const geometry = new BufferGeometry();
     const float32Array = new Float32Array([
         -1, -1, 0, 0, 0,
-         1, -1, 0, 1, 0,
-         1,  1, 0, 1, 1,
-        -1,  1, 0, 0, 1,
+        1, -1, 0, 1, 0,
+        1, 1, 0, 1, 1,
+        -1, 1, 0, 0, 1,
     ]);
     const interleavedBuffer = new InterleavedBuffer(float32Array, 5);
     geometry.setIndex([0, 1, 2, 0, 2, 3]);
@@ -116,6 +116,9 @@ const Geometry = (() => {
 class Lensflare extends Mesh {
     isLensflare = true;
 
+    /** Global intensity multiplier for all lensflares (0 = invisible, 1 = full). Set by scene lighting. */
+    static globalIntensity = 1.0;
+
     /** Distance (in world units) at which the flare starts fading */
     fadeNear: number;
     /** Distance at which the flare is fully invisible */
@@ -126,7 +129,7 @@ class Lensflare extends Mesh {
 
     constructor(fadeNear = 100, fadeFar = 500) {
         super(Geometry, new MeshBasicMaterial({ opacity: 0, transparent: true }));
-        this.type = 'Lensflare';
+        (this as any).type = 'Lensflare';
         this.frustumCulled = false;
         this.renderOrder = Infinity;
         this.fadeNear = fadeNear;
@@ -137,7 +140,7 @@ class Lensflare extends Mesh {
 
         const tempMap = new FramebufferTexture(16, 16);
         const occlusionMap = new FramebufferTexture(16, 16);
-        let currentType = UnsignedByteType;
+        let currentType: any = UnsignedByteType;
 
         const geometry = Geometry;
 
@@ -257,11 +260,12 @@ class Lensflare extends Mesh {
             screenPositionPixels.x = viewport.x + (positionScreen.x * halfViewportWidth) + halfViewportWidth - 8;
             screenPositionPixels.y = viewport.y + (positionScreen.y * halfViewportHeight) + halfViewportHeight - 8;
 
-            // Distance-based fade
+            // Distance-based fade combined with global scene intensity
             const dist = -positionView.z;
-            const fadeFactor = dist <= this.fadeNear ? 1.0
+            const distFade = dist <= this.fadeNear ? 1.0
                 : dist >= this.fadeFar ? 0.0
-                : 1.0 - (dist - this.fadeNear) / (this.fadeFar - this.fadeNear);
+                    : 1.0 - (dist - this.fadeNear) / (this.fadeFar - this.fadeNear);
+            const fadeFactor = distFade * Lensflare.globalIntensity;
 
             if (fadeFactor <= 0) return;
 
@@ -271,14 +275,14 @@ class Lensflare extends Mesh {
                 let uniforms = material1a.uniforms;
                 uniforms['scale'].value = scale;
                 uniforms['screenPosition'].value = positionScreen;
-                renderer.renderBufferDirect(camera, null, geometry, material1a, mesh1, null);
+                renderer.renderBufferDirect(camera, null as unknown as Scene, geometry, material1a, mesh1, null);
 
                 renderer.copyFramebufferToTexture(occlusionMap, screenPositionPixels);
 
                 uniforms = material1b.uniforms;
                 uniforms['scale'].value = scale;
                 uniforms['screenPosition'].value = positionScreen;
-                renderer.renderBufferDirect(camera, null, geometry, material1b, mesh1, null);
+                renderer.renderBufferDirect(camera, null as unknown as Scene, geometry, material1b, mesh1, null);
 
                 const vecX = -positionScreen.x * 2;
                 const vecY = -positionScreen.y * 2;
@@ -298,7 +302,7 @@ class Lensflare extends Mesh {
                     uniforms['scale'].value.set(size * invAspect, size);
 
                     material2.uniformsNeedUpdate = true;
-                    renderer.renderBufferDirect(camera, null, geometry, material2, mesh2, null);
+                    renderer.renderBufferDirect(camera, null as unknown as Scene, geometry, material2, mesh2, null);
                 }
             }
         };

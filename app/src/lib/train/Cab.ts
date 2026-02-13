@@ -1,9 +1,11 @@
-import { SpotLight, SpotLightHelper, Object3D, CanvasTexture, Texture, Color } from 'three';
+import { SpotLight, SpotLightHelper, Object3D, CanvasTexture, Texture, Color, Mesh, MeshStandardMaterial } from 'three';
 import { Lensflare, LensflareElement } from './Lensflare';
-import type { CabConfig, LightConfig, RollingStockConfig, TrainConfig } from './TrainConfig';
+import type { CabConfig, EmissiveTextureConfig, LightConfig, RollingStockConfig, TrainConfig } from './TrainConfig';
 import { RollingStock } from './RollingStock';
 import type { FolderApi, Pane } from 'tweakpane';
 import { getFolderKey } from './TrainUiUtils';
+import { EmissiveTextureEditor } from '../editor/EmissiveTextureEditor';
+import { renderEmissiveTexture, compositeEmissiveWithDiffuse } from '../editor/EmissiveTextureRenderer';
 
 // Shared lens flare sub-textures (4x4 grid), loaded once
 let lensFlareTexturesPromise: Promise<Texture[]> | null = null;
@@ -23,7 +25,7 @@ async function loadLensFlareTextures(): Promise<Texture[]> {
                         canvas.width = cellW;
                         canvas.height = cellH;
                         const ctx = canvas.getContext('2d')!;
-                        ctx.globalAlpha = 0.3;
+                        ctx.globalAlpha = 0.2;
                         ctx.drawImage(img, col * cellW, row * cellH, cellW, cellH, 0, 0, cellW, cellH);
                         textures.push(new CanvasTexture(canvas));
                     }
@@ -63,6 +65,7 @@ export class Cab extends RollingStock {
     private spotLights: SpotLight[] = [];
     private spotLightHelpers: SpotLightHelper[] = [];
     private lensFlares: Lensflare[] = [];
+    private emissiveCanvasTextures: CanvasTexture[] = [];
 
     constructor(config: CabConfig, rearCab: boolean = false, debug: boolean = false) {
         super(config, debug);
@@ -127,6 +130,7 @@ export class Cab extends RollingStock {
                     penumbra: cfg.penumbra,
                     decay: cfg.decay,
                     lensFlareSize: cfg.lensFlareSize ?? 150,
+                    meshPattern: cfg.meshPattern || '',
                 };
 
                 const update = () => {
@@ -140,6 +144,7 @@ export class Cab extends RollingStock {
                     cfg.penumbra = proxy.penumbra;
                     cfg.decay = proxy.decay;
                     cfg.lensFlareSize = proxy.lensFlareSize;
+                    cfg.meshPattern = proxy.meshPattern || undefined;
                     updateConfig(config);
                 };
 
@@ -165,6 +170,16 @@ export class Cab extends RollingStock {
                 lightFolder.addBinding(proxy, 'decay', { label: 'Decay', min: 0, max: 5, step: 0.1 }).on('change', update);
                 lightFolder.addBinding(proxy, 'lensFlareSize', { label: 'Lens Flare Size', min: 0, max: 500, step: 5 }).on('change', update);
 
+                lightFolder.addBinding(proxy, 'meshPattern', { label: 'Mesh Pattern' }).on('change', update);
+
+                lightFolder.addButton({ title: 'Edit Emissive Texture' }).on('click', () => {
+                    if (!cfg.meshPattern) {
+                        alert('Set a Mesh Pattern first');
+                        return;
+                    }
+                    this.openEmissiveEditor(cfg, config, updateConfig);
+                });
+
                 lightFolder.addButton({ title: 'Remove' }).on('click', () => {
                     lights.splice(i, 1);
                     updateConfig(config);
@@ -185,6 +200,7 @@ export class Cab extends RollingStock {
                     penumbra: 0.4,
                     decay: 2,
                     lensFlareSize: 150,
+                    meshPattern: '',
                 });
                 updateConfig(config);
                 _onDelete?.();
@@ -208,9 +224,13 @@ export class Cab extends RollingStock {
             flare.removeFromParent();
             flare.dispose();
         }
+        for (const tex of this.emissiveCanvasTextures) {
+            tex.dispose();
+        }
         this.spotLights = [];
         this.spotLightHelpers = [];
         this.lensFlares = [];
+        this.emissiveCanvasTextures = [];
     }
 
     public rebuildLights(): void {
@@ -250,6 +270,8 @@ export class Cab extends RollingStock {
                 populateLensFlare(lensflare, textures, cfg);
             });
         }
+
+        this.applyEmissiveTextures();
     }
 
     public setHeadlights(on: boolean): void {
@@ -272,6 +294,113 @@ export class Cab extends RollingStock {
                 this.lensFlares[i].visible = on;
             }
         });
+    }
+
+    private applyEmissiveTextures(): void {
+        if (!this.config.emissiveTextures) return;
+
+        const lights = this.config.lights ?? [];
+
+        for (const [key, texConfig] of Object.entries(this.config.emissiveTextures)) {
+            if (!texConfig.shapes.length) continue;
+
+            const colonIdx = key.indexOf(':');
+            if (colonIdx < 0) continue;
+            const role = key.substring(0, colonIdx);
+            const meshPattern = key.substring(colonIdx + 1);
+            if (!meshPattern) continue;
+
+            // Use the current light color if available, fall back to stored config color
+            const matchingLight = lights.find(l => l.role === role && l.meshPattern === meshPattern);
+            const color = matchingLight?.color ?? texConfig.color ?? 0xffffff;
+
+            const mask = renderEmissiveTexture(texConfig);
+
+            const meshes = this.findMeshesByPattern(meshPattern);
+            for (const mesh of meshes) {
+                const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+                for (const mat of mats) {
+                    const std = mat as MeshStandardMaterial;
+                    const diffuse = std.map?.image;
+                    const canvas = diffuse
+                        ? compositeEmissiveWithDiffuse(mask, diffuse)
+                        : mask;
+                    const texture = new CanvasTexture(canvas);
+                    texture.flipY = false;
+                    texture.needsUpdate = true;
+                    this.emissiveCanvasTextures.push(texture);
+                    std.emissiveMap = texture;
+                    std.emissive = new Color(color);
+                    std.emissiveIntensity = texConfig.intensity ?? 1.0;
+                    std.needsUpdate = true;
+                }
+            }
+        }
+    }
+
+    private extractReferenceTexture(mesh: Mesh): HTMLCanvasElement | null {
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        console.log(`[Cab] extractReferenceTexture: mesh "${mesh.name}", ${mats.length} material(s)`);
+
+        for (const mat of mats) {
+            const std = mat as MeshStandardMaterial;
+            console.log(`[Cab]   material "${std.name}", has map: ${!!std.map}, map.image: ${!!std.map?.image}, image type: ${std.map?.image?.constructor?.name}`);
+            if (!std.map?.image) continue;
+
+            const image = std.map.image;
+            console.log(`[Cab]   image size: ${image.width}x${image.height}`);
+            const canvas = document.createElement('canvas');
+            canvas.width = image.width || 256;
+            canvas.height = image.height || 256;
+            const ctx = canvas.getContext('2d')!;
+
+            // ImageBitmap (from GLB) and HTMLImageElement both work with drawImage
+            ctx.drawImage(image, 0, 0);
+            console.log(`[Cab]   reference texture extracted successfully (${canvas.width}x${canvas.height})`);
+            return canvas;
+        }
+
+        console.warn('[Cab] extractReferenceTexture: no material with a map texture found');
+        return null;
+    }
+
+    private openEmissiveEditor(
+        lightCfg: LightConfig,
+        trainConfig: TrainConfig,
+        updateConfig: (config: TrainConfig) => void
+    ): void {
+        const key = `${lightCfg.role}:${lightCfg.meshPattern}`;
+        const cabConfig = this.getConfigTarget(trainConfig) as CabConfig;
+
+        if (!cabConfig.emissiveTextures) cabConfig.emissiveTextures = {};
+
+        const existingConfig = cabConfig.emissiveTextures[key];
+        const meshes = this.findMeshesByPattern(lightCfg.meshPattern!);
+        console.log(`[Cab] openEmissiveEditor: key="${key}", pattern="${lightCfg.meshPattern}", found ${meshes.length} mesh(es)`);
+        for (const m of meshes) {
+            console.log(`[Cab]   mesh: "${m.name}", material isArray: ${Array.isArray(m.material)}`);
+        }
+
+        let referenceTexture: HTMLCanvasElement | null = null;
+        for (const mesh of meshes) {
+            referenceTexture = this.extractReferenceTexture(mesh);
+            if (referenceTexture) break;
+        }
+        console.log(`[Cab] referenceTexture: ${referenceTexture ? `${referenceTexture.width}x${referenceTexture.height}` : 'null'}`);
+
+        const editor = new EmissiveTextureEditor(
+            key,
+            existingConfig,
+            meshes,
+            referenceTexture,
+            lightCfg.color,
+            (savedConfig: EmissiveTextureConfig) => {
+                cabConfig.emissiveTextures![key] = savedConfig;
+                updateConfig(trainConfig);
+            }
+        );
+
+        editor.open();
     }
 
     public override cleanup(): void {
