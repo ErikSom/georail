@@ -63,9 +63,10 @@ export class Cab extends RollingStock {
     override config: CabConfig;
     private rearCab: boolean;
     private spotLights: SpotLight[] = [];
-    private spotLightHelpers: SpotLightHelper[] = [];
+    private spotLightHelpers: (SpotLightHelper | null)[] = [];
     private lensFlares: Lensflare[] = [];
     private emissiveCanvasTextures: CanvasTexture[] = [];
+    private emissiveDataByRole: Map<string, { material: MeshStandardMaterial; texture: CanvasTexture; color: number; intensity: number }[]> = new Map();
 
     constructor(config: CabConfig, rearCab: boolean = false, debug: boolean = false) {
         super(config, debug);
@@ -80,6 +81,10 @@ export class Cab extends RollingStock {
 
     public override updateConfig(config: RollingStockConfig): void {
         super.updateConfig(config);
+        this.rebuildLights();
+    }
+
+    protected override onModelLoaded(): void {
         this.rebuildLights();
     }
 
@@ -217,8 +222,8 @@ export class Cab extends RollingStock {
             light.dispose();
         }
         for (const helper of this.spotLightHelpers) {
-            helper.removeFromParent();
-            helper.dispose();
+            helper?.removeFromParent();
+            helper?.dispose();
         }
         for (const flare of this.lensFlares) {
             flare.removeFromParent();
@@ -231,6 +236,7 @@ export class Cab extends RollingStock {
         this.spotLightHelpers = [];
         this.lensFlares = [];
         this.emissiveCanvasTextures = [];
+        this.emissiveDataByRole.clear();
     }
 
     public rebuildLights(): void {
@@ -241,62 +247,120 @@ export class Cab extends RollingStock {
         if (!lights?.length) return;
 
         for (const cfg of lights) {
+            const noSpotlight = cfg.distance === 0;
+            const visible = wasOn && cfg.role === 'headlight';
+
+            // Always create SpotLight for role tracking in setHeadlights/setTaillights
             const light = new SpotLight(cfg.color, cfg.intensity, cfg.distance, cfg.angle, cfg.penumbra, cfg.decay);
             light.position.set(cfg.offset.x, cfg.offset.y, cfg.offset.z);
             light.castShadow = false;
             light.userData.role = cfg.role;
-
-            const target = new Object3D();
-            target.position.set(cfg.target.x, cfg.target.y, cfg.target.z);
-            this.group.add(target);
-            light.target = target;
-
-            light.visible = wasOn && cfg.role === 'headlight';
-            this.group.add(light);
+            light.visible = visible;
             this.spotLights.push(light);
 
-            const helper = new SpotLightHelper(light);
-            helper.visible = light.visible;
-            this.globalDebugGroup.add(helper);
-            this.spotLightHelpers.push(helper);
+            if (noSpotlight) {
+                // No actual spotlight — create a positioned anchor for the lens flare
+                const anchor = new Object3D();
+                anchor.position.set(cfg.offset.x, cfg.offset.y, cfg.offset.z);
+                this.group.add(anchor);
+                this.spotLightHelpers.push(null);
 
-            // Lens flare attached to the spot light (populated once textures load)
-            const lensflare = new Lensflare();
-            lensflare.visible = light.visible;
-            light.add(lensflare);
-            this.lensFlares.push(lensflare);
+                const lensflare = new Lensflare();
+                lensflare.visible = visible;
+                anchor.add(lensflare);
+                this.lensFlares.push(lensflare);
 
-            loadLensFlareTextures().then((textures) => {
-                populateLensFlare(lensflare, textures, cfg);
-            });
+                loadLensFlareTextures().then((textures) => {
+                    populateLensFlare(lensflare, textures, cfg);
+                });
+            } else {
+                const target = new Object3D();
+                target.position.set(cfg.target.x, cfg.target.y, cfg.target.z);
+                this.group.add(target);
+                light.target = target;
+
+                this.group.add(light);
+
+                const helper = new SpotLightHelper(light);
+                helper.visible = visible;
+                this.globalDebugGroup.add(helper);
+                this.spotLightHelpers.push(helper);
+
+                const lensflare = new Lensflare();
+                lensflare.visible = visible;
+                light.add(lensflare);
+                this.lensFlares.push(lensflare);
+
+                loadLensFlareTextures().then((textures) => {
+                    populateLensFlare(lensflare, textures, cfg);
+                });
+            }
         }
 
-        this.applyEmissiveTextures();
+        this.buildEmissiveTextures();
+
+        // Apply initial emissive state matching spotlight visibility
+        this.updateEmissiveTextures();
     }
 
     public setHeadlights(on: boolean): void {
         this.spotLights.forEach((light, i) => {
             if (light.userData.role === 'headlight') {
                 light.visible = on;
-                this.spotLightHelpers[i].visible = on;
-                this.spotLightHelpers[i].update();
+                const helper = this.spotLightHelpers[i];
+                if (helper) { helper.visible = on; helper.update(); }
                 this.lensFlares[i].visible = on;
             }
         });
+        this.updateEmissiveTextures();
     }
 
     public setTaillights(on: boolean): void {
         this.spotLights.forEach((light, i) => {
             if (light.userData.role === 'taillight') {
                 light.visible = on;
-                this.spotLightHelpers[i].visible = on;
-                this.spotLightHelpers[i].update();
+                const helper = this.spotLightHelpers[i];
+                if (helper) { helper.visible = on; helper.update(); }
                 this.lensFlares[i].visible = on;
             }
         });
+        this.updateEmissiveTextures();
     }
 
-    private applyEmissiveTextures(): void {
+    private updateEmissiveTextures(): void {
+        // Determine which roles are currently active from spotlight visibility
+        const activeRoles = new Set<string>();
+        for (const light of this.spotLights) {
+            if (light.visible) activeRoles.add(light.userData.role as string);
+        }
+
+        // Apply active role textures, track which materials were set
+        const activeMaterials = new Set<MeshStandardMaterial>();
+        for (const role of activeRoles) {
+            const entries = this.emissiveDataByRole.get(role);
+            if (!entries) continue;
+            for (const entry of entries) {
+                entry.material.emissiveMap = entry.texture;
+                entry.material.emissive = new Color(entry.color);
+                entry.material.emissiveIntensity = entry.intensity;
+                entry.material.needsUpdate = true;
+                activeMaterials.add(entry.material);
+            }
+        }
+
+        // Zero out materials from inactive roles only if not claimed by an active role
+        for (const [role, entries] of this.emissiveDataByRole) {
+            if (activeRoles.has(role)) continue;
+            for (const entry of entries) {
+                if (!activeMaterials.has(entry.material)) {
+                    entry.material.emissiveIntensity = 0;
+                    entry.material.needsUpdate = true;
+                }
+            }
+        }
+    }
+
+    private buildEmissiveTextures(): void {
         if (!this.config.emissiveTextures) return;
 
         const lights = this.config.lights ?? [];
@@ -313,6 +377,7 @@ export class Cab extends RollingStock {
             // Use the current light color if available, fall back to stored config color
             const matchingLight = lights.find(l => l.role === role && l.meshPattern === meshPattern);
             const color = matchingLight?.color ?? texConfig.color ?? 0xffffff;
+            const intensity = texConfig.intensity ?? 1.0;
 
             const mask = renderEmissiveTexture(texConfig);
 
@@ -329,10 +394,12 @@ export class Cab extends RollingStock {
                     texture.flipY = false;
                     texture.needsUpdate = true;
                     this.emissiveCanvasTextures.push(texture);
-                    std.emissiveMap = texture;
-                    std.emissive = new Color(color);
-                    std.emissiveIntensity = texConfig.intensity ?? 1.0;
-                    std.needsUpdate = true;
+
+                    // Store by role — don't apply yet, setHeadlights/setTaillights will swap
+                    if (!this.emissiveDataByRole.has(role)) {
+                        this.emissiveDataByRole.set(role, []);
+                    }
+                    this.emissiveDataByRole.get(role)!.push({ material: std, texture, color, intensity });
                 }
             }
         }

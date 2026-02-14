@@ -235,6 +235,11 @@ export class RollingStock {
         this.updateModelTransform();
         this.group.add(this.model!);
         this.findBogieEntities();
+        this.onModelLoaded();
+    }
+
+    protected onModelLoaded(): void {
+        // Override in subclasses to react to model loading
     }
 
     private async loadModel(path: string, isInternal: boolean = false): Promise<void> {
