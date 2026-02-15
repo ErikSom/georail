@@ -26,6 +26,7 @@ import { Input } from './utils/Input';
 import { FlightControls } from './utils/FlightControls';
 import Path from './utils/Path';
 import { StopZoneVisualizer } from './debug/StopZoneVisualizer';
+import { BoundaryWall } from './BoundaryWall';
 import { getTrainConfiguration, nssgmTrainType } from './train/configs/TrainConfigurations.secure';
 import Stats from 'stats-gl';
 import { trainInstance, updateTrainState, trainDebugMode, debugZones, trainLatE7, trainLonE7, trainFrontLatE7, trainFrontLonE7, trainBackLatE7, trainBackLonE7, cameraYawRelativeToTrain, trainMaxSpeedKmh } from '../store/train';
@@ -58,6 +59,7 @@ export class World {
     private routeData: RouteData | null = null;
     private freeFlyCameraMode: boolean = false;
     private stopZoneVisualizer: StopZoneVisualizer | null = null;
+    private boundaryWall: BoundaryWall | null = null;
 
 
     constructor(mountElement: HTMLDivElement, setCreditsCallback: (credits: Tiles3DAttributionCredits) => void, routeData?: RouteData) {
@@ -189,6 +191,11 @@ export class World {
             this.flightControls.cleanup();
         }
 
+        if (this.boundaryWall) {
+            this.boundaryWall.dispose();
+            this.boundaryWall = null;
+        }
+
         if (this.stopZoneVisualizer) {
             this.stopZoneVisualizer.dispose();
             this.stopZoneVisualizer = null;
@@ -280,6 +287,17 @@ export class World {
             this.train.setPath(path);
             this.train.positionOnPath();
 
+            // Create boundary walls at path edges, offset by half train length
+            this.boundaryWall = new BoundaryWall(
+                path.getStartPoint(),
+                path.getEndPoint(),
+                path.getStartDirection(),
+                path.getEndDirection(),
+                path.getTotalLength(),
+                this.train.getTotalLength(),
+            );
+            this.scene.add(this.boundaryWall.group);
+
             // Create stop zone debug visualization if enabled
             if (debugZones.value) {
                 // Ensure train length is calculated before creating zones
@@ -366,6 +384,16 @@ export class World {
 
         // 5. Update Train
         this.train.update(deltaTime);
+
+        // 5b. Update boundary walls
+        if (this.boundaryWall) {
+            this.boundaryWall.update(
+                this.train.distanceTraveled,
+                this.train.getPower(),
+                this.train.getVelocity(),
+                deltaTime,
+            );
+        }
 
         // 6. Update Camera
         this.camera.updateMatrixWorld();

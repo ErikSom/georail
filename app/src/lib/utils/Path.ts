@@ -415,6 +415,10 @@ export default class Path {
     }
 
     public getTotalLength(): number { return this.totalLength; }
+    public getStartDirection(): Vector3 { return this.startDir; }
+    public getEndDirection(): Vector3 { return this.endDir; }
+    public getStartPoint(): Vector3 { return this.points[0]; }
+    public getEndPoint(): Vector3 { return this.points[this.points.length - 1]; }
     public cleanup(): void { this.removeDebugPath(); }
     public drawDebugPath(scene: Scene): void {
         this.removeDebugPath();

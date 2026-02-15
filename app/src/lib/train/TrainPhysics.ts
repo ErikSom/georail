@@ -45,6 +45,13 @@ export class TrainPhysics {
     private readonly ADHESION_COEFF = 0.14;        // 0.10–0.18 (dry rail vs sporty game feel)
     private readonly ROTATING_MASS_FACTOR = 1.08;  // 1.05–1.15 (effective mass multiplier)
 
+    // Boundary enforcement
+    private readonly BOUNDARY_DAMPING = 0.92;      // Velocity multiplier per frame when past boundary (gentler)
+    private readonly BOUNDARY_POWER_DECAY = 0.90;   // Power multiplier per frame toward 0 (gradual)
+    private readonly BOUNDARY_MAX_OVERSHOOT = 20;   // Max meters past boundary before hard clamp
+    private minBound: number = -Infinity;
+    private maxBound: number = Infinity;
+
     constructor(target: IPhysicsTarget, config: TrainConfig) {
         this.target = target;
         this.updateConfiguration(config);
@@ -108,6 +115,11 @@ export class TrainPhysics {
         return this.velocity * 3.6;
     }
 
+    public setBounds(min: number, max: number): void {
+        this.minBound = min;
+        this.maxBound = max;
+    }
+
     public reset(): void {
         this.velocity = 0;
         this.powerSetting = 0;
@@ -135,6 +147,26 @@ export class TrainPhysics {
         }
 
         this.target.distanceTraveled += this.velocity * deltaTime;
+
+        // Boundary enforcement: gradual power decay and braking when past path edges
+        const dist = this.target.distanceTraveled;
+        if (dist < this.minBound && this.velocity < 0) {
+            this.powerSetting *= this.BOUNDARY_POWER_DECAY;
+            if (Math.abs(this.powerSetting) < 0.01) this.powerSetting = 0;
+            this.velocity *= this.BOUNDARY_DAMPING;
+            if (Math.abs(this.velocity) < 0.05) this.velocity = 0;
+        } else if (dist > this.maxBound && this.velocity > 0) {
+            this.powerSetting *= this.BOUNDARY_POWER_DECAY;
+            if (Math.abs(this.powerSetting) < 0.01) this.powerSetting = 0;
+            this.velocity *= this.BOUNDARY_DAMPING;
+            if (Math.abs(this.velocity) < 0.05) this.velocity = 0;
+        }
+
+        // Hard clamp to prevent excessive overshoot
+        this.target.distanceTraveled = Math.max(
+            this.minBound - this.BOUNDARY_MAX_OVERSHOOT,
+            Math.min(this.maxBound + this.BOUNDARY_MAX_OVERSHOOT, this.target.distanceTraveled)
+        );
     }
 
     private calculateEngineForce(): number {

@@ -131,6 +131,8 @@ export class Train implements IPhysicsTarget {
         }
 
         this.path = path;
+        const halfTrain = this.getTotalLength() / 2;
+        this.physics.setBounds(-halfTrain, path.getTotalLength() + halfTrain);
 
         if (this.debug) {
             this.path?.drawDebugPath(this.group.parent as Scene);
@@ -657,6 +659,9 @@ export class Train implements IPhysicsTarget {
     public update(delta: number): void {
         // Update physics simulation (this will directly update distanceTraveled)
         this.physics.update(delta);
+
+        // Sync power back to store in case physics auto-reset it (boundary braking)
+        trainPower.value = this.physics.getPower();
 
         // Calculate distance delta for wheel rotation
         const distanceDelta = this.distanceTraveled - this.previousDistanceTraveled;
