@@ -240,7 +240,7 @@ export class Cab extends RollingStock {
     }
 
     public rebuildLights(): void {
-        const wasOn = this.spotLights.some(l => l.visible);
+        const wasOn = this.spotLights.some(l => l.userData.active);
         this.disposeLights();
 
         const lights = this.config.lights;
@@ -248,14 +248,17 @@ export class Cab extends RollingStock {
 
         for (const cfg of lights) {
             const noSpotlight = cfg.distance === 0;
-            const visible = wasOn && cfg.role === 'headlight';
+            const active = wasOn && cfg.role === 'headlight';
 
             // Always create SpotLight for role tracking in setHeadlights/setTaillights
-            const light = new SpotLight(cfg.color, cfg.intensity, cfg.distance, cfg.angle, cfg.penumbra, cfg.decay);
+            // Keep visible=true always to avoid shader recompilation when toggling;
+            // toggle via intensity instead
+            const light = new SpotLight(cfg.color, active ? cfg.intensity : 0, cfg.distance, cfg.angle, cfg.penumbra, cfg.decay);
             light.position.set(cfg.offset.x, cfg.offset.y, cfg.offset.z);
             light.castShadow = false;
             light.userData.role = cfg.role;
-            light.visible = visible;
+            light.userData.configIntensity = cfg.intensity;
+            light.userData.active = active;
             this.spotLights.push(light);
 
             if (noSpotlight) {
@@ -266,7 +269,7 @@ export class Cab extends RollingStock {
                 this.spotLightHelpers.push(null);
 
                 const lensflare = new Lensflare();
-                lensflare.visible = visible;
+                lensflare.visible = active;
                 anchor.add(lensflare);
                 this.lensFlares.push(lensflare);
 
@@ -279,15 +282,16 @@ export class Cab extends RollingStock {
                 this.group.add(target);
                 light.target = target;
 
+                // Always add to scene so shaders compile with full light count
                 this.group.add(light);
 
                 const helper = new SpotLightHelper(light);
-                helper.visible = visible;
+                helper.visible = active;
                 this.globalDebugGroup.add(helper);
                 this.spotLightHelpers.push(helper);
 
                 const lensflare = new Lensflare();
-                lensflare.visible = visible;
+                lensflare.visible = active;
                 light.add(lensflare);
                 this.lensFlares.push(lensflare);
 
@@ -306,7 +310,8 @@ export class Cab extends RollingStock {
     public setHeadlights(on: boolean): void {
         this.spotLights.forEach((light, i) => {
             if (light.userData.role === 'headlight') {
-                light.visible = on;
+                light.userData.active = on;
+                light.intensity = on ? light.userData.configIntensity : 0;
                 const helper = this.spotLightHelpers[i];
                 if (helper) { helper.visible = on; helper.update(); }
                 this.lensFlares[i].visible = on;
@@ -318,7 +323,8 @@ export class Cab extends RollingStock {
     public setTaillights(on: boolean): void {
         this.spotLights.forEach((light, i) => {
             if (light.userData.role === 'taillight') {
-                light.visible = on;
+                light.userData.active = on;
+                light.intensity = on ? light.userData.configIntensity : 0;
                 const helper = this.spotLightHelpers[i];
                 if (helper) { helper.visible = on; helper.update(); }
                 this.lensFlares[i].visible = on;
@@ -328,10 +334,10 @@ export class Cab extends RollingStock {
     }
 
     private updateEmissiveTextures(): void {
-        // Determine which roles are currently active from spotlight visibility
+        // Determine which roles are currently active
         const activeRoles = new Set<string>();
         for (const light of this.spotLights) {
-            if (light.visible) activeRoles.add(light.userData.role as string);
+            if (light.userData.active) activeRoles.add(light.userData.role as string);
         }
 
         // Apply active role textures, track which materials were set
@@ -395,7 +401,13 @@ export class Cab extends RollingStock {
                     texture.needsUpdate = true;
                     this.emissiveCanvasTextures.push(texture);
 
-                    // Store by role — don't apply yet, setHeadlights/setTaillights will swap
+                    // Pre-apply emissiveMap so Three.js compiles the shader now, not on first toggle
+                    std.emissiveMap = texture;
+                    std.emissive = new Color(color);
+                    std.emissiveIntensity = 0;
+                    std.needsUpdate = true;
+
+                    // Store by role for toggling in updateEmissiveTextures
                     if (!this.emissiveDataByRole.has(role)) {
                         this.emissiveDataByRole.set(role, []);
                     }
