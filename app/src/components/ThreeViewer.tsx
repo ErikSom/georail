@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { World } from '../lib/World';
 import TravelPicker from './TravelPicker';
+import JourneyComplete from './JourneyComplete';
 import TrainControls from './HUD/TrainControls';
 import type { RouteData } from '../lib/api/navigation';
 import Maps2D from './HUD/Maps2D';
@@ -8,13 +9,14 @@ import Transit from './HUD/Transit';
 import Tiles3DAttribution, { type Tiles3DAttributionCredits } from './HUD/Tiles3DAttribution';
 import styles from './ThreeViewer.module.css';
 import Speedometer from './HUD/Speedometer';
-import { startJourney, resetJourney } from '../store/journey';
+import { startJourney, resetJourney, journeyCompleted } from '../store/journey';
 
 function ThreeViewer() {
     const mountRef = useRef<HTMLDivElement | null>(null);
     const worldRef = useRef<World | null>(null);
     const [attribution, setAttribution] = useState<Tiles3DAttributionCredits>(null);
     const [showPicker, setShowPicker] = useState(true);
+    const [showComplete, setShowComplete] = useState(false);
     const [routeData, setRouteData] = useState<RouteData | null>(null);
 
     // Initialize World only after route is selected
@@ -33,10 +35,29 @@ function ThreeViewer() {
         };
     }, [routeData]);
 
+    // Watch for journey completion
+    useEffect(() => {
+        const unsub = journeyCompleted.subscribe(completed => {
+            if (completed) {
+                setShowComplete(true);
+            }
+        });
+        return unsub;
+    }, []);
+
     const handleRouteSelected = (route: RouteData) => {
         setRouteData(route);
         setShowPicker(false);
         startJourney(route, route.properties.startTime);
+    };
+
+    const handleJourneyDismiss = () => {
+        setShowComplete(false);
+        worldRef.current?.cleanup();
+        worldRef.current = null;
+        resetJourney();
+        setRouteData(null);
+        setShowPicker(true);
     };
 
     // Reset journey on unmount
@@ -50,7 +71,7 @@ function ThreeViewer() {
         <div className={styles.container}>
             <div ref={mountRef} className={styles.canvas} />
 
-            {!showPicker && (
+            {!showPicker && !showComplete && (
                 <>
                     <TrainControls />
                     <Maps2D />
@@ -62,6 +83,8 @@ function ThreeViewer() {
             <Tiles3DAttribution attribution={attribution} />
 
             {showPicker && <TravelPicker onRouteSelected={handleRouteSelected} />}
+
+            {showComplete && <JourneyComplete onDismiss={handleJourneyDismiss} />}
         </div>
     );
 }

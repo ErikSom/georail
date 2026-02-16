@@ -2,6 +2,7 @@ import { signal, computed } from "@preact/signals";
 import type { RouteData, RouteStop } from "../lib/api/navigation";
 import { trainDistanceTraveled, trainPathTotalLength, trainVelocityKmh, trainLength } from "./train";
 import { configs, scaledDeltaTime } from "./globals";
+import { startJourneySession as apiStartJourney, reportStationArrival, type StationArrivalResponse } from "../lib/api/journey";
 
 /**
  * Journey state for tracking route progress during gameplay
@@ -30,6 +31,34 @@ export interface StopStatus {
 
 // Track status for each stop
 export const stopStatuses = signal<StopStatus[]>([]);
+
+// Journey session tracking (server-side anti-cheat)
+export const journeySessionId = signal<string | null>(null);
+export const journeyCompleted = signal(false);
+export const stationArrivalResults = signal<StationArrivalResponse[]>([]);
+
+// Prevent duplicate pings for the same station
+const pendingStationPings = new Set<number>();
+
+/**
+ * Report station arrival to server (fire-and-forget, non-blocking)
+ */
+function pingStationArrival(stationIndex: number): void {
+    const sessionId = journeySessionId.value;
+    if (!sessionId || pendingStationPings.has(stationIndex)) return;
+
+    pendingStationPings.add(stationIndex);
+
+    reportStationArrival(sessionId, stationIndex).then(result => {
+        pendingStationPings.delete(stationIndex);
+        if (result) {
+            stationArrivalResults.value = [...stationArrivalResults.value, result];
+            if (result.is_complete) {
+                journeyCompleted.value = true;
+            }
+        }
+    });
+}
 
 /**
  * Calculate the stop zone boundaries for a station
@@ -96,6 +125,11 @@ export function updateStopStatuses(): void {
                 arrivalDelta: Math.round(elapsed - stopsArr[i].arrivalTime),
             };
             changed = true;
+
+            // Ping server for non-first stations (first is recorded at session start)
+            if (i > 0) {
+                pingStationArrival(i);
+            }
         }
 
         // Check for departure: must have arrived, and train front has left the stop zone
@@ -454,6 +488,10 @@ export function startJourney(route: RouteData, customStartTime?: number): void {
     journeyStartTime.value = customStartTime ?? Date.now();
     currentRouteIndex.value = 0;
     elapsedMinutes.value = 0;
+    journeyCompleted.value = false;
+    stationArrivalResults.value = [];
+    journeySessionId.value = null;
+    pendingStationPings.clear();
 
     // Initialize stop statuses and mark first stop as arrived
     // (we start at the first station, so it's already "arrived")
@@ -467,6 +505,29 @@ export function startJourney(route: RouteData, customStartTime?: number): void {
             arrivalDelta: idx === 0 ? 0 : null, // Arrived exactly on time at start
             departureDelta: null,
         }));
+    }
+
+    // Start server journey session (fire-and-forget)
+    const stationCodes = stopsArr.map(s => s.code).filter(Boolean);
+    if (stationCodes.length >= 2) {
+        apiStartJourney(stationCodes).then(result => {
+            if (result) {
+                journeySessionId.value = result.session_id;
+                // Track first station as newly unlocked if it was new
+                if (result.first_station_new) {
+                    stationArrivalResults.value = [{
+                        valid: true,
+                        km_added: 0,
+                        total_km: 0,
+                        new_station: true,
+                        station_code: result.first_station_code,
+                        is_complete: false,
+                        total_stations_visited: 0,
+                        journey_km: 0,
+                    }];
+                }
+            }
+        });
     }
 }
 
@@ -496,6 +557,10 @@ export function resetJourney(): void {
     currentRouteIndex.value = 0;
     elapsedMinutes.value = 0;
     stopStatuses.value = [];
+    journeySessionId.value = null;
+    journeyCompleted.value = false;
+    stationArrivalResults.value = [];
+    pendingStationPings.clear();
 }
 
 /**

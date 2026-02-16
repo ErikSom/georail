@@ -1,0 +1,200 @@
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+    animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.container {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-width: 420px;
+    width: 100%;
+    padding: 32px;
+    text-align: center;
+    animation: slideUp 0.4s ease;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(30px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.title {
+    margin: 0 0 24px;
+    font-size: 28px;
+    font-weight: 700;
+    color: #1a202c;
+}
+
+.stat {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.statLabel {
+    color: #718096;
+    font-size: 14px;
+}
+
+.statValue {
+    font-weight: 600;
+    color: #1a202c;
+    font-size: 16px;
+}
+
+.kmSection {
+    margin: 24px 0;
+}
+
+.kmLabel {
+    font-size: 14px;
+    color: #718096;
+    margin-bottom: 4px;
+}
+
+.kmValue {
+    font-size: 36px;
+    font-weight: 700;
+    color: #667eea;
+    font-variant-numeric: tabular-nums;
+}
+
+.kmAdded {
+    font-size: 16px;
+    color: #48bb78;
+    font-weight: 600;
+    margin-top: 2px;
+}
+
+.levelSection {
+    margin: 24px 0;
+}
+
+.levelHeader {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.levelLabel {
+    font-weight: 600;
+    color: #1a202c;
+    font-size: 16px;
+}
+
+.levelProgress {
+    font-size: 13px;
+    color: #718096;
+}
+
+.progressBar {
+    height: 12px;
+    background: #e2e8f0;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.progressFill {
+    height: 100%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 6px;
+    transition: width 0.05s linear;
+}
+
+.levelUp {
+    margin: 16px 0;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 8px;
+    font-size: 18px;
+    font-weight: 700;
+    animation: scaleIn 0.5s ease;
+}
+
+@keyframes scaleIn {
+    0% { transform: scale(0.8); opacity: 0; }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.stationsSection {
+    margin: 24px 0;
+    text-align: left;
+}
+
+.stationCount {
+    font-size: 14px;
+    color: #4a5568;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.newStations {
+    margin-top: 8px;
+}
+
+.newStationsLabel {
+    font-size: 13px;
+    color: #48bb78;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.stationList {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.stationBadge {
+    display: inline-block;
+    padding: 4px 10px;
+    background: #f0fff4;
+    color: #276749;
+    border: 1px solid #c6f6d5;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.doneButton {
+    width: 100%;
+    padding: 16px;
+    font-size: 18px;
+    font-weight: 600;
+    color: white;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    margin-top: 8px;
+}
+
+.doneButton:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+}
+
+.doneButton:active {
+    transform: translateY(0);
+}
