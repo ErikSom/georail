@@ -4,6 +4,7 @@ export interface StationTrackInfo {
     name: string;
     code: string;
     tracks: string[] | null;
+    country: string;
 }
 
 export interface RouteStation {
@@ -76,8 +77,9 @@ export interface Journey {
     source: string;
 }
 
-export const fetchAllStations = async (): Promise<StationTrackInfo[]> => {
+export const fetchAllStations = async (country: string): Promise<StationTrackInfo[]> => {
     const url = new URL(`${import.meta.env.PUBLIC_GEORAIL_URL}/stations`);
+    url.searchParams.append('country', country);
 
     const response = await fetch(url.toString());
 

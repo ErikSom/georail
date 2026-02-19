@@ -22,9 +22,23 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 // --- End of .env loading part ---
 
 
+function parseArgs() {
+    const args = process.argv.slice(2);
+    const result = { country: 'NL', data: null };
+    for (let i = 0; i < args.length; i++) {
+        if (args[i] === '--country' && args[i + 1]) result.country = args[++i].toUpperCase();
+        if (args[i] === '--data' && args[i + 1]) result.data = args[++i];
+    }
+    return result;
+}
+
 async function main() {
-    console.log('Reading full rail-data.json file...');
-    const dataPath = path.resolve(__dirname, './rail-data.json');
+    const { country, data: dataFile } = parseArgs();
+    const dataPath = dataFile
+        ? path.resolve(process.cwd(), dataFile)
+        : path.resolve(__dirname, './rail-data.json');
+
+    console.log(`Reading ${dataPath} for country=${country}...`);
     const geojsonData = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
     const allFeatures = geojsonData.features;
 
@@ -45,18 +59,15 @@ async function main() {
         return;
     }
 
-    // Before uploading, clear the table to prevent duplicates if you run this again
-    console.log('Clearing the stations table...');
-    const { error: truncateError } = await supabase.rpc('sql', { sql: 'TRUNCATE TABLE stations;' });
-    if (truncateError) {
-        // This is a workaround for a bug where the 'sql' rpc isn't found.
-        // If it fails, we'll try a direct query.
-        console.warn("Could not use RPC to truncate, trying direct query...");
-        const { error: directTruncateError } = await supabase.from('stations').delete().gt('id', -1);
-        if (directTruncateError) {
-            console.error('FATAL: Could not clear the stations table.', directTruncateError);
-            return;
-        }
+    // Clear only stations for this country to prevent duplicates if you run this again
+    console.log(`Clearing stations for country=${country}...`);
+    const { error: deleteError } = await supabase
+        .from('stations')
+        .delete()
+        .eq('country', country);
+    if (deleteError) {
+        console.error('FATAL: Could not clear stations for country.', deleteError);
+        return;
     }
 
 
@@ -77,7 +88,8 @@ async function main() {
         console.log(`Uploading batch ${Math.floor(i / BATCH_SIZE) + 1} / ${Math.ceil(stationsToUpload.length / BATCH_SIZE)}...`);
 
         const { error } = await supabase.rpc('insert_stations_batch', {
-            stations_data: batch
+            stations_data: batch,
+            p_country: country
         });
 
         if (error) {

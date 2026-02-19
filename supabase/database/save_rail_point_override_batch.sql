@@ -9,6 +9,7 @@ CREATE OR REPLACE FUNCTION save_rail_point_overrides_batch(
 RETURNS void
 LANGUAGE sql
 SECURITY DEFINER
+SET search_path = public, extensions
 AS $$
   INSERT INTO public.rail_point_overrides (
     segment_id, point_index, world_offset, keynode

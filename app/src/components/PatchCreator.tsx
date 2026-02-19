@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'preact/hooks';
 import type { RouteInfo, OpenRoute } from '../lib/types/Patch';
 import { fetchAllStations, type StationTrackInfo } from '../lib/api/station';
+import { country } from '../store/globals';
 
 import styles from './PatchCreator.module.css';
 
@@ -29,7 +30,7 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
     const loadStations = async () => {
         try {
             setLoading(true);
-            const data = await fetchAllStations();
+            const data = await fetchAllStations(country.value);
             setStations(data);
         } catch (err) {
             console.error('Error loading stations:', err);

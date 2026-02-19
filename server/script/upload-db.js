@@ -24,20 +24,29 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 // --- End of .env loading part ---
 
 
-// We no longer need the single insertRow() function
+function parseArgs() {
+    const args = process.argv.slice(2);
+    const result = { country: 'NL', data: null };
+    for (let i = 0; i < args.length; i++) {
+        if (args[i] === '--country' && args[i + 1]) result.country = args[++i].toUpperCase();
+        if (args[i] === '--data' && args[i + 1]) result.data = args[++i];
+    }
+    return result;
+}
 
 async function main() {
-    console.log('Using batch insert function insert_rail_lines_batch()...');
+    const { country, data: dataFile } = parseArgs();
+    const dataPath = dataFile
+        ? path.resolve(process.cwd(), dataFile)
+        : path.resolve(__dirname, './rail-data.json');
 
-    // Assumes rail-data.json is in your project root (one level up from /script)
-    const dataPath = path.resolve(__dirname, './rail-data.json');
+    console.log(`Using batch insert for country=${country}...`);
 
     let geojsonData;
     try {
         geojsonData = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
     } catch (e) {
-        console.error(`Failed to read rail-data.json from ${dataPath}`);
-        console.error('Make sure "rail-data.json" is in your project root.');
+        console.error(`Failed to read data from ${dataPath}`);
         return;
     }
 
@@ -60,7 +69,8 @@ async function main() {
         // This is the new part:
         // Call the batch function ONCE with the entire array of features
         const { error } = await supabase.rpc('insert_rail_lines_batch', {
-            features: batch
+            features: batch,
+            p_country: country
         });
 
         if (error) {

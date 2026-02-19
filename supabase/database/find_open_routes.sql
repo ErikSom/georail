@@ -1,11 +1,13 @@
 CREATE OR REPLACE FUNCTION find_open_routes(
   max_results integer DEFAULT 10,
-  line_filter text DEFAULT NULL
+  line_filter text DEFAULT NULL,
+  p_country text DEFAULT NULL
 )
 RETURNS json
 LANGUAGE sql
 VOLATILE
 SECURITY DEFINER
+SET search_path = public, extensions
 AS $$
   WITH segment_coverage AS (
     SELECT
@@ -21,6 +23,7 @@ AS $$
       FROM rail_point_overrides
       GROUP BY segment_id
     ) o ON o.segment_id = rl.id
+    WHERE (p_country IS NULL OR rl.country = p_country)
   ),
   -- Segments with zero altitude work done (capped to limit spatial lookups)
   uncovered AS (

@@ -3,6 +3,7 @@ import type { RouteData, RouteStop } from "../lib/api/navigation";
 import { trainDistanceTraveled, trainPathTotalLength, trainVelocityKmh, trainLength } from "./train";
 import { configs, scaledDeltaTime } from "./globals";
 import { startJourneySession as apiStartJourney, reportStationArrival, type StationArrivalResponse } from "../lib/api/journey";
+import { country } from "./globals";
 
 /**
  * Journey state for tracking route progress during gameplay
@@ -510,7 +511,7 @@ export function startJourney(route: RouteData, customStartTime?: number): void {
     // Start server journey session (fire-and-forget)
     const stationCodes = stopsArr.map(s => s.code).filter(Boolean);
     if (stationCodes.length >= 2) {
-        apiStartJourney(stationCodes).then(result => {
+        apiStartJourney(stationCodes, country.value).then(result => {
             if (result) {
                 journeySessionId.value = result.session_id;
                 // Track first station as newly unlocked if it was new

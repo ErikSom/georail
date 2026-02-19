@@ -23,6 +23,9 @@ console.log(`Time scale set to ${timeScale.value}`);
 // Use this for any time-based calculations that should respect timeScale
 export const scaledDeltaTime = signal(0);
 
+// Active country (ISO 3166-1 alpha-2) — settable via ?country= URL param
+export const country = signal(searchParams.get('country')?.toUpperCase() || 'NL');
+
 interface Configs {
     unitSystem: 'metric' | 'imperial';
     // Dwell time settings (in minutes)

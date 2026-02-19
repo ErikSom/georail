@@ -10,6 +10,7 @@ CREATE OR REPLACE FUNCTION submit_patch(
 RETURNS json
 LANGUAGE plpgsql
 SECURITY INVOKER -- Runs as the user
+SET search_path = public, extensions
 AS $$
 DECLARE
   new_patch_id bigint;

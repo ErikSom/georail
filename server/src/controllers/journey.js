@@ -23,7 +23,7 @@ function haversineKm(lat1, lon1, lat2, lon2) {
  */
 export const startJourneySession = async (req, res) => {
 	try {
-		const { station_codes } = req.body;
+		const { station_codes, country } = req.body;
 
 		if (!Array.isArray(station_codes) || station_codes.length < 2 || station_codes.length > MAX_STATIONS) {
 			return res.status(400).json({ error: 'Between 2 and 30 station codes required' });
@@ -68,6 +68,7 @@ export const startJourneySession = async (req, res) => {
 				user_id: req.userId,
 				station_codes,
 				station_coords,
+				country: country || 'NL',
 				last_station_index: 0,
 				last_ping_at: new Date().toISOString(),
 				total_km_earned: 0,
@@ -81,13 +82,15 @@ export const startJourneySession = async (req, res) => {
 		}
 
 		// Record first station as visited
+		const sessionCountry = country || 'NL';
 		const { data: visitResult } = await supabase
 			.from('user_station_visits')
 			.upsert({
 				user_id: req.userId,
 				station_code: station_codes[0],
+				country: sessionCountry,
 				first_visited_at: new Date().toISOString(),
-			}, { onConflict: 'user_id,station_code', ignoreDuplicates: true })
+			}, { onConflict: 'user_id,station_code,country', ignoreDuplicates: true })
 			.select();
 
 		const firstStationNew = visitResult && visitResult.length > 0;
@@ -185,8 +188,9 @@ export const reportStationArrival = async (req, res) => {
 			.upsert({
 				user_id: req.userId,
 				station_code: toCode,
+				country: session.country || 'NL',
 				first_visited_at: now.toISOString(),
-			}, { onConflict: 'user_id,station_code', ignoreDuplicates: true })
+			}, { onConflict: 'user_id,station_code,country', ignoreDuplicates: true })
 			.select();
 
 		const newStation = visitResult && visitResult.length > 0;
@@ -220,16 +224,24 @@ export const reportStationArrival = async (req, res) => {
  */
 export const getUserStats = async (req, res) => {
 	try {
+		const { country } = req.query;
+
 		const { data: profile } = await supabase
 			.from('profiles')
 			.select('total_km')
 			.eq('id', req.userId)
 			.single();
 
-		const { data: visits } = await supabase
+		let visitsQuery = supabase
 			.from('user_station_visits')
-			.select('station_code')
+			.select('station_code, country')
 			.eq('user_id', req.userId);
+
+		if (country) {
+			visitsQuery = visitsQuery.eq('country', country.toUpperCase());
+		}
+
+		const { data: visits } = await visitsQuery;
 
 		res.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
 		res.json({

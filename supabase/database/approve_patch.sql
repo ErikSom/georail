@@ -4,6 +4,7 @@ CREATE OR REPLACE FUNCTION approve_patch(
 RETURNS json
 LANGUAGE plpgsql
 SECURITY DEFINER -- Runs as admin
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_editor_id uuid;

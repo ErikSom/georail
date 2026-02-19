@@ -4,6 +4,7 @@ import PatchCreator from './PatchCreator';
 import type { RouteInfo, Patch, NetworkCoverage } from '../lib/types/Patch';
 import { fetchUserProfile, type UserRole, type UserProfile } from '../lib/api/profile';
 import { fetchAllStations, type StationTrackInfo } from '../lib/api/station';
+import { country } from '../store/globals';
 
 import styles from './PatchManagement.module.css';
 
@@ -27,7 +28,7 @@ function PatchManagement({ onClose, onStartEditing, activePatchId }: PatchManage
             setProfile(p);
             setUserRole(p?.role || 'user');
         }).catch(console.error);
-        fetchAllStations().then(setStations).catch(console.error);
+        fetchAllStations(country.value).then(setStations).catch(console.error);
         import('../lib/api/patches').then(({ fetchNetworkCoverage }) =>
             fetchNetworkCoverage().then(setCoverage).catch(() => {})
         );

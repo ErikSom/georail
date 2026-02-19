@@ -5,6 +5,7 @@ CREATE OR REPLACE FUNCTION find_journey_route(
 RETURNS json
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, extensions
 AS $$
 DECLARE
   i int;
@@ -38,9 +39,9 @@ DECLARE
   running_point_count int := 0;
   stop_indices int[] := ARRAY[0]::int[];
 
-  -- Security: distance tracking
-  MAX_DISTANCE_METERS float := 500000;
-  MAX_SEGMENT_METERS float := 150000;
+  -- Security: distance tracking (limits raised for cross-border routing)
+  MAX_DISTANCE_METERS float := 1500000;
+  MAX_SEGMENT_METERS float := 800000;
   total_distance float := 0;
   segment_distance float;
 

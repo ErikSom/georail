@@ -2,7 +2,7 @@ import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import { fetchAllStations, fetchStationDepartures, fetchJourney, type StationTrackInfo, type Departure, type Journey } from '../lib/api/station';
 import { fetchJourneyRoute, calculateStopTimes, type RouteData, type RouteStop, type JourneyStopInput } from '../lib/api/navigation';
-import { configs } from '../store/globals';
+import { configs, country } from '../store/globals';
 import styles from './TravelPicker.module.css';
 
 interface TravelPickerProps {
@@ -121,7 +121,7 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
     const loadStations = async () => {
         try {
             setLoading(true);
-            const data = await fetchAllStations();
+            const data = await fetchAllStations(country.value);
             console.log("Stations fetched:", data);
             setStations(data);
             setError(null);

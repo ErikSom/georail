@@ -1,8 +1,11 @@
-CREATE OR REPLACE FUNCTION get_network_coverage()
+CREATE OR REPLACE FUNCTION get_network_coverage(
+  p_country text DEFAULT NULL
+)
 RETURNS json
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
+SET search_path = public, extensions
 AS $$
   WITH segment_stats AS (
     SELECT
@@ -18,6 +21,7 @@ AS $$
       FROM rail_point_overrides
       GROUP BY segment_id
     ) o ON o.segment_id = rl.id
+    WHERE (p_country IS NULL OR rl.country = p_country)
   )
   SELECT json_build_object(
     'summary', (
