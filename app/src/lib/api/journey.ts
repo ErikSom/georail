@@ -30,8 +30,6 @@ export interface UserStats {
 
 export interface JourneyStartResponse {
     session_id: string;
-    first_station_new: boolean;
-    first_station_code: string;
 }
 
 /**

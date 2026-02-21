@@ -25,11 +25,11 @@ import { Train } from './train/Train';
 import { Input } from './utils/Input';
 import { FlightControls } from './utils/FlightControls';
 import Path from './utils/Path';
-import { StopZoneVisualizer } from './debug/StopZoneVisualizer';
+import { StationIndicator } from './StationIndicator';
 import { BoundaryWall } from './BoundaryWall';
 import { getTrainConfiguration, nssgmTrainType } from './train/configs/TrainConfigurations.secure';
 import Stats from 'stats-gl';
-import { trainInstance, updateTrainState, trainDebugMode, debugZones, trainLatE7, trainLonE7, trainFrontLatE7, trainFrontLonE7, trainBackLatE7, trainBackLonE7, cameraYawRelativeToTrain, trainMaxSpeedKmh } from '../store/train';
+import { trainInstance, updateTrainState, trainDebugMode, trainLatE7, trainLonE7, trainFrontLatE7, trainFrontLonE7, trainBackLatE7, trainBackLonE7, cameraYawRelativeToTrain, trainMaxSpeedKmh } from '../store/train';
 import { getPerformanceConfig, type PerformanceConfig } from './utils/PerformanceConfig';
 import type { Tiles3DAttributionCredits } from '../components/HUD/Tiles3DAttribution';
 import { Pane } from 'tweakpane';
@@ -58,7 +58,7 @@ export class World {
     private setCreditsCallback: (credits: Tiles3DAttributionCredits) => void;
     private routeData: RouteData | null = null;
     private freeFlyCameraMode: boolean = false;
-    private stopZoneVisualizer: StopZoneVisualizer | null = null;
+    private stationIndicator: StationIndicator | null = null;
     private boundaryWall: BoundaryWall | null = null;
 
 
@@ -196,9 +196,9 @@ export class World {
             this.boundaryWall = null;
         }
 
-        if (this.stopZoneVisualizer) {
-            this.stopZoneVisualizer.dispose();
-            this.stopZoneVisualizer = null;
+        if (this.stationIndicator) {
+            this.stationIndicator.dispose();
+            this.stationIndicator = null;
         }
 
         if (this.stats) {
@@ -298,14 +298,11 @@ export class World {
             );
             this.scene.add(this.boundaryWall.group);
 
-            // Create stop zone debug visualization if enabled
-            if (debugZones.value) {
-                // Ensure train length is calculated before creating zones
-                updateTrainState();
-                this.stopZoneVisualizer = new StopZoneVisualizer();
-                this.stopZoneVisualizer.createZones(path);
-                this.scene.add(this.stopZoneVisualizer.group);
-            }
+            // Create station indicators (walls + beams at each stop)
+            updateTrainState();
+            this.stationIndicator = new StationIndicator();
+            this.stationIndicator.createIndicators(path);
+            this.scene.add(this.stationIndicator.group);
 
             // Focus camera on train
             this.camera.position.set(
@@ -393,6 +390,11 @@ export class World {
                 this.train.getVelocity(),
                 deltaTime,
             );
+        }
+
+        // 5c. Update station indicators
+        if (this.stationIndicator) {
+            this.stationIndicator.update(deltaTime);
         }
 
         // 6. Update Camera

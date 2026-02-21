@@ -81,26 +81,8 @@ export const startJourneySession = async (req, res) => {
 			return res.status(500).json({ error: error.message });
 		}
 
-		// Record first station as visited
-		const sessionCountry = country || 'NL';
-		const { data: visitResult } = await supabase
-			.from('user_station_visits')
-			.upsert({
-				user_id: req.userId,
-				station_code: station_codes[0],
-				country: sessionCountry,
-				first_visited_at: new Date().toISOString(),
-			}, { onConflict: 'user_id,station_code,country', ignoreDuplicates: true })
-			.select();
-
-		const firstStationNew = visitResult && visitResult.length > 0;
-
 		res.set('Cache-Control', 'no-store');
-		res.json({
-			session_id: data.id,
-			first_station_new: !!firstStationNew,
-			first_station_code: station_codes[0],
-		});
+		res.json({ session_id: data.id });
 	} catch (err) {
 		console.error('Journey start error:', err);
 		res.status(500).json({ error: 'Server error' });
@@ -181,6 +163,20 @@ export const reportStationArrival = async (req, res) => {
 			.update({ total_km: newTotalKm })
 			.eq('id', req.userId);
 
+		// When arriving at station 1, also credit the start station
+		// (start station is only unlocked after proving you traveled to the next one)
+		const sessionCountry = session.country || 'NL';
+		if (station_index === 1) {
+			await supabase
+				.from('user_station_visits')
+				.upsert({
+					user_id: req.userId,
+					station_code: session.station_codes[0],
+					country: sessionCountry,
+					first_visited_at: now.toISOString(),
+				}, { onConflict: 'user_id,station_code,country', ignoreDuplicates: true });
+		}
+
 		// Record station visit (upsert, ignore if exists)
 		const toCode = session.station_codes[station_index];
 		const { data: visitResult } = await supabase
@@ -188,7 +184,7 @@ export const reportStationArrival = async (req, res) => {
 			.upsert({
 				user_id: req.userId,
 				station_code: toCode,
-				country: session.country || 'NL',
+				country: sessionCountry,
 				first_visited_at: now.toISOString(),
 			}, { onConflict: 'user_id,station_code,country', ignoreDuplicates: true })
 			.select();

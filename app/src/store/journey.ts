@@ -509,24 +509,12 @@ export function startJourney(route: RouteData, customStartTime?: number): void {
     }
 
     // Start server journey session (fire-and-forget)
+    // Note: start station is only credited after arriving at the next station
     const stationCodes = stopsArr.map(s => s.code).filter(Boolean);
     if (stationCodes.length >= 2) {
         apiStartJourney(stationCodes, country.value).then(result => {
             if (result) {
                 journeySessionId.value = result.session_id;
-                // Track first station as newly unlocked if it was new
-                if (result.first_station_new) {
-                    stationArrivalResults.value = [{
-                        valid: true,
-                        km_added: 0,
-                        total_km: 0,
-                        new_station: true,
-                        station_code: result.first_station_code,
-                        is_complete: false,
-                        total_stations_visited: 0,
-                        journey_km: 0,
-                    }];
-                }
             }
         });
     }
