@@ -4,9 +4,10 @@ import BipolarDial from './BipolarDial';
 import IconButton from './IconButton';
 import { Input } from '../../lib/utils/Input';
 import { trainPower, trainPowerPercent, trainVelocityKmh, trainDoorsOpen, trainHeadlightsOn, updateTick, deltaTimeMs } from '../../store/train';
+import GUIControls from './GUIControls';
 
 function TrainControls() {
-    const [isOpen, setIsOpen] = useState(false);
+    const [isOpen, setIsOpen] = useState(true);
     const [dialError, setDialError] = useState(false);
     const [doorError, setDoorError] = useState(false);
     const holdTimeRef = useRef(0);
@@ -135,6 +136,7 @@ function TrainControls() {
                     />
                     <IconButton toggle on={trainHeadlightsOn.value} icon="/icons/lightbulb.svg" className={styles.lightIcon} onClick={handleHeadlights} ariaLabel="Toggle headlights" />
                     <IconButton toggle on={trainDoorsOpen.value} icon={trainDoorsOpen.value ? "/icons/doors-open.svg" : "/icons/doors-close.svg"} className={`${styles.doorIcon} ${doorError ? styles.doorError : ''}`} onClick={handleDoorToggle} ariaLabel="Toggle doors" />
+                    <GUIControls className={styles.settingsIcon} />
                     <IconButton icon="/icons/controls-off.svg" className={styles.closeControls} onClick={() => setIsOpen(false)} ariaLabel="Close train controls" />
                 </div>
             </div>

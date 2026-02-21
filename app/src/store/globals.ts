@@ -1,5 +1,6 @@
 import { signal } from "@preact/signals";
 import { AudioListener, PerspectiveCamera } from "three";
+import { loadData, saveData } from "../lib/utils/LocalStorage";
 
 /**
  * Global state for Three.js objects that need to be shared across systems
@@ -25,6 +26,23 @@ export const scaledDeltaTime = signal(0);
 
 // Active country (ISO 3166-1 alpha-2) — settable via ?country= URL param
 export const country = signal(searchParams.get('country')?.toUpperCase() || 'NL');
+
+// HUD element visibility — persisted via unified localStorage
+export interface HudSettings {
+    showMap2D: boolean;
+    showSpeedometer: boolean;
+    showTransit: boolean;
+}
+
+const HUD_DEFAULTS: HudSettings = { showMap2D: true, showSpeedometer: true, showTransit: true };
+
+export const hudSettings = signal<HudSettings>(loadData('hud', HUD_DEFAULTS));
+
+export function setHudSetting<K extends keyof HudSettings>(key: K, value: HudSettings[K]) {
+    const next = { ...hudSettings.value, [key]: value };
+    hudSettings.value = next;
+    saveData('hud', next);
+}
 
 interface Configs {
     unitSystem: 'metric' | 'imperial';

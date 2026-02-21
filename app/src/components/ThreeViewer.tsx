@@ -10,6 +10,7 @@ import Tiles3DAttribution, { type Tiles3DAttributionCredits } from './HUD/Tiles3
 import styles from './ThreeViewer.module.css';
 import Speedometer from './HUD/Speedometer';
 import { startJourney, resetJourney, journeyCompleted } from '../store/journey';
+import { hudSettings } from '../store/globals';
 
 function ThreeViewer() {
     const mountRef = useRef<HTMLDivElement | null>(null);
@@ -74,9 +75,9 @@ function ThreeViewer() {
             {!showPicker && !showComplete && (
                 <>
                     <TrainControls />
-                    <Maps2D />
-                    <Transit />
-                    <Speedometer />
+                    {hudSettings.value.showMap2D && <Maps2D />}
+                    {hudSettings.value.showTransit && <Transit />}
+                    {hudSettings.value.showSpeedometer && <Speedometer />}
                 </>
             )}
 
