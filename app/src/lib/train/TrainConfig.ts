@@ -130,6 +130,7 @@ export interface EmissiveTextureConfig {
 }
 
 export interface CabConfig extends RollingStockConfig {
+    cabinPosition?: { x: number; y: number; z: number };
     lights?: LightConfig[];
     emissiveTextures?: Record<string, EmissiveTextureConfig>;
 }

@@ -16,8 +16,8 @@ import {
     LinearSRGBColorSpace,
     AudioListener,
 } from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { MapViewer } from './MapViewer';
+import { GameCamera } from './GameCamera';
 import { type RouteData } from './api/navigation';
 import { routePointToWorldPosition } from './utils/CoordinateHelpers';
 import { Sky } from './Sky';
@@ -42,7 +42,7 @@ export class World {
     private clock!: Clock;
     private audioListener!: AudioListener;
 
-    private controls!: OrbitControls;
+    private gameCamera!: GameCamera;
     private flightControls: FlightControls | null = null;
     private train!: Train;
     private mapViewer!: MapViewer;
@@ -124,16 +124,8 @@ export class World {
         trainInstance.value = this.train;
         trainMaxSpeedKmh.value = trainConfig.general?.maxSpeed ?? 120;
 
-        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-        this.controls.minDistance = 10;
-        this.controls.maxDistance = 500;
-        this.controls.minPolarAngle = 0;
-        this.controls.maxPolarAngle = Math.PI / 2 - 0.1;  // ~ prevent going below ground
-        this.controls.enableDamping = true;
-        this.controls.autoRotate = false;
-        this.controls.enablePan = false;
-        this.controls.target.copy(this.train.group.position);
-        this.controls.update();
+        this.gameCamera = new GameCamera(this.camera, this.renderer.domElement);
+        this.gameCamera.snapTo(this.train.group.position);
 
         // Initialize Input system
         Input.init(this.renderer.domElement);
@@ -185,7 +177,7 @@ export class World {
         this.sky.cleanup();
         this.mapViewer.cleanup();
         this.train.cleanup();
-        this.controls.dispose();
+        this.gameCamera.cleanup();
 
         if (this.flightControls) {
             this.flightControls.cleanup();
@@ -305,20 +297,19 @@ export class World {
             this.scene.add(this.stationIndicator.group);
 
             // Focus camera on train
-            this.camera.position.set(
-                this.train.group.position.x + 50,
-                this.train.group.position.y + 50,
-                this.train.group.position.z + 50
-            );
-            this.controls.target.copy(this.train.group.position);
-            this.controls.update();
+            this.gameCamera.snapTo(this.train.group.position);
         } catch (error) {
             console.error('Failed to start path following:', error);
         }
     }
 
     private handleInput(): void {
-        // Check for camera mode toggle (Shift + ~)
+        // Cycle camera mode with C key
+        if (Input.isPressed('KeyC')) {
+            this.gameCamera.cycleMode();
+        }
+
+        // Check for debug free-fly camera toggle (Shift + ~)
         if (Input.isPressed('Backquote') && Input.isShift) {
             this.freeFlyCameraMode = !this.freeFlyCameraMode;
 
@@ -365,18 +356,11 @@ export class World {
         // 2. Update MapViewer (tiles) - always update to allow tiles to load
         this.mapViewer.update();
 
-        // 3. Follow the train without fighting controls (not in free-fly mode)
-        if (!this.freeFlyCameraMode) {
-            this.tmp.copy(this.train.group.position).sub(this.controls.target);
-            this.controls.target.add(this.tmp);
-            this.camera.position.add(this.tmp);
-        }
-
-        // 4. Update controls based on mode
+        // 3. Update camera
         if (this.freeFlyCameraMode && this.flightControls) {
             this.flightControls.update(deltaTime);
         } else {
-            this.controls.update();
+            this.gameCamera.update(deltaTime, this.train);
         }
 
         // 5. Update Train

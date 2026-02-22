@@ -1,4 +1,4 @@
-import { SpotLight, SpotLightHelper, Object3D, CanvasTexture, Texture, Color, Mesh, MeshStandardMaterial } from 'three';
+import { SpotLight, SpotLightHelper, Object3D, CanvasTexture, Texture, Color, Mesh, MeshStandardMaterial, BoxGeometry, MeshBasicMaterial } from 'three';
 import { Lensflare, LensflareElement } from './Lensflare';
 import type { CabConfig, EmissiveTextureConfig, LightConfig, RollingStockConfig, TrainConfig } from './TrainConfig';
 import { RollingStock } from './RollingStock';
@@ -62,17 +62,44 @@ function populateLensFlare(lensflare: Lensflare, textures: Texture[], cfg: Light
 export class Cab extends RollingStock {
     override config: CabConfig;
     private rearCab: boolean;
+    private isDebug: boolean;
     private spotLights: SpotLight[] = [];
     private spotLightHelpers: (SpotLightHelper | null)[] = [];
     private lensFlares: Lensflare[] = [];
     private emissiveCanvasTextures: CanvasTexture[] = [];
     private emissiveDataByRole: Map<string, { material: MeshStandardMaterial; texture: CanvasTexture; color: number; intensity: number }[]> = new Map();
+    private cabinDebugMesh: Mesh | null = null;
 
     constructor(config: CabConfig, rearCab: boolean = false, debug: boolean = false) {
         super(config, debug);
         this.config = config;
         this.rearCab = rearCab;
+        this.isDebug = debug;
         this.debugPaneName = this.rearCab ? 'Rear Cab' : 'Front Cab';
+
+        if (debug) {
+            this.createCabinDebugMesh();
+        }
+    }
+
+    private createCabinDebugMesh(): void {
+        const geo = new BoxGeometry(0.4, 0.6, 0.4);
+        const mat = new MeshBasicMaterial({ color: 0xff8800, wireframe: true });
+        this.cabinDebugMesh = new Mesh(geo, mat);
+        this.cabinDebugMesh.name = 'CabinPositionDebug';
+        this.updateCabinDebugPosition();
+        this.group.add(this.cabinDebugMesh);
+    }
+
+    private updateCabinDebugPosition(): void {
+        if (!this.cabinDebugMesh) return;
+        const pos = this.config.cabinPosition;
+        if (pos) {
+            this.cabinDebugMesh.position.set(pos.x, pos.y, pos.z);
+            this.cabinDebugMesh.visible = true;
+        } else {
+            this.cabinDebugMesh.visible = false;
+        }
     }
 
     protected getConfigTarget(config: TrainConfig): RollingStockConfig {
@@ -81,6 +108,7 @@ export class Cab extends RollingStock {
 
     public override updateConfig(config: RollingStockConfig): void {
         super.updateConfig(config);
+        this.updateCabinDebugPosition();
         this.rebuildLights();
     }
 
@@ -100,6 +128,30 @@ export class Cab extends RollingStock {
     ): FolderApi {
         const cabFolder = super.createDebugUI(pane, config, updateConfig, _onDelete, _onDuplicate, registerFolder, folderPath, getFolderExpanded);
 
+        // --- Cabin Position ---
+        const cabConfig = this.getConfigTarget(config) as CabConfig;
+        if (!cabConfig.cabinPosition) {
+            cabConfig.cabinPosition = { x: 0, y: 2.5, z: cabConfig.length / 2 - 1 };
+        }
+        const cabinPos = cabConfig.cabinPosition;
+
+        const cabinKey = getFolderKey([...folderPath, this.debugPaneName, 'Cabin Position']);
+        const cabinFolder = cabFolder.addFolder({
+            title: 'Cabin Position',
+            expanded: getFolderExpanded(cabinKey, false)
+        });
+        registerFolder(cabinFolder, cabinKey);
+
+        const cabinProxy = { x: cabinPos.x, y: cabinPos.y, z: cabinPos.z };
+        const updateCabin = () => {
+            cabConfig.cabinPosition = { x: cabinProxy.x, y: cabinProxy.y, z: cabinProxy.z };
+            updateConfig(config);
+        };
+
+        cabinFolder.addBinding(cabinProxy, 'x', { label: 'X', min: -5, max: 5, step: 0.01 }).on('change', updateCabin);
+        cabinFolder.addBinding(cabinProxy, 'y', { label: 'Y', min: 0, max: 10, step: 0.01 }).on('change', updateCabin);
+        cabinFolder.addBinding(cabinProxy, 'z', { label: 'Z', min: -20, max: 20, step: 0.01 }).on('change', updateCabin);
+
         // Find the "Lights" folder and add spot light controls
         const lightsFolder = (cabFolder.children as any[]).find(
             (child: any) => child.title === 'Lights'
@@ -107,7 +159,6 @@ export class Cab extends RollingStock {
 
         if (lightsFolder) {
             const basePath = [...folderPath, this.debugPaneName, 'Lights'];
-            const cabConfig = this.getConfigTarget(config) as CabConfig;
             if (!cabConfig.lights) cabConfig.lights = [];
             const lights = cabConfig.lights;
 
@@ -484,6 +535,12 @@ export class Cab extends RollingStock {
 
     public override cleanup(): void {
         this.disposeLights();
+        if (this.cabinDebugMesh) {
+            this.cabinDebugMesh.geometry.dispose();
+            (this.cabinDebugMesh.material as MeshBasicMaterial).dispose();
+            this.cabinDebugMesh.removeFromParent();
+            this.cabinDebugMesh = null;
+        }
         super.cleanup();
     }
 }

@@ -219,6 +219,11 @@
                 "color": 16774368,
                 "intensity": 0.4
             }
+        },
+        "cabinPosition": {
+            "x": 0,
+            "y": 2.8,
+            "z": 11
         }
     },
     "wagons": [
@@ -378,6 +383,11 @@
             "pattern": "inside",
             "emissiveColor": 16757072,
             "emissiveIntensity": 1
+        },
+        "cabinPosition": {
+            "x": 0,
+            "y": 2.8,
+            "z": -11
         }
     },
     "audio": {

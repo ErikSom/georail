@@ -1,6 +1,6 @@
-import { Group, Scene } from 'three';
+import { Group, Scene, Vector3 } from 'three';
 import { Pane, type FolderApi } from 'tweakpane';
-import type { TrainConfig, WagonConfig } from './TrainConfig';
+import type { CabConfig, TrainConfig, WagonConfig } from './TrainConfig';
 import { Cab } from './Cab';
 import { Wagon } from './Wagon';
 import type Path from '../utils/Path';
@@ -633,6 +633,30 @@ export class Train implements IPhysicsTarget {
      */
     public getCabRailPositions() {
         return this.cab.getRailPositions();
+    }
+
+    /**
+     * Get the world-space cabin position for the front or rear cab.
+     * Falls back to the cab group world position if no cabinPosition is configured.
+     */
+    public getCabinWorldPosition(rear: boolean = false): Vector3 {
+        const cab = rear ? this.rearCab : this.cab;
+        if (!cab) return this.group.getWorldPosition(new Vector3());
+        const localPos = (cab.config as CabConfig).cabinPosition;
+        if (!localPos) return cab.group.getWorldPosition(new Vector3());
+        return cab.group.localToWorld(new Vector3(localPos.x, localPos.y, localPos.z));
+    }
+
+    /**
+     * Get the world-space cabin position for the active cab based on travel direction.
+     * Forward (velocity >= 0) = front cab, backward with rear cab = rear cab.
+     */
+    public getActiveCabinWorldPosition(): Vector3 {
+        const forward = this.physics.getVelocity() >= 0;
+        if (!forward && this.rearCab) {
+            return this.getCabinWorldPosition(true);
+        }
+        return this.getCabinWorldPosition(false);
     }
 
     /**
