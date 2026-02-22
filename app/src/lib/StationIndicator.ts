@@ -19,6 +19,7 @@ const WALL_WIDTH = 6;
 const BEAM_HEIGHT = 500;
 const BEAM_WIDTH = 16;
 const BEAM_FADE_DISTANCE = 300;
+const WALL_Y_OFFSET = 0.3;
 const ACTIVE_COLOR = new Vector3(0.1, 0.9, 0.7);
 
 const wallVertex = /* glsl */ `
@@ -103,7 +104,7 @@ interface StopVisual {
     group: Group;
     wallMaterial: ShaderMaterial;
     beamMaterial: ShaderMaterial;
-    sideWallGeoms: BufferGeometry[]; // left + right strip geometries
+    sideWallGeoms: BufferGeometry[];
     stopDistanceM: number;
     currentOpacity: number;
     targetOpacity: number;
@@ -117,6 +118,7 @@ export class StationIndicator {
     private path: Path | null = null;
     private zoneLengthM = 0;
     private halfWidth = WALL_WIDTH / 2;
+    private showAtCurrentStation = false;
     private _tmpDir = new Vector3();
     private _tmpPerp = new Vector3();
     private _tmpPoint = new Vector3();
@@ -143,7 +145,8 @@ export class StationIndicator {
         const statuses = stopStatuses.value;
         let firstIdx = 0;
         for (let i = 0; i < statuses.length; i++) {
-            if (!statuses[i]?.arrived) {
+            const s = statuses[i];
+            if (this.showAtCurrentStation ? !s?.departed : !s?.arrived) {
                 firstIdx = i;
                 break;
             }
@@ -182,12 +185,12 @@ export class StationIndicator {
 
             const bIdx = e * 2;
             positions[bIdx * 3 + 0] = edgePos.x + tmpPerp.x * lateralOffset;
-            positions[bIdx * 3 + 1] = edgePos.y;
+            positions[bIdx * 3 + 1] = edgePos.y + WALL_Y_OFFSET;
             positions[bIdx * 3 + 2] = edgePos.z + tmpPerp.z * lateralOffset;
 
             const tIdx = bIdx + 1;
             positions[tIdx * 3 + 0] = edgePos.x + tmpPerp.x * lateralOffset;
-            positions[tIdx * 3 + 1] = edgePos.y + WALL_HEIGHT;
+            positions[tIdx * 3 + 1] = edgePos.y + WALL_HEIGHT + WALL_Y_OFFSET;
             positions[tIdx * 3 + 2] = edgePos.z + tmpPerp.z * lateralOffset;
 
             const u = e / segCount;
@@ -279,13 +282,13 @@ export class StationIndicator {
 
         const wStart = new Mesh(endWallGeom!, wallMat);
         wStart.position.copy(startPos);
-        wStart.position.y += WALL_HEIGHT / 2;
+        wStart.position.y += WALL_HEIGHT / 2 + WALL_Y_OFFSET;
         wStart.lookAt(wStart.position.x + tmpDir.x, wStart.position.y + tmpDir.y, wStart.position.z + tmpDir.z);
         stopGroup.add(wStart);
 
         const wEnd = new Mesh(endWallGeom!, wallMat);
         wEnd.position.copy(endPos);
-        wEnd.position.y += WALL_HEIGHT / 2;
+        wEnd.position.y += WALL_HEIGHT / 2 + WALL_Y_OFFSET;
         wEnd.lookAt(wEnd.position.x + tmpDir.x, wEnd.position.y + tmpDir.y, wEnd.position.z + tmpDir.z);
         stopGroup.add(wEnd);
 
@@ -349,7 +352,8 @@ export class StationIndicator {
 
         let nextIdx = -1;
         for (let i = 0; i < statuses.length; i++) {
-            if (!statuses[i]?.arrived) {
+            const s = statuses[i];
+            if (this.showAtCurrentStation ? !s?.departed : !s?.arrived) {
                 nextIdx = i;
                 break;
             }
