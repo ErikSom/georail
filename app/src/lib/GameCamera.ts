@@ -6,9 +6,13 @@ import {
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { Train } from './train/Train';
 
-export type CameraMode = 'free' | 'side' | 'top' | 'cinematic';
+export type CameraMode = 'free' | 'cockpit' | 'side' | 'top' | 'cinematic';
 
-const CAMERA_MODES: CameraMode[] = ['free', 'side', 'top', 'cinematic'];
+const CAMERA_MODES: CameraMode[] = ['free', 'cockpit', 'side', 'top', 'cinematic'];
+
+// Cockpit mode settings
+const COCKPIT_ORBIT_MAX_ANGLE = Math.PI / 3; // max horizontal look angle (~60deg each way)
+const COCKPIT_ORBIT_VERTICAL_MAX = Math.PI / 6; // max vertical look angle (~30deg)
 
 export class GameCamera {
     public camera: PerspectiveCamera;
@@ -22,6 +26,8 @@ export class GameCamera {
 
     private domElement: HTMLElement;
     private boundOnWheel: (e: WheelEvent) => void;
+
+    private cockpitInitialized = false;
 
     // Reusable temp vectors
     private _delta = new Vector3();
@@ -50,7 +56,7 @@ export class GameCamera {
     }
 
     private onWheel(event: WheelEvent): void {
-        if (this.mode === 'free') return; // OrbitControls handles zoom in free mode
+        if (this.mode === 'free' || this.mode === 'cockpit') return; // OrbitControls handles zoom in free mode, no zoom in cockpit
 
         event.preventDefault();
         event.stopPropagation();
@@ -80,8 +86,31 @@ export class GameCamera {
             this.cinematicAngle = Math.atan2(this._delta.z, this._delta.x);
         }
 
-        // Enable/disable OrbitControls
-        this.controls.enabled = mode === 'free';
+        // Enable/disable OrbitControls — cockpit uses its own orbit limits
+        if (mode === 'cockpit') {
+            this.controls.enabled = true;
+            this.controls.enableDamping = false;
+            this.controls.enableZoom = false;
+            this.controls.minDistance = 0;
+            this.controls.maxDistance = 0.01;
+            this.controls.minPolarAngle = Math.PI / 2 - COCKPIT_ORBIT_VERTICAL_MAX;
+            this.controls.maxPolarAngle = Math.PI / 2 + COCKPIT_ORBIT_VERTICAL_MAX;
+            this.controls.minAzimuthAngle = -COCKPIT_ORBIT_MAX_ANGLE;
+            this.controls.maxAzimuthAngle = COCKPIT_ORBIT_MAX_ANGLE;
+
+            // Flag so the first updateCockpit frame sets the look direction from the train
+            this.cockpitInitialized = false;
+        } else {
+            this.controls.enableDamping = true;
+            this.controls.enabled = mode === 'free';
+            this.controls.enableZoom = true;
+            this.controls.minDistance = 0.1;
+            this.controls.maxDistance = 500;
+            this.controls.minPolarAngle = 0;
+            this.controls.maxPolarAngle = Math.PI / 2 - 0.1;
+            this.controls.minAzimuthAngle = -Infinity;
+            this.controls.maxAzimuthAngle = Infinity;
+        }
     }
 
     /**
@@ -101,14 +130,22 @@ export class GameCamera {
 
     /** Main update — call each frame. */
     public update(dt: number, train: Train): void {
-        // Smooth target following (all modes)
         const desired = train.getActiveCabinWorldPosition();
-        const t = 1 - Math.exp(-this.smoothing * dt);
-        this.currentTarget.lerp(desired, t);
+
+        // Cockpit: no smoothing, snap directly
+        if (this.mode === 'cockpit') {
+            this.currentTarget.copy(desired);
+        } else {
+            const t = 1 - Math.exp(-this.smoothing * dt);
+            this.currentTarget.lerp(desired, t);
+        }
 
         switch (this.mode) {
             case 'free':
                 this.updateFree();
+                break;
+            case 'cockpit':
+                this.updateCockpit(train);
                 break;
             case 'side':
                 this.updateSide(train);
@@ -120,6 +157,38 @@ export class GameCamera {
                 this.updateCinematic(dt, train);
                 break;
         }
+    }
+
+    private updateCockpit(train: Train): void {
+        if (!this.cockpitInitialized) {
+            // First frame: place camera at cabin, look along train's forward direction
+            this.camera.position.copy(this.currentTarget);
+
+            const rollingStock = train.getRollingStockTransform(0);
+            rollingStock.getWorldQuaternion(this._trainQuat);
+            this._delta.set(0, 0, 1).applyQuaternion(this._trainQuat);
+            if (train.getVelocity() < 0) this._delta.negate();
+
+            this.controls.target.copy(this.camera.position).addScaledVector(this._delta, 0.01);
+
+            // Compute current azimuth and center limits around it
+            // (OrbitControls azimuth is in world space, not relative to train direction)
+            this._localOffset.copy(this.camera.position).sub(this.controls.target);
+            const currentAzimuth = Math.atan2(this._localOffset.x, this._localOffset.z);
+            this.controls.minAzimuthAngle = currentAzimuth - COCKPIT_ORBIT_MAX_ANGLE;
+            this.controls.maxAzimuthAngle = currentAzimuth + COCKPIT_ORBIT_MAX_ANGLE;
+
+            this.controls.update();
+            this.cockpitInitialized = true;
+            return;
+        }
+
+        // Translate-rig: move both camera and orbit target by the same delta
+        // so the user's look direction (relative to orbit target) is preserved
+        this._delta.copy(this.currentTarget).sub(this.camera.position);
+        this.camera.position.add(this._delta);
+        this.controls.target.add(this._delta);
+        this.controls.update();
     }
 
     private updateFree(): void {

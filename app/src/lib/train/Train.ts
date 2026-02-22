@@ -31,6 +31,7 @@ export class Train implements IPhysicsTarget {
     private audio: TrainAudio;
     private physics: TrainPhysics;
     private lightsOn: boolean = false;
+    private readonly _cabinWorldPos = new Vector3();
 
     constructor(config: TrainConfig, debug: boolean = false) {
 
@@ -641,10 +642,10 @@ export class Train implements IPhysicsTarget {
      */
     public getCabinWorldPosition(rear: boolean = false): Vector3 {
         const cab = rear ? this.rearCab : this.cab;
-        if (!cab) return this.group.getWorldPosition(new Vector3());
+        if (!cab) return this.group.getWorldPosition(this._cabinWorldPos);
         const localPos = (cab.config as CabConfig).cabinPosition;
-        if (!localPos) return cab.group.getWorldPosition(new Vector3());
-        return cab.group.localToWorld(new Vector3(localPos.x, localPos.y, localPos.z));
+        if (!localPos) return cab.group.getWorldPosition(this._cabinWorldPos);
+        return cab.group.localToWorld(this._cabinWorldPos.set(localPos.x, localPos.y, localPos.z));
     }
 
     /**

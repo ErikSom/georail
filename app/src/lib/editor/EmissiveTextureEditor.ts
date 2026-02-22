@@ -480,6 +480,8 @@ export class EmissiveTextureEditor {
             shapes: this.shapes,
             blur: this.blur,
             resolution: 256,
+            color: 0xfff4e0,
+            intensity: 1,
         };
         renderEmissiveTexture(config, this.previewCanvas);
     }

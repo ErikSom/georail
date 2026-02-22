@@ -150,8 +150,8 @@ export class Editor {
                 geometry: journeyData.geometry,
                 properties: {
                     stops: [
-                        { station: routeInfo.fromStation, track: routeInfo.fromTrack || null },
-                        { station: routeInfo.toStation, track: routeInfo.toTrack || null }
+                        { station: routeInfo.fromStation, code: '', track: routeInfo.fromTrack || null, arrivalTime: 0, departureTime: 0 },
+                        { station: routeInfo.toStation, code: '', track: routeInfo.toTrack || null, arrivalTime: 0, departureTime: 0 }
                     ]
                 }
             };

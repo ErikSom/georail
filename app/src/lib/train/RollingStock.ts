@@ -3,7 +3,7 @@ import type { BogieConfig, RollingStockConfig, TrainConfig, WheelConfig } from '
 import { getGLTFLoader } from '../utils/ModelLoader';
 import type Path from '../utils/Path';
 import type { FolderApi, Pane } from 'tweakpane';
-import { dummy, dummyForward, dummyQuad, dummyUp, dummyVec3 } from '../utils/Helper';
+import { dummy, dummyForward, dummyQuad, dummyUp, dummyVec3, dummyVec3B } from '../utils/Helper';
 import FilePicker from '../utils/FilePicker';
 import { applyDeobfuscation, isDebugAdmin, loadEncryptedAsset, getProtectedAssetPath, blobString } from '../utils/Security.secure';
 import { glassMaterial } from './Materials';
@@ -534,8 +534,8 @@ export class RollingStock {
 
         // Calculate lateral offset: project the difference between path center and bogie midpoint
         // onto the plane perpendicular to the track direction
-        const trackDirection = new Vector3().subVectors(frontPoint, rearPoint).normalize();
-        const offset = new Vector3().subVectors(bogieMidpoint, this.railPositions.center);
+        const trackDirection = dummyVec3B.subVectors(frontPoint, rearPoint).normalize();
+        const offset = dummyVec3.subVectors(bogieMidpoint, this.railPositions.center);
 
         // Remove the component along the track direction (keep only lateral offset)
         const longitudinalComponent = offset.dot(trackDirection);

@@ -69,7 +69,7 @@ export function renderEmissiveTexture(
  */
 export function compositeEmissiveWithDiffuse(
     mask: HTMLCanvasElement,
-    diffuseImage: TexImageSource
+    diffuseImage: CanvasImageSource
 ): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
     canvas.width = mask.width;
@@ -92,7 +92,7 @@ export function compositeEmissiveWithDiffuse(
  */
 export function createEmissiveCanvasTexture(
     config: EmissiveTextureConfig,
-    diffuseImage?: TexImageSource
+    diffuseImage?: CanvasImageSource
 ): CanvasTexture {
     const mask = renderEmissiveTexture(config);
     const canvas = diffuseImage

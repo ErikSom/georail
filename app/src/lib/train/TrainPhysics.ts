@@ -138,12 +138,25 @@ export class TrainPhysics {
         const effectiveMass = this.totalMass * this.ROTATING_MASS_FACTOR;
         const acceleration = netForce / effectiveMass;
 
+        const prevVelocity = this.velocity;
         this.velocity += acceleration * deltaTime;
 
-        if (this.powerSetting >= -this.BRAKE_THRESHOLD && this.powerSetting <= this.BRAKE_THRESHOLD) {
-            if (Math.abs(this.velocity) < 0.01) {
+        // Prevent velocity from crossing zero due to braking/resistance.
+        // Without this, brake force overshoots past zero, flips sign, and causes
+        // visible forward-backward oscillation ("train shaking").
+        if (prevVelocity !== 0 && Math.sign(this.velocity) !== Math.sign(prevVelocity)) {
+            // Only allow zero-crossing if engine is actively driving in the new direction
+            const engineDrivingNewDir =
+                (this.velocity > 0 && engineForce > 0) ||
+                (this.velocity < 0 && engineForce < 0);
+            if (!engineDrivingNewDir) {
                 this.velocity = 0;
             }
+        }
+
+        // Snap very small velocities to zero when not under power
+        if (Math.abs(this.powerSetting) <= this.BRAKE_THRESHOLD && Math.abs(this.velocity) < 0.01) {
+            this.velocity = 0;
         }
 
         this.target.distanceTraveled += this.velocity * deltaTime;

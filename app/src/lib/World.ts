@@ -25,6 +25,7 @@ import { Train } from './train/Train';
 import { Input } from './utils/Input';
 import { FlightControls } from './utils/FlightControls';
 import Path from './utils/Path';
+import { dummyVec3, dummyVec3B } from './utils/Helper';
 import { StationIndicator } from './StationIndicator';
 import { BoundaryWall } from './BoundaryWall';
 import { getTrainConfiguration, nssgmTrainType } from './train/configs/TrainConfigurations.secure';
@@ -48,7 +49,6 @@ export class World {
     private mapViewer!: MapViewer;
     private sky!: Sky;
     private stats!: Stats;
-    private tmp = new Vector3();
     private perfConfig: PerformanceConfig;
     private rendererPane: Pane | null = null;
     private isRendererPaneVisible: boolean = false;
@@ -95,7 +95,7 @@ export class World {
         this.camera = new PerspectiveCamera(
             60,
             this.mountElement.clientWidth / this.mountElement.clientHeight,
-            1,
+            0.1,
             this.perfConfig.farPlane
         );
         this.camera.position.set(1e3, 1e3, 1e3).multiplyScalar(0.5);
@@ -356,15 +356,15 @@ export class World {
         // 2. Update MapViewer (tiles) - always update to allow tiles to load
         this.mapViewer.update();
 
-        // 3. Update camera
+        // 3. Update Train (before camera so camera reads current-frame positions)
+        this.train.update(deltaTime);
+
+        // 4. Update camera
         if (this.freeFlyCameraMode && this.flightControls) {
             this.flightControls.update(deltaTime);
         } else {
             this.gameCamera.update(deltaTime, this.train);
         }
-
-        // 5. Update Train
-        this.train.update(deltaTime);
 
         // 5b. Update boundary walls
         if (this.boundaryWall) {
@@ -413,14 +413,14 @@ export class World {
 
             // Calculate camera yaw relative to train
             // Get vector from train to camera, projected onto horizontal plane
-            this.tmp.copy(this.camera.position).sub(this.train.group.position);
-            this.tmp.y = 0; // Project to horizontal plane
-            const cameraAngle = Math.atan2(this.tmp.x, this.tmp.z) * MathUtils.RAD2DEG;
+            dummyVec3.copy(this.camera.position).sub(this.train.group.position);
+            dummyVec3.y = 0; // Project to horizontal plane
+            const cameraAngle = Math.atan2(dummyVec3.x, dummyVec3.z) * MathUtils.RAD2DEG;
 
             // Get train's forward direction projected onto horizontal plane
-            const trainForward = new Vector3(0, 0, 1).applyQuaternion(this.train.group.quaternion);
-            trainForward.y = 0;
-            const trainAngle = Math.atan2(trainForward.x, trainForward.z) * MathUtils.RAD2DEG;
+            dummyVec3B.set(0, 0, 1).applyQuaternion(this.train.group.quaternion);
+            dummyVec3B.y = 0;
+            const trainAngle = Math.atan2(dummyVec3B.x, dummyVec3B.z) * MathUtils.RAD2DEG;
 
             // Relative yaw: how much the camera is rotated around the train
             // Add 180 to match screen visuals (camera looks at train, not from train)
