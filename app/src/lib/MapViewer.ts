@@ -62,7 +62,6 @@ export class MapViewer {
         this.perfConfig = perfConfig || null;
 
         this.reinstantiateTiles(lat, lon, height);
-        // Don't set initialized here - wait for tiles to load
     }
 
     public cleanup(): void {
@@ -100,7 +99,6 @@ export class MapViewer {
             dracoLoader: new DRACOLoader().setDecoderPath(getDracoDecoderPath())
         }));
 
-        // Use provided coordinates or fall back to default location
         let finalLat = lat;
         let finalLon = lon;
 
@@ -116,33 +114,23 @@ export class MapViewer {
         });
         this.tiles.registerPlugin(this.reorientationPlugin);
 
-        // Apply performance config to tiles
         if (this.perfConfig) {
-            console.log("default error target:", this.tiles.errorTarget, "default max depth:", this.tiles.maxDepth);
-
-
             this.tiles.errorTarget = this.perfConfig.tilesErrorTarget;
             this.tiles.maxDepth = this.perfConfig.tilesMaxDepth;
-            // this.tiles.displayActiveTiles = false;
         }
 
-        // Replace unlit materials with lit materials to enable sun/moon lighting
+        // Replace unlit MeshBasicMaterial with MeshStandardMaterial for lighting
         this.tiles.addEventListener('load-model', ({ scene }) => {
             scene.traverse((child: any) => {
                 if (child.isMesh) {
-                    // Disable shadow casting and receiving
                     child.castShadow = false;
                     child.receiveShadow = false;
 
-                    // Google 3D tiles often lack normals. We must calculate them
-                    // for MeshStandardMaterial to react to light.
                     if (child.geometry && !child.geometry.attributes.normal) {
                         child.geometry.computeVertexNormals();
                     }
                     if (child.material) {
                         const oldMaterial = child.material;
-
-                        // Only replace if it's an unlit material (MeshBasicMaterial)
                         if (oldMaterial.isMeshBasicMaterial) {
                             const newMaterial = new MeshStandardMaterial({
                                 map: oldMaterial.map,
@@ -166,13 +154,11 @@ export class MapViewer {
 
         this.scene.add(this.tiles.group);
 
-        // Create ground plane at altitude 30 using proper geodetic positioning
         this.createGroundPlane(finalLat, finalLon, -1000);
 
         this.tiles.setResolutionFromRenderer(this.camera, this.renderer);
         this.tiles.setCamera(this.camera);
 
-        // Mark as initialized after initial tiles have loaded
         this.tiles.addEventListener('tiles-load-end', () => {
             if (!this.initialized) {
                 this.initialized = true;
@@ -201,14 +187,12 @@ export class MapViewer {
     private createGroundPlane(lat: number, lon: number, height: number): void {
         if (!this.tiles) return;
 
-        // Dispose old ground plane if exists
         if (this.groundPlane) {
             this.tiles.group.remove(this.groundPlane);
             this.groundPlane.geometry.dispose();
             (this.groundPlane.material as MeshBasicMaterial).dispose();
         }
 
-        // Create large plane geometry
         const planeGeometry = new PlaneGeometry(1e5, 1e5);
         const planeMaterial = new MeshBasicMaterial({
             color: 0x000000,

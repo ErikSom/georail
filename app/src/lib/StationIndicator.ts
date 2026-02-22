@@ -2,6 +2,8 @@ import {
     Group,
     Mesh,
     PlaneGeometry,
+    BufferGeometry,
+    Float32BufferAttribute,
     ShaderMaterial,
     DoubleSide,
     AdditiveBlending,
@@ -12,20 +14,13 @@ import { stops, stopDistances, stopStatuses } from '../store/journey';
 import { trainLength, trainDistanceTraveled } from '../store/train';
 import { configs } from '../store/globals';
 
-// --- Geometry sizes ---
 const WALL_HEIGHT = 6;
 const WALL_WIDTH = 6;
 const BEAM_HEIGHT = 500;
 const BEAM_WIDTH = 16;
-
-// --- Beam proximity fade ---
-const BEAM_FADE_DISTANCE = 300; // meters — beam fully visible beyond this, invisible at 0
-
-// --- Colors (RGB) ---
+const BEAM_FADE_DISTANCE = 300;
 const ACTIVE_COLOR = new Vector3(0.1, 0.9, 0.7);
-const INACTIVE_COLOR = new Vector3(0.15, 0.4, 0.35);
 
-// ─── Wall Shader ───────────────────────────────────────────
 const wallVertex = /* glsl */ `
 varying vec2 vUv;
 varying float vWorldH; // world-space horizontal coordinate for continuous waves
@@ -62,7 +57,6 @@ void main() {
 }
 `;
 
-// ─── Beam Shader ───────────────────────────────────────────
 const beamVertex = /* glsl */ `
 varying vec2 vUv;
 void main() {
@@ -100,10 +94,8 @@ void main() {
 }
 `;
 
-// --- Side wall segmentation ---
-const SIDE_WALL_SEGMENT_LENGTH = 5; // meters per segment — shorter = follows curves better
+const SIDE_WALL_SEGMENT_LENGTH = 5;
 
-// ─── Shared geometries (created once, reused across all stations) ──
 let endWallGeom: PlaneGeometry | null = null;
 let beamGeom: PlaneGeometry | null = null;
 
@@ -111,18 +103,23 @@ interface StopVisual {
     group: Group;
     wallMaterial: ShaderMaterial;
     beamMaterial: ShaderMaterial;
-    sideWallGeoms: PlaneGeometry[];
+    sideWallGeoms: BufferGeometry[]; // left + right strip geometries
     stopDistanceM: number;
     currentOpacity: number;
     targetOpacity: number;
-    currentColor: Vector3;
-    targetColor: Vector3;
 }
 
 export class StationIndicator {
     public group: Group;
-    private visuals: StopVisual[] = [];
+    private visual: StopVisual | null = null;
+    private activeIndex: number = -1;
     private time = 0;
+    private path: Path | null = null;
+    private zoneLengthM = 0;
+    private halfWidth = WALL_WIDTH / 2;
+    private _tmpDir = new Vector3();
+    private _tmpPerp = new Vector3();
+    private _tmpPoint = new Vector3();
 
     constructor() {
         this.group = new Group();
@@ -136,162 +133,212 @@ export class StationIndicator {
         const distances = stopDistances.value;
         if (stopsArr.length === 0 || distances.length === 0) return;
 
-        const fullTrainLengthM = trainLength.value;
-        const leniencyM = configs.value.stationStopLeniencyM;
-        const zoneLengthM = Math.max(1, fullTrainLengthM + leniencyM);
-        const halfWidth = WALL_WIDTH / 2;
+        this.path = path;
+        this.zoneLengthM = Math.max(1, trainLength.value + configs.value.stationStopLeniencyM);
+        this.halfWidth = WALL_WIDTH / 2;
 
-        // Ensure shared geometries exist
         if (!endWallGeom) endWallGeom = new PlaneGeometry(WALL_WIDTH, WALL_HEIGHT);
         if (!beamGeom) beamGeom = new PlaneGeometry(BEAM_WIDTH, BEAM_HEIGHT);
 
-        const tmpDir = new Vector3();
-        const tmpPerp = new Vector3();
-
-        for (let i = 0; i < stopsArr.length; i++) {
-            const stopDistanceM = distances[i] * 1000;
-            const halfZoneM = zoneLengthM / 2;
-            const zoneStartM = stopDistanceM - halfZoneM;
-            const zoneEndM = stopDistanceM + halfZoneM;
-
-            // Sample positions along path
-            const centerPos = path.getPointAtDistance(stopDistanceM);
-            const startPos = path.getPointAtDistance(zoneStartM);
-            const endPos = path.getPointAtDistance(zoneEndM);
-
-            // Compute horizontal track direction
-            tmpDir.subVectors(endPos, startPos);
-            if (tmpDir.lengthSq() < 0.001) {
-                const before = path.getPointAtDistance(Math.max(0, stopDistanceM - 5));
-                const after = path.getPointAtDistance(stopDistanceM + 5);
-                tmpDir.subVectors(after, before);
+        const statuses = stopStatuses.value;
+        let firstIdx = 0;
+        for (let i = 0; i < statuses.length; i++) {
+            if (!statuses[i]?.arrived) {
+                firstIdx = i;
+                break;
             }
-            tmpDir.y = 0;
-            if (tmpDir.lengthSq() < 0.001) tmpDir.set(1, 0, 0);
-            tmpDir.normalize();
-
-            // Perpendicular direction (left side of track)
-            tmpPerp.set(-tmpDir.z, 0, tmpDir.x);
-
-            const stopGroup = new Group();
-            stopGroup.name = `Station_${i}_${stopsArr[i].station}`;
-
-            // ── Wall material (single, shared across all 4 walls per station) ──
-            const wallMat = new ShaderMaterial({
-                vertexShader: wallVertex,
-                fragmentShader: wallFragment,
-                uniforms: {
-                    uTime: { value: 0 },
-                    uOpacity: { value: 0 },
-                    uColor: { value: INACTIVE_COLOR.clone() },
-                },
-                transparent: true,
-                depthWrite: false,
-                side: DoubleSide,
-                blending: AdditiveBlending,
-            });
-
-            const beamMat = new ShaderMaterial({
-                vertexShader: beamVertex,
-                fragmentShader: beamFragment,
-                uniforms: {
-                    uTime: { value: 0 },
-                    uOpacity: { value: 0 },
-                    uColor: { value: INACTIVE_COLOR.clone() },
-                },
-                transparent: true,
-                depthWrite: false,
-                side: DoubleSide,
-                blending: AdditiveBlending,
-            });
-
-            // ── End walls (start and end of zone, perpendicular to track) ──
-            const wStart = new Mesh(endWallGeom, wallMat);
-            wStart.position.copy(startPos);
-            wStart.position.y += WALL_HEIGHT / 2;
-            wStart.lookAt(wStart.position.clone().add(tmpDir));
-
-            stopGroup.add(wStart);
-
-            const wEnd = new Mesh(endWallGeom, wallMat);
-            wEnd.position.copy(endPos);
-            wEnd.position.y += WALL_HEIGHT / 2;
-            wEnd.lookAt(wEnd.position.clone().add(tmpDir));
-
-            stopGroup.add(wEnd);
-
-            // ── Side walls (segmented to follow track curves) ──
-            const segCount = Math.max(1, Math.ceil(zoneLengthM / SIDE_WALL_SEGMENT_LENGTH));
-            const segLen = zoneLengthM / segCount;
-            const sideWallGeoms: PlaneGeometry[] = [];
-            const segDir = new Vector3();
-            const segPerp = new Vector3();
-
-            for (let s = 0; s < segCount; s++) {
-                const segStartM = zoneStartM + s * segLen;
-                const segEndM = segStartM + segLen;
-                const segMidM = (segStartM + segEndM) / 2;
-
-                const segStartPos = path.getPointAtDistance(segStartM);
-                const segEndPos = path.getPointAtDistance(segEndM);
-                const segMidPos = path.getPointAtDistance(segMidM);
-
-                // Segment direction along the track
-                segDir.subVectors(segEndPos, segStartPos);
-                segDir.y = 0;
-                if (segDir.lengthSq() < 0.001) segDir.set(1, 0, 0);
-                segDir.normalize();
-
-                // Perpendicular for this segment
-                segPerp.set(-segDir.z, 0, segDir.x);
-
-                const segGeom = new PlaneGeometry(segLen + 0.3, WALL_HEIGHT);
-                sideWallGeoms.push(segGeom);
-
-                const wLeft = new Mesh(segGeom, wallMat);
-                wLeft.position.copy(segMidPos).addScaledVector(segPerp, halfWidth);
-                wLeft.position.y += WALL_HEIGHT / 2;
-                wLeft.lookAt(wLeft.position.clone().add(segPerp));
-                stopGroup.add(wLeft);
-
-                const wRight = new Mesh(segGeom, wallMat);
-                wRight.position.copy(segMidPos).addScaledVector(segPerp, -halfWidth);
-                wRight.position.y += WALL_HEIGHT / 2;
-                wRight.lookAt(wRight.position.clone().add(segPerp));
-                stopGroup.add(wRight);
-            }
-
-            // ── Beam cross (two perpendicular planes — visible from all angles) ──
-            const b1 = new Mesh(beamGeom, beamMat);
-            b1.position.copy(centerPos);
-            b1.position.y += BEAM_HEIGHT / 2;
-            b1.lookAt(b1.position.clone().add(tmpPerp));
-            b1.frustumCulled = false;
-
-            stopGroup.add(b1);
-
-            const b2 = new Mesh(beamGeom, beamMat);
-            b2.position.copy(centerPos);
-            b2.position.y += BEAM_HEIGHT / 2;
-            b2.lookAt(b2.position.clone().add(tmpDir));
-            b2.frustumCulled = false;
-
-            stopGroup.add(b2);
-
-            this.group.add(stopGroup);
-
-            this.visuals.push({
-                group: stopGroup,
-                wallMaterial: wallMat,
-                beamMaterial: beamMat,
-                sideWallGeoms,
-                stopDistanceM,
-                currentOpacity: 0,
-                targetOpacity: 0.25,
-                currentColor: INACTIVE_COLOR.clone(),
-                targetColor: INACTIVE_COLOR.clone(),
-            });
         }
+
+        this.createIndicatorForStop(firstIdx);
+    }
+
+    private buildSideStripGeometry(
+        path: Path,
+        zoneStartM: number,
+        segCount: number,
+        segLen: number,
+        lateralOffset: number,
+    ): BufferGeometry {
+        const vertCount = (segCount + 1) * 2;
+        const positions = new Float32Array(vertCount * 3);
+        const uvs = new Float32Array(vertCount * 2);
+        const indices: number[] = [];
+
+        const tmpPerp = this._tmpPerp;
+        const tmpPoint = this._tmpPoint;
+
+        for (let e = 0; e <= segCount; e++) {
+            const edgeM = zoneStartM + e * segLen;
+            const edgePos = path.getPointAtDistance(edgeM, tmpPoint);
+
+            const lookAhead = path.getPointAtDistance(edgeM + 0.5);
+            const lookBehind = path.getPointAtDistance(edgeM - 0.5);
+            this._tmpDir.subVectors(lookAhead, lookBehind);
+            this._tmpDir.y = 0;
+            if (this._tmpDir.lengthSq() < 0.001) this._tmpDir.set(1, 0, 0);
+            this._tmpDir.normalize();
+
+            tmpPerp.set(-this._tmpDir.z, 0, this._tmpDir.x);
+
+            const bIdx = e * 2;
+            positions[bIdx * 3 + 0] = edgePos.x + tmpPerp.x * lateralOffset;
+            positions[bIdx * 3 + 1] = edgePos.y;
+            positions[bIdx * 3 + 2] = edgePos.z + tmpPerp.z * lateralOffset;
+
+            const tIdx = bIdx + 1;
+            positions[tIdx * 3 + 0] = edgePos.x + tmpPerp.x * lateralOffset;
+            positions[tIdx * 3 + 1] = edgePos.y + WALL_HEIGHT;
+            positions[tIdx * 3 + 2] = edgePos.z + tmpPerp.z * lateralOffset;
+
+            const u = e / segCount;
+            uvs[bIdx * 2 + 0] = u;
+            uvs[bIdx * 2 + 1] = 0;
+            uvs[tIdx * 2 + 0] = u;
+            uvs[tIdx * 2 + 1] = 1;
+        }
+
+        for (let s = 0; s < segCount; s++) {
+            const bl = s * 2;
+            const tl = bl + 1;
+            const br = (s + 1) * 2;
+            const tr = br + 1;
+            indices.push(bl, br, tl);
+            indices.push(tl, br, tr);
+        }
+
+        const geom = new BufferGeometry();
+        geom.setAttribute('position', new Float32BufferAttribute(positions, 3));
+        geom.setAttribute('uv', new Float32BufferAttribute(uvs, 2));
+        geom.setIndex(indices);
+
+        return geom;
+    }
+
+    private createIndicatorForStop(index: number): void {
+        this.disposeVisual();
+
+        const distances = stopDistances.value;
+        const stopsArr = stops.value;
+        if (index < 0 || index >= stopsArr.length || !this.path) return;
+
+        const path = this.path;
+        const stopDistanceM = distances[index] * 1000;
+        const halfZoneM = this.zoneLengthM / 2;
+        const zoneStartM = stopDistanceM - halfZoneM;
+        const zoneEndM = stopDistanceM + halfZoneM;
+
+        const centerPos = path.getPointAtDistance(stopDistanceM);
+        const startPos = path.getPointAtDistance(zoneStartM);
+        const endPos = path.getPointAtDistance(zoneEndM);
+
+        const tmpDir = this._tmpDir;
+        const tmpPerp = this._tmpPerp;
+
+        tmpDir.subVectors(endPos, startPos);
+        if (tmpDir.lengthSq() < 0.001) {
+            const before = path.getPointAtDistance(Math.max(0, stopDistanceM - 5));
+            const after = path.getPointAtDistance(stopDistanceM + 5);
+            tmpDir.subVectors(after, before);
+        }
+        tmpDir.y = 0;
+        if (tmpDir.lengthSq() < 0.001) tmpDir.set(1, 0, 0);
+        tmpDir.normalize();
+
+        tmpPerp.set(-tmpDir.z, 0, tmpDir.x);
+
+        const stopGroup = new Group();
+        stopGroup.name = `Station_${index}_${stopsArr[index].station}`;
+
+        const wallMat = new ShaderMaterial({
+            vertexShader: wallVertex,
+            fragmentShader: wallFragment,
+            uniforms: {
+                uTime: { value: 0 },
+                uOpacity: { value: 0 },
+                uColor: { value: ACTIVE_COLOR.clone() },
+            },
+            transparent: true,
+            depthWrite: false,
+            side: DoubleSide,
+            blending: AdditiveBlending,
+        });
+
+        const beamMat = new ShaderMaterial({
+            vertexShader: beamVertex,
+            fragmentShader: beamFragment,
+            uniforms: {
+                uTime: { value: 0 },
+                uOpacity: { value: 0 },
+                uColor: { value: ACTIVE_COLOR.clone() },
+            },
+            transparent: true,
+            depthWrite: false,
+            side: DoubleSide,
+            blending: AdditiveBlending,
+        });
+
+        const wStart = new Mesh(endWallGeom!, wallMat);
+        wStart.position.copy(startPos);
+        wStart.position.y += WALL_HEIGHT / 2;
+        wStart.lookAt(wStart.position.x + tmpDir.x, wStart.position.y + tmpDir.y, wStart.position.z + tmpDir.z);
+        stopGroup.add(wStart);
+
+        const wEnd = new Mesh(endWallGeom!, wallMat);
+        wEnd.position.copy(endPos);
+        wEnd.position.y += WALL_HEIGHT / 2;
+        wEnd.lookAt(wEnd.position.x + tmpDir.x, wEnd.position.y + tmpDir.y, wEnd.position.z + tmpDir.z);
+        stopGroup.add(wEnd);
+
+        const segCount = Math.max(1, Math.ceil(this.zoneLengthM / SIDE_WALL_SEGMENT_LENGTH));
+        const segLen = this.zoneLengthM / segCount;
+        const sideWallGeoms: BufferGeometry[] = [];
+
+        const leftGeom = this.buildSideStripGeometry(path, zoneStartM, segCount, segLen, this.halfWidth);
+        sideWallGeoms.push(leftGeom);
+        const leftMesh = new Mesh(leftGeom, wallMat);
+        stopGroup.add(leftMesh);
+
+        const rightGeom = this.buildSideStripGeometry(path, zoneStartM, segCount, segLen, -this.halfWidth);
+        sideWallGeoms.push(rightGeom);
+        const rightMesh = new Mesh(rightGeom, wallMat);
+        stopGroup.add(rightMesh);
+
+        const b1 = new Mesh(beamGeom!, beamMat);
+        b1.position.copy(centerPos);
+        b1.position.y += BEAM_HEIGHT / 2;
+        b1.lookAt(b1.position.x + tmpPerp.x, b1.position.y + tmpPerp.y, b1.position.z + tmpPerp.z);
+        b1.frustumCulled = false;
+        stopGroup.add(b1);
+
+        const b2 = new Mesh(beamGeom!, beamMat);
+        b2.position.copy(centerPos);
+        b2.position.y += BEAM_HEIGHT / 2;
+        b2.lookAt(b2.position.x + tmpDir.x, b2.position.y + tmpDir.y, b2.position.z + tmpDir.z);
+        b2.frustumCulled = false;
+        stopGroup.add(b2);
+
+        this.group.add(stopGroup);
+
+        this.visual = {
+            group: stopGroup,
+            wallMaterial: wallMat,
+            beamMaterial: beamMat,
+            sideWallGeoms,
+            stopDistanceM,
+            currentOpacity: 0,
+            targetOpacity: 1.0,
+        };
+        this.activeIndex = index;
+    }
+
+    private disposeVisual(): void {
+        if (!this.visual) return;
+        this.visual.wallMaterial.dispose();
+        this.visual.beamMaterial.dispose();
+        for (const g of this.visual.sideWallGeoms) g.dispose();
+        this.visual.group.removeFromParent();
+        this.visual = null;
+        this.activeIndex = -1;
     }
 
     public update(deltaTime: number): void {
@@ -300,9 +347,6 @@ export class StationIndicator {
         const statuses = stopStatuses.value;
         if (statuses.length === 0) return;
 
-        const trainPosM = trainDistanceTraveled.value;
-
-        // Find next unserviced stop
         let nextIdx = -1;
         for (let i = 0; i < statuses.length; i++) {
             if (!statuses[i]?.arrived) {
@@ -311,66 +355,45 @@ export class StationIndicator {
             }
         }
 
-        const fadeSpeed = 3.0;
-
-        for (let i = 0; i < this.visuals.length; i++) {
-            const v = this.visuals[i];
-            const status = statuses[i];
-            if (!status) continue;
-
-            // Determine target state
-            if (status.departed) {
-                v.targetOpacity = 0;
-            } else if (status.arrived) {
-                // Currently at stop
-                v.targetOpacity = 0.6;
-                v.targetColor.copy(ACTIVE_COLOR);
-            } else if (i === nextIdx) {
-                // Next unserviced stop — full brightness
-                v.targetOpacity = 1.0;
-                v.targetColor.copy(ACTIVE_COLOR);
-            } else {
-                // Future stop — dimmed
-                v.targetOpacity = 0.25;
-                v.targetColor.copy(INACTIVE_COLOR);
+        if (nextIdx !== this.activeIndex) {
+            if (nextIdx === -1) {
+                this.disposeVisual();
+                return;
             }
-
-            // Smooth lerp
-            const t = Math.min(1, fadeSpeed * deltaTime);
-            v.currentOpacity += (v.targetOpacity - v.currentOpacity) * t;
-            v.currentColor.lerp(v.targetColor, t);
-
-            // Hide if fully transparent
-            if (v.currentOpacity < 0.005) {
-                v.group.visible = false;
-                continue;
-            }
-            v.group.visible = true;
-
-            // Beam proximity fade — dim when train is close
-            const distToStation = Math.abs(trainPosM - v.stopDistanceM);
-            const proximityFade = Math.min(1, distToStation / BEAM_FADE_DISTANCE);
-
-            // Push wall uniforms
-            v.wallMaterial.uniforms.uTime.value = this.time;
-            v.wallMaterial.uniforms.uOpacity.value = v.currentOpacity;
-            (v.wallMaterial.uniforms.uColor.value as Vector3).copy(v.currentColor);
-
-            // Push beam uniforms with proximity fade applied
-            v.beamMaterial.uniforms.uTime.value = this.time;
-            v.beamMaterial.uniforms.uOpacity.value = v.currentOpacity * proximityFade;
-            (v.beamMaterial.uniforms.uColor.value as Vector3).copy(v.currentColor);
+            this.createIndicatorForStop(nextIdx);
         }
+
+        const v = this.visual;
+        if (!v) return;
+
+        const status = statuses[this.activeIndex];
+        if (!status) return;
+
+        v.targetOpacity = status.arrived ? 0.6 : 1.0;
+
+        const fadeSpeed = 3.0;
+        const t = Math.min(1, fadeSpeed * deltaTime);
+        v.currentOpacity += (v.targetOpacity - v.currentOpacity) * t;
+
+        if (v.currentOpacity < 0.005) {
+            v.group.visible = false;
+            return;
+        }
+        v.group.visible = true;
+
+        const trainPosM = trainDistanceTraveled.value;
+        const distToStation = Math.abs(trainPosM - v.stopDistanceM);
+        const proximityFade = Math.min(1, distToStation / BEAM_FADE_DISTANCE);
+
+        v.wallMaterial.uniforms.uTime.value = this.time;
+        v.wallMaterial.uniforms.uOpacity.value = v.currentOpacity;
+        v.beamMaterial.uniforms.uTime.value = this.time;
+        v.beamMaterial.uniforms.uOpacity.value = v.currentOpacity * proximityFade;
     }
 
     public dispose(): void {
-        for (const v of this.visuals) {
-            v.wallMaterial.dispose();
-            v.beamMaterial.dispose();
-            for (const g of v.sideWallGeoms) g.dispose();
-            v.group.removeFromParent();
-        }
-        this.visuals = [];
+        this.disposeVisual();
         this.group.clear();
+        this.path = null;
     }
 }

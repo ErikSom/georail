@@ -23,41 +23,26 @@ function getCurveTitle(curveBlade: CurveBladeApi): string {
 type RegisterFolder = (folder: FolderApi, key: string) => void;
 type GetFolderExpanded = (key: string, fallback: boolean) => boolean;
 
-/**
- * Represents a single audio source instance with its associated curves
- */
 interface AudioInstance {
     audio: PositionalAudio;
     sound: AudioSound;
     compositionTitle: string;
 }
 
-/**
- * Train state used for curve evaluation
- */
 interface TrainState {
-    throttlePower: number;  // 0-1
-    velocityKmh: number;    // km/h
-    brakePower: number;     // 0-1
-    tractiveEffort: number; // 0-1 (normalized)
+    throttlePower: number;
+    velocityKmh: number;
+    brakePower: number;
+    tractiveEffort: number;
 }
 
-/**
- * TrainAudio manages both the audio configuration UI and runtime audio playback.
- *
- * UI: Provides Tweakpane interface for configuring audio compositions and curves
- * Runtime: Uses ThreeJS PositionalAudio to play sounds based on train state
- */
 export class TrainAudio {
-    // Runtime audio engine properties
     private audioInstances: AudioInstance[] = [];
     private audioLoader: AudioLoader;
     private trainGroup: Group | null = null;
     private isEnabled: boolean = false;
     private currentInitializationId: number = 0;
     private opusSupported: boolean = true;
-
-    // Reusable objects to avoid per-frame allocations
     private _trainState: TrainState = { throttlePower: 0, velocityKmh: 0, brakePower: 0, tractiveEffort: 0 };
     private _volumeValues: number[] = [];
     private _pitchValues: number[] = [];
@@ -144,7 +129,6 @@ export class TrainAudio {
         });
 
         audioFilesBlade.on('change', (ev) => {
-            // Convert from AudioUploadFile[] to AudioFile[]
             audioFiles = audioFilesBlade.files.map(f => ({ name: f.name, url: f.url }));
             updateAudioFileNames(audioFilesBlade.files);
             refreshSoundOptions();
@@ -266,17 +250,12 @@ export class TrainAudio {
                         curveBlade.on('change', (ev) => {
                             sound.curves[curveIndex].points = ev.value;
                             sound.curves[curveIndex].axis = curveBlade.axis;
-                            // Don't re-initialize audio for curve changes - they're applied in update()
                             onAudioChange({ files: audioFiles, compositions: audioCompositions });
                         });
 
                         curveBlade.on('axischange', () => {
-                            // Update folder title when axis changes
-                            const newTitle = getCurveTitle(curveBlade);
-                            curveFolder.title = newTitle;
-                            // Save the axis configuration
+                            curveFolder.title = getCurveTitle(curveBlade);
                             sound.curves[curveIndex].axis = curveBlade.axis;
-                            // Don't re-initialize audio for axis changes - they're applied in update()
                             onAudioChange({ files: audioFiles, compositions: audioCompositions });
                         });
 
@@ -318,26 +297,12 @@ export class TrainAudio {
         renderCompositions();
     }
 
-    // ============================================================================
-    // Runtime Audio Engine Methods
-    // ============================================================================
-
-    /**
-     * Set the train group for attaching positional audio
-     */
     public setTrainGroup(trainGroup: Group): void {
         this.trainGroup = trainGroup;
     }
 
-    /**
-     * Initialize the audio engine with a configuration
-     * Automatically uses the global audio listener from the store
-     */
     public async initialize(config: AudioConfig): Promise<void> {
-        // Increment initialization ID to cancel any ongoing initializations
         const initializationId = ++this.currentInitializationId;
-
-        // Clean up existing audio instances
         this.cleanup();
 
         const listener = audioListener.value;
@@ -351,15 +316,12 @@ export class TrainAudio {
             return;
         }
 
-        // Load all audio files and create a mapping from filename to buffer
-        // config.files contains AudioFile objects with both name and url
         const audioBuffers = new Map<string, AudioBuffer>();
 
         for (const audioFile of config.files) {
             try {
                 const buffer = await this.loadAudioFile(audioFile.url);
 
-                // Check if this initialization was cancelled
                 if (initializationId !== this.currentInitializationId) {
                     return;
                 }
@@ -370,13 +332,8 @@ export class TrainAudio {
             }
         }
 
-        // Check again before creating instances
-        if (initializationId !== this.currentInitializationId) {
-            console.log(`TrainAudio: Initialization ${initializationId} cancelled before creating instances`);
-            return;
-        }
+        if (initializationId !== this.currentInitializationId) return;
 
-        // Create audio instances for each sound in each composition
         for (const composition of config.compositions) {
             for (const sound of composition.sounds) {
                 const buffer = audioBuffers.get(sound.file);
@@ -385,17 +342,13 @@ export class TrainAudio {
                     continue;
                 }
 
-                // Create a PositionalAudio instance
                 const positionalAudio = new PositionalAudio(listener);
                 positionalAudio.setBuffer(buffer);
                 positionalAudio.setLoop(true);
                 positionalAudio.setRefDistance(5);
                 positionalAudio.setRolloffFactor(1);
 
-                // Attach to train group for spatial positioning
                 this.trainGroup.add(positionalAudio);
-
-                // Store the instance with its configuration
                 this.audioInstances.push({
                     audio: positionalAudio,
                     sound: sound,
@@ -405,17 +358,10 @@ export class TrainAudio {
         }
 
         this.isEnabled = true;
-        console.log(`TrainAudio: Initialization ${initializationId} completed with ${this.audioInstances.length} audio instances`);
-
-        // Auto-play all audio instances
+        console.log(`TrainAudio: Initialized ${this.audioInstances.length} audio instances`);
         this.play();
     }
 
-    /**
-     * Load an audio file and return its AudioBuffer
-     * Handles both blob URLs and encrypted audio files
-     * For encrypted files, tries opus/webm first, falls back to .fb (MP3) if opus not supported
-     */
     private async loadAudioFile(filePath: string): Promise<AudioBuffer> {
         const listener = audioListener.value;
         if (!listener) {
@@ -423,7 +369,6 @@ export class TrainAudio {
         }
         const audioContext = listener.context;
 
-        // Path A: Blob URLs - use standard loader
         if (filePath.startsWith(blobString)) {
             return new Promise((resolve, reject) => {
                 this.audioLoader.load(
@@ -435,13 +380,10 @@ export class TrainAudio {
             });
         }
 
-        // Path B: Internal encrypted files
         try {
-            // Get the mangled/encrypted filename
             const mangledFileName = getProtectedAssetPath(filePath);
             const fetchUrl = `${trainAssetsPath}/${mangledFileName}`;
 
-            // If opus support is already known to be false, go directly to MP3 fallback
             if (this.opusSupported === false) {
                 console.log(`[TrainAudio] Loading MP3 fallback (opus not supported): ${fetchUrl}.fb`);
                 const fallbackBuffer = await loadEncryptedAsset(`${fetchUrl}.fb`, filePath);
@@ -451,16 +393,13 @@ export class TrainAudio {
 
             console.log(`[TrainAudio] Loading encrypted audio: ${fetchUrl}`);
 
-            // Load and decrypt the buffer
             const buffer = await loadEncryptedAsset(fetchUrl, filePath);
 
-            // Try to decode the audio buffer (opus/webm)
             try {
                 const audioBuffer = await audioContext.decodeAudioData(buffer.slice(0));
                 console.log(`[TrainAudio] Successfully decoded opus audio: ${filePath}`);
                 return audioBuffer;
             } catch (decodeError) {
-                // Opus not supported, mark flag and try fallback MP3
                 this.opusSupported = false;
                 console.log(`[TrainAudio] Opus not supported, using MP3 fallback for all files`);
                 const fallbackUrl = `${fetchUrl}.fb`;
@@ -476,9 +415,6 @@ export class TrainAudio {
     }
 
 
-    /**
-     * Start playing all audio instances
-     */
     public play(): void {
         if (!this.isEnabled) return;
 
@@ -489,9 +425,6 @@ export class TrainAudio {
         }
     }
 
-    /**
-     * Stop playing all audio instances
-     */
     public stop(): void {
         for (const instance of this.audioInstances) {
             if (instance.audio.isPlaying) {
@@ -500,9 +433,6 @@ export class TrainAudio {
         }
     }
 
-    /**
-     * Pause all audio instances
-     */
     public pause(): void {
         for (const instance of this.audioInstances) {
             if (instance.audio.isPlaying) {
@@ -511,38 +441,23 @@ export class TrainAudio {
         }
     }
 
-    /**
-     * Update audio properties based on train state
-     * Should be called every frame
-     */
     public update(): void {
         if (!this.isEnabled || this.audioInstances.length === 0) return;
 
-        // Get current train state from global store
         const trainState = this.getTrainState();
-
-        // Update each audio instance based on its curves
         for (const instance of this.audioInstances) {
             this.updateAudioInstance(instance, trainState);
         }
     }
 
-    /**
-     * Get current train state for curve evaluation from global store
-     */
     private getTrainState(): TrainState {
         const power = trainPower.value;
         const velocityKmh = trainVelocityKmh.value;
 
-        // Calculate brake power: when power is opposite to velocity direction, or when coasting
         let brakePower = 0;
-
-        // If moving and power is opposite direction, full brake
         if ((velocityKmh > 0 && power < -0.1) || (velocityKmh < 0 && power > 0.1)) {
             brakePower = 1.0;
-        }
-        // If moving and power is neutral, partial brake (coasting)
-        else if (Math.abs(power) <= 0.1 && Math.abs(velocityKmh) > 0.1) {
+        } else if (Math.abs(power) <= 0.1 && Math.abs(velocityKmh) > 0.1) {
             brakePower = 0.3;
         }
 
@@ -554,11 +469,7 @@ export class TrainAudio {
         return this._trainState;
     }
 
-    /**
-     * Update a single audio instance based on its curves and train state
-     */
     private updateAudioInstance(instance: AudioInstance, trainState: TrainState): void {
-        // Collect all volume and pitch values from curves (reuse arrays)
         const volumeValues = this._volumeValues;
         const pitchValues = this._pitchValues;
         volumeValues.length = 0;
@@ -568,14 +479,10 @@ export class TrainAudio {
             const xAxis = curve.axis?.x.label || '';
             const yAxis = curve.axis?.y.label || '';
 
-            // Get input value from train state
             const inputValue = this.getInputValue(trainState, xAxis);
             if (inputValue === null) continue;
 
-            // Interpolate curve to get output value
             const outputValue = this.interpolateCurve(curve, inputValue);
-
-            // Store output value based on target axis
             if (yAxis === 'Volume') {
                 volumeValues.push(outputValue);
             } else if (yAxis === 'Pitch') {
@@ -583,20 +490,16 @@ export class TrainAudio {
             }
         }
 
-        // Apply the LOWEST value for each property (lowest wins)
-        // If no curves control a property, default to maximum (1.0)
+        // Lowest value wins; default to 1.0 if no curves control a property
         let finalVolume = 1.0;
         for (let i = 0; i < volumeValues.length; i++) {
             if (volumeValues[i] < finalVolume) finalVolume = volumeValues[i];
         }
         instance.audio.setVolume(finalVolume);
 
-        // Auto-play if volume is above 0 and not already playing
         if (finalVolume > 0 && !instance.audio.isPlaying) {
             instance.audio.play();
-        }
-        // Stop if volume is 0
-        else if (finalVolume === 0 && instance.audio.isPlaying) {
+        } else if (finalVolume === 0 && instance.audio.isPlaying) {
             instance.audio.pause();
         }
 
@@ -607,14 +510,10 @@ export class TrainAudio {
             }
             instance.audio.setPlaybackRate(finalPitch);
         } else {
-            // Default pitch to 1.0 if no curves control it
             instance.audio.setPlaybackRate(1.0);
         }
     }
 
-    /**
-     * Get input value from train state based on axis label
-     */
     private getInputValue(trainState: TrainState, axisLabel: string): number | null {
         switch (axisLabel) {
             case 'Throttle Power':
@@ -631,27 +530,20 @@ export class TrainAudio {
         }
     }
 
-    /**
-     * Interpolate a curve to get the output value for a given input value
-     * Uses linear interpolation between points
-     */
     private interpolateCurve(curve: AudioCurve, inputValue: number): number {
         const points = curve.points;
         if (points.length === 0) return 0;
         if (points.length === 1) return points[0].y;
 
-        // Ensure points are sorted (mutates in place, only re-sorts if needed on first call)
         if (!(curve as any)._sorted) {
             points.sort((a, b) => a.x - b.x);
             (curve as any)._sorted = true;
         }
 
-        // Clamp input to curve range
         const minX = points[0].x;
         const maxX = points[points.length - 1].x;
         const clampedInput = Math.max(minX, Math.min(maxX, inputValue));
 
-        // Find the two points to interpolate between
         let leftPoint = points[0];
         let rightPoint = points[points.length - 1];
 
@@ -663,7 +555,6 @@ export class TrainAudio {
             }
         }
 
-        // Linear interpolation
         if (leftPoint.x === rightPoint.x) {
             return leftPoint.y;
         }
@@ -672,9 +563,6 @@ export class TrainAudio {
         return leftPoint.y + t * (rightPoint.y - leftPoint.y);
     }
 
-    /**
-     * Enable or disable the audio engine
-     */
     public setEnabled(enabled: boolean): void {
         this.isEnabled = enabled;
         if (!enabled) {
@@ -682,20 +570,14 @@ export class TrainAudio {
         }
     }
 
-    /**
-     * Clean up all audio instances
-     */
     public cleanup(): void {
         const instanceCount = this.audioInstances.length;
-
-        // Stop all audio instances
         for (const instance of this.audioInstances) {
             if (instance.audio.isPlaying) {
                 instance.audio.stop();
             }
         }
 
-        // Remove from scene and disconnect
         if (this.trainGroup) {
             for (const instance of this.audioInstances) {
                 this.trainGroup.remove(instance.audio);
@@ -703,7 +585,6 @@ export class TrainAudio {
             }
         }
 
-        // Clear instances array
         this.audioInstances = [];
         this.isEnabled = false;
 

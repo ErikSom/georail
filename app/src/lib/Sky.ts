@@ -410,7 +410,6 @@ export class Sky {
     private pane: Tweakpane.Pane | null = null;
     private isPaneVisible: boolean = false;
 
-    // Reusable temp objects to avoid per-frame allocations
     private _sunVec = new Vector3();
     private _tmpColor = new Color();
     private _tmpColorB = new Color();
@@ -418,7 +417,6 @@ export class Sky {
     constructor(scene: Scene, lutPath: string = '/textures/scatteringLUT.HDR') {
         this.scene = scene;
 
-        // Load cloud textures from files
         const textureLoader = new TextureLoader();
         const cloudNoiseTex = textureLoader.load('/textures/cloud-noise.png');
         cloudNoiseTex.wrapS = cloudNoiseTex.wrapT = RepeatWrapping;
@@ -501,15 +499,12 @@ export class Sky {
         this.hemisphereLight = new HemisphereLight(0xffffff, 0x202020, 0.6);
         this.scene.add(this.hemisphereLight);
 
-        // Add debug helpers for lights
         if (this.debugLights) {
             this.sunLightHelper = new DirectionalLightHelper(this.sunLight, 100, 0xffff00);
             this.scene.add(this.sunLightHelper);
 
             this.moonLightHelper = new DirectionalLightHelper(this.moonLight, 100, 0x8888ff);
             this.scene.add(this.moonLightHelper);
-
-            console.log('Light debug helpers enabled');
         }
     }
 
@@ -558,7 +553,6 @@ export class Sky {
     private updateSkyColors(): void {
         const pos = this.sunPosAlpha;
         const preset = godotPreset;
-        // _tmpColor = skyColor, _tmpColorB = groundColor (reused throughout)
         const skyColor = preset.baseSkyColor.sample(pos, this._tmpColor);
         const groundColor = preset.horizonFogColor.sample(pos, this._tmpColorB);
 
@@ -571,9 +565,9 @@ export class Sky {
         this.skyMaterial.uniforms.horizonFogColor.value.copy(groundColor);
 
         const normalizedCoverage = (this.cloudCoverage + 1.0) * 0.5;
-        // Sample baseCloudColor directly into the uniform, then lerp in-place with overcastCloudColor
         preset.baseCloudColor.sample(pos, this.skyMaterial.uniforms.baseCloudColor.value);
-        preset.overcastCloudColor.sample(pos, this.ambientLight.color); // borrow as temp
+        preset.overcastCloudColor.sample(pos, this.ambientLight.color);
+
         this.skyMaterial.uniforms.baseCloudColor.value.lerp(this.ambientLight.color, normalizedCoverage);
 
         preset.sunDiscColor.sample(pos, this.skyMaterial.uniforms.sunDiscColor.value);
@@ -591,7 +585,6 @@ export class Sky {
         this.sunLight.intensity = Math.max(0, sunInt * cloudDamp * this.sunPeakIntensity);
         preset.moonLightColor.sample(pos, this.moonLight.color);
         this.moonLight.intensity = Math.max(0, moonInt * cloudDamp * this.moonPeakIntensity);
-        // ambientBase = groundColor lerped toward skyColor — write directly into ambientLight.color
         this.ambientLight.color.copy(groundColor).lerp(skyColor, 0.35);
         if (this.ambientTintBlend > 0) {
             this.ambientLight.color.lerp(this.ambientTint, this.ambientTintBlend);
@@ -609,7 +602,6 @@ export class Sky {
             dayFactor
         ) + (moonFactor * this.hemiMoonBoost);
 
-        // Lensflares are bright at night, dim during the day
         Lensflare.globalIntensity = MathUtils.lerp(1.0, 0.30, dayFactor);
     }
 
@@ -632,11 +624,9 @@ export class Sky {
         this.skyMaterial.dispose();
         this.skyMesh.geometry.dispose();
 
-        // Dispose generated textures
         this.skyMaterial.uniforms.cloudNoise.value.dispose();
         this.skyMaterial.uniforms.weatherMap.value.dispose();
 
-        // Dispose UI pane if exists
         if (this.pane) {
             this.pane.dispose();
             this.pane = null;
@@ -644,13 +634,12 @@ export class Sky {
     }
 
     private createUI(): void {
-        if (this.pane) return; // Already created
+        if (this.pane) return;
 
         const rootDomContainer = document.getElementById('tweakpane-container');
 
         this.pane = new Tweakpane.Pane({ title: 'Sky Settings', container: rootDomContainer || undefined });
 
-        // Time controls
         this.pane.addBinding(this, 'timeOfDay', {
             min: 0,
             max: 2400,
@@ -665,7 +654,6 @@ export class Sky {
 
         this.pane.addBlade({ view: 'separator' });
 
-        // Cloud controls
         this.pane.addBinding(this, 'cloudCoverage', {
             min: 0,
             max: 1,
@@ -686,7 +674,6 @@ export class Sky {
 
         this.pane.addBlade({ view: 'separator' });
 
-        // Sun/Moon controls
         this.pane.addBinding(this.skyMaterial.uniforms.sunRadius, 'value', {
             min: 0.0001,
             max: 0.001,
@@ -702,7 +689,6 @@ export class Sky {
 
         this.pane.addBlade({ view: 'separator' });
 
-        // Star controls
         this.pane.addBinding(this.skyMaterial.uniforms.starBrightness, 'value', {
             min: 0,
             max: 2,
@@ -718,7 +704,6 @@ export class Sky {
 
         this.pane.addBlade({ view: 'separator' });
 
-        // Light controls
         this.pane.addBinding(this, 'sunPeakIntensity', {
             min: 0,
             max: 10,
@@ -804,7 +789,6 @@ export class Sky {
             }
         });
 
-        // Hide pane by default
         if (!this.isPaneVisible) {
             this.pane.element.style.display = 'none';
         }

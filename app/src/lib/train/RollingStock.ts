@@ -24,7 +24,6 @@ export class RollingStock {
     private frontBogieEntity: Object3D | null = null;
     private rearBogieEntity: Object3D | null = null;
 
-    // Wheel rotation data - wheels with their cached radius, rotation axis, and optional debug mesh
     private wheels: { mesh: Object3D; radius: number; rotationAxis: Vector3; debugMesh?: Mesh }[] = [];
 
     private railPositions = {
@@ -39,16 +38,13 @@ export class RollingStock {
         bogieRearBack: new Vector3(),
     }
 
-    // Global debug visualization
     private debug: boolean = false;
     protected debugPaneName: string = 'RollingStock Debug';
     private paneFolder: FolderApi | null = null;
 
-    // Container for rotating debug parts (Box, Couplers)
     private debugAnchor: Group | null = null;
 
     private debugMeshes: {
-        // Spheres
         center: Mesh | null;
         bogieFront: Mesh | null;
         bogieFrontFront: Mesh | null;
@@ -56,8 +52,6 @@ export class RollingStock {
         bogieRear: Mesh | null;
         bogieRearFront: Mesh | null;
         bogieRearBack: Mesh | null;
-
-        // Boxes
         body: Mesh | null;
         couplerFront: Mesh | null;
         couplerRear: Mesh | null;
@@ -84,7 +78,6 @@ export class RollingStock {
         this.globalDebugGroup = new Group();
         this.globalDebugGroup.name = 'RollingStockGlobalDebug';
 
-        // Load model if path is provided
         if (config.modelPath) {
             this.loadModel(config.modelPath, config.internal);
         }
@@ -96,44 +89,31 @@ export class RollingStock {
 
     private createDebugVisuals(): void {
         const sphereGeo = new SphereGeometry(0.5, 16, 16);
-        const boxGeo = new BoxGeometry(1, 1, 1); // Unit box, we will scale it
+        const boxGeo = new BoxGeometry(1, 1, 1);
 
-        // --- 1. Wheel/Bogie Spheres (Absolute World Positioning) ---
-
-        // Front bogie
         this.debugMeshes.bogieFrontFront = new Mesh(sphereGeo, new MeshBasicMaterial({ color: 0x00ff00 }));
         this.debugMeshes.bogieFront = new Mesh(sphereGeo, new MeshBasicMaterial({ color: 0x009b00 }));
         this.debugMeshes.bogieFrontBack = new Mesh(sphereGeo, new MeshBasicMaterial({ color: 0x005f00 }));
-
-        // Rear bogie
         this.debugMeshes.bogieRearFront = new Mesh(sphereGeo, new MeshBasicMaterial({ color: 0xff0000 }));
         this.debugMeshes.bogieRear = new Mesh(sphereGeo, new MeshBasicMaterial({ color: 0x9b0000 }));
         this.debugMeshes.bogieRearBack = new Mesh(sphereGeo, new MeshBasicMaterial({ color: 0x5f0000 }));
-
-        // Center
         this.debugMeshes.center = new Mesh(sphereGeo, new MeshBasicMaterial({ color: 0x0000ff }));
 
-        // Add spheres directly to global debug group
         this.globalDebugGroup.add(
             this.debugMeshes.bogieFrontFront, this.debugMeshes.bogieFront, this.debugMeshes.bogieFrontBack,
             this.debugMeshes.bogieRearFront, this.debugMeshes.bogieRear, this.debugMeshes.bogieRearBack,
             this.debugMeshes.center
         );
 
-        // --- 2. Structural Boxes (Relative Positioning) ---
-
-        // Create an anchor group that will copy the train's transform
         this.debugAnchor = new Group();
         this.globalDebugGroup.add(this.debugAnchor);
 
-        // Body Box (Wireframe so we can see inside)
         this.debugMeshes.body = new Mesh(
             boxGeo,
             new MeshBasicMaterial({ color: 0x00ffff, wireframe: true })
         );
         this.debugAnchor.add(this.debugMeshes.body);
 
-        // Couplers
         const couplerMat = new MeshBasicMaterial({ color: 0xffffff, wireframe: true });
 
         this.debugMeshes.couplerFront = new Mesh(boxGeo, couplerMat);
@@ -153,7 +133,6 @@ export class RollingStock {
             this.config.modelOffset.z
         );
 
-        // Apply rotation based on model forward axis
         if (this.config.modelForwardAxis) {
             const modelForward = new Vector3(
                 this.config.modelForwardAxis.x,
@@ -161,10 +140,7 @@ export class RollingStock {
                 this.config.modelForwardAxis.z
             ).normalize();
 
-            // Default forward direction is +Z
             const targetForward = new Vector3(0, 0, 1);
-
-            // Calculate rotation to align model's forward axis with +Z
             this.model.quaternion.setFromUnitVectors(modelForward, targetForward);
         }
     }
@@ -185,8 +161,6 @@ export class RollingStock {
 
                         standardMat.alphaTest = 0.5;
                         standardMat.transparent = false;
-
-                        // standardMat.side = DoubleSide;
 
                         standardMat.needsUpdate = true;
                     }
@@ -228,7 +202,6 @@ export class RollingStock {
 
         if (this.paneFolder) this.animator.createDebugUI(this.paneFolder);
 
-        // Apply shader fix if internal
         if (isInternal) {
             applyDeobfuscation(this.model!);
         }
@@ -239,14 +212,11 @@ export class RollingStock {
         this.onModelLoaded();
     }
 
-    protected onModelLoaded(): void {
-        // Override in subclasses to react to model loading
-    }
+    protected onModelLoaded(): void { }
 
     private async loadModel(path: string, isInternal: boolean = false): Promise<void> {
         const loader = getGLTFLoader();
 
-        // PATH A: Secure / Internal (Use .parse)
         if (isInternal && !path.startsWith(blobString)) {
             try {
                 const mangledFileName = getProtectedAssetPath(path);
@@ -254,12 +224,7 @@ export class RollingStock {
 
                 console.log(`[RollingStock] Fetching secure buffer: ${fetchUrl}`);
 
-                // 1. Get Decrypted Buffer directly
                 const buffer = await loadEncryptedAsset(fetchUrl, path);
-
-                // 2. Parse the Buffer
-                // The second argument './' is the path to resolve external resources. 
-                // For GLB files (which embed textures), './' is standard.
                 loader.parse(
                     buffer,
                     './',
@@ -276,14 +241,13 @@ export class RollingStock {
             }
         }
 
-        // PATH B: Standard / External (Use .load)
         else {
             loader.load(
                 path,
                 (gltf) => {
                     this.setupLoadedModel(gltf, isInternal);
                 },
-                undefined, // Progress callback
+                undefined,
                 (error) => {
                     console.warn('Failed to load model:', path, error);
                 }
@@ -292,22 +256,17 @@ export class RollingStock {
     }
 
     private setDebugVisibility(visible: boolean): void {
-        // Set visibility for all debug meshes in the group
         if (this.debugAnchor) {
             this.debugAnchor.visible = visible;
         }
 
-        // disable globalDebugGroup if needed
         this.globalDebugGroup.visible = visible;
     }
 
     private getDebugVisibility(): boolean {
-        // Return visibility state based on debugAnchor or first available debug mesh
         if (this.debugAnchor) {
             return this.debugAnchor.visible;
         }
-
-        // Check first available debug mesh
         return this.globalDebugGroup.visible;
     }
 
@@ -320,7 +279,6 @@ export class RollingStock {
             return path.getPointAtDistance(distance + totalOffset, out);
         };
 
-        // Update rail position vectors
         getWheelPoint(frontBogie, 0, this.railPositions.bogieFront);
         getWheelPoint(frontBogie, frontBogie.wheelOffsetFront, this.railPositions.bogieFrontFront);
         getWheelPoint(frontBogie, frontBogie.wheelOffsetRear, this.railPositions.bogieFrontBack);
@@ -340,12 +298,10 @@ export class RollingStock {
     }
 
     private updateDebugVisuals(): void {
-        // Calculate position (same logic as in orientOnRails)
         const frontPoint = this.railPositions.bogieFront;
         const rearPoint = this.railPositions.bogieRear;
         const bogieMidpoint = new Vector3().addVectors(frontPoint, rearPoint).multiplyScalar(0.5);
 
-        // Calculate the train's actual position (path center + lateral offset)
         const trackDirection = new Vector3().subVectors(frontPoint, rearPoint).normalize();
         const offset = new Vector3().subVectors(bogieMidpoint, this.railPositions.center);
         const longitudinalComponent = offset.dot(trackDirection);
@@ -353,7 +309,6 @@ export class RollingStock {
 
         const trainPosition = new Vector3().copy(this.railPositions.center).add(offset);
 
-        // 1. Update Spheres positions
         const map = {
             bogieFront: this.railPositions.bogieFront,
             bogieFrontFront: this.railPositions.bogieFrontFront,
@@ -370,45 +325,33 @@ export class RollingStock {
             if (mesh) mesh.position.copy(pos);
         }
 
-        // 2. Update Structural Boxes
         if (this.debugAnchor && this.debugMeshes.body) {
-            // Move anchor to match train center/rotation
             this.debugAnchor.position.copy(trainPosition);
             this.debugAnchor.quaternion.copy(this.group.quaternion);
 
             const c = this.config;
 
-            // Update Body Box
-            // Scale to config dimensions
             this.debugMeshes.body.scale.set(c.width, c.height, c.length);
-            // Position: sit on top of the rail (y = height/2)
             this.debugMeshes.body.position.set(0, c.height / 2, 0);
 
-            // Update Couplers
-            // We want them "thin", say 20% of width/height
             const cw = c.width * 0.2;
             const ch = c.height * 0.2;
 
-            // Front Coupler
             if (this.debugMeshes.couplerFront) {
-                const len = Math.max(0.1, c.couplerLengthFront); // prevent 0 scale warning
+                const len = Math.max(0.1, c.couplerLengthFront);
                 this.debugMeshes.couplerFront.scale.set(cw, ch, len);
-                // Position: at the front face of body + half coupler length
                 this.debugMeshes.couplerFront.position.set(0, c.height / 2, (c.length / 2) + (len / 2));
                 this.debugMeshes.couplerFront.visible = c.couplerLengthFront > 0;
             }
 
-            // Rear Coupler
             if (this.debugMeshes.couplerRear) {
                 const len = Math.max(0.1, c.couplerLengthRear);
                 this.debugMeshes.couplerRear.scale.set(cw, ch, len);
-                // Position: at the rear face of body - half coupler length
                 this.debugMeshes.couplerRear.position.set(0, c.height / 2, -(c.length / 2) - (len / 2));
                 this.debugMeshes.couplerRear.visible = c.couplerLengthRear > 0;
             }
         }
 
-        // 3. Update Wheel Debug Meshes
         for (const wheel of this.wheels) {
             if (wheel.debugMesh) {
                 wheel.mesh.getWorldPosition(wheel.debugMesh.position);
@@ -432,14 +375,12 @@ export class RollingStock {
         console.log(`[RollingStock] Front Bogie Entity: ${this.frontBogieEntity ? 'Found' : 'Not Found'} (${this.config.frontBogie.entityName})`);
         console.log(`[RollingStock] Rear Bogie Entity: ${this.rearBogieEntity ? 'Found' : 'Not Found'} (${this.config.rearBogie.entityName})`);
 
-        // Find and cache wheels for both bogies
         this.findWheels();
     }
 
     private findWheels(): void {
         if (!this.model) return;
 
-        // Clean up old wheel debug meshes
         for (const wheel of this.wheels) {
             if (wheel.debugMesh) {
                 this.globalDebugGroup.remove(wheel.debugMesh);
@@ -450,7 +391,6 @@ export class RollingStock {
 
         this.wheels = [];
 
-        // Process each wheel configuration
         for (const wheelConfig of this.config.wheels || []) {
             if (!wheelConfig.pattern) continue;
 
@@ -465,17 +405,14 @@ export class RollingStock {
                 const wheelDebugMat = new MeshBasicMaterial({ color: 0xff00ff, wireframe: true });
 
                 this.model!.traverse((child) => {
-                    // Check if this wheel was already added
                     if (regex.test(child.name) && !this.wheels.some(w => w.mesh === child)) {
                         const radius = wheelConfig.radius;
                         let debugMesh: Mesh | undefined;
 
-                        // Create debug visualization based on configured radius
                         if (this.debug) {
-                            // NOTE: CylinderGeometry is Y-up by default. We must orient it to the wheel's rotation axis.
+                            // CylinderGeometry is Y-up by default — orient it to the wheel's rotation axis
                             const wheelDebugGeo = new CylinderGeometry(radius, radius, 1.5, 16);
 
-                            // Align the geometry to the rotation axis
                             const alignQuat = dummyQuad.setFromUnitVectors(dummyUp, rotationAxis);
                             wheelDebugGeo.applyQuaternion(alignQuat);
 
@@ -484,8 +421,6 @@ export class RollingStock {
                             this.globalDebugGroup.add(debugMesh);
                         }
 
-
-                        // Use configured radius directly
                         this.wheels.push({ mesh: child, radius, rotationAxis: rotationAxis.clone(), debugMesh });
                         console.log(`[RollingStock] Found wheel: ${child.name}, radius: ${radius}m`);
                     }
@@ -520,71 +455,51 @@ export class RollingStock {
         const frontPoint = this.railPositions.bodyFront;
         const rearPoint = this.railPositions.bodyRear;
 
-        // Calculate the midpoint between bogies for lateral positioning
         const bogieMidpoint = dummyVec3.addVectors(frontPoint, rearPoint).multiplyScalar(0.5);
 
-        // 1. Orient the Main Train Group (Car Body)
-        // This handles the main pitch and yaw of the train car
         dummy.position.copy(rearPoint);
         dummy.lookAt(frontPoint);
         this.group.quaternion.copy(dummy.quaternion);
 
-        // Position center of car
-        // Use the path center for longitudinal position, but apply lateral offset from bogie midpoint
+        // Use path center for longitudinal position, apply lateral offset from bogie midpoint
         dummy.position.copy(this.railPositions.center);
 
-        // Calculate lateral offset: project the difference between path center and bogie midpoint
-        // onto the plane perpendicular to the track direction
         const trackDirection = dummyVec3B.subVectors(frontPoint, rearPoint).normalize();
         const offset = dummyVec3.subVectors(bogieMidpoint, this.railPositions.center);
 
-        // Remove the component along the track direction (keep only lateral offset)
+        // Remove longitudinal component, keep only lateral offset
         const longitudinalComponent = offset.dot(trackDirection);
         offset.addScaledVector(trackDirection, -longitudinalComponent);
-
-        // Apply lateral offset to the path center
         dummy.position.add(offset);
 
         this.group.parent!.worldToLocal(dummy.position);
         this.group.position.copy(dummy.position);
 
-        // Helper to rotate bogie using LookAt (Stable Up Vector) + Axis Correction
         const updateBogieRotation = (
             entity: Object3D,
             config: BogieConfig,
             posFront: Vector3,
             posBack: Vector3
         ) => {
-            // A. Calculate the direction vector in Local Space
-            // (The direction the bogie SHOULD face relative to the train car)
+            // Direction vector in local space
             const worldDirection = dummyVec3.subVectors(posFront, posBack).normalize();
             const parentQuat = entity.parent!.getWorldQuaternion(dummyQuad);
             const localDirection = worldDirection.applyQuaternion(parentQuat.invert());
 
-            // B. Calculate the "Ideal" Rotation (assuming +Z is forward)
-            // We use lookAt because it enforces the Y-Up constraint automatically,
-            // preventing the "sideways roll" issue.
+            // LookAt enforces Y-Up constraint, preventing sideways roll
             dummy.position.set(0, 0, 0);
             dummy.lookAt(localDirection);
             const targetRotation = this._targetRotation.copy(dummy.quaternion);
 
-            // C. Calculate Axis Correction
-            // If your model uses X or Y as forward, we calculate the offset 
-            // needed to align your bone axis to the standard +Z axis.
+            // Axis correction: align bone forward axis to +Z
             const boneAxis = config.boneForwardAxis;
             const boneForward = dummyVec3.set(boneAxis.x, boneAxis.y, boneAxis.z).normalize();
-            const standardForward = dummyForward;
+            const correctionQuat = dummyQuad.setFromUnitVectors(boneForward, dummyForward);
 
-            // We want a rotation that takes BoneForward -> StandardForward (+Z)
-            const correctionQuat = dummyQuad.setFromUnitVectors(boneForward, standardForward);
-
-            // D. Apply: Final = Target (LookAt) * Correction
-            // 1. Correction turns your mesh so BoneForward points to Z
-            // 2. Target turns Z to face the Track
+            // Final = LookAt * Correction
             entity.quaternion.copy(targetRotation.multiply(correctionQuat));
         };
 
-        // Apply to Front Bogie entity (bo01)
         if (this.frontBogieEntity && this.model) {
             updateBogieRotation(
                 this.frontBogieEntity,
@@ -594,7 +509,6 @@ export class RollingStock {
             );
         }
 
-        // Apply to Rear Bogie entity (bo02)
         if (this.rearBogieEntity && this.model) {
             updateBogieRotation(
                 this.rearBogieEntity,
@@ -609,10 +523,6 @@ export class RollingStock {
         return {} as RollingStockConfig; // Placeholder, to be overridden in subclasses
     }
 
-    /**
-     * Get the rail positions for this rolling stock.
-     * These are the world positions of the bogies and center point on the track.
-     */
     public getRailPositions() {
         return this.railPositions;
     }
@@ -629,7 +539,6 @@ export class RollingStock {
     ): FolderApi {
         const basePath = [...folderPath, this.debugPaneName];
 
-        // Main Folder
         const baseKey = getFolderKey(basePath);
         this.paneFolder = pane.addFolder({
             title: this.debugPaneName,
@@ -637,10 +546,8 @@ export class RollingStock {
         });
         registerFolder(this.paneFolder, baseKey);
 
-        // Get the correct config target (cab or specific wagon)
         const targetConfig = this.getConfigTarget(config);
 
-        // Debug Visualization Toggle
         const debugParams = {
             showDebugVisuals: this.getDebugVisibility()
         };
@@ -655,7 +562,6 @@ export class RollingStock {
         const maxBogieZOffset = 20;
         const maxWheelToBogieOffset = 4.0; // Reduced: wheels are rarely >4m from bogie center
 
-        // --- 1. Physics & Dimensions ---
         const physKey = getFolderKey([...basePath, 'Dimensions & Physics']);
         const physFolder = this.paneFolder.addFolder({
             title: 'Dimensions & Physics',
@@ -670,7 +576,6 @@ export class RollingStock {
             step: 0.1
         }).on('change', () => updateConfig(config));
 
-        // NEW: Width
         physFolder.addBinding(targetConfig, 'width', {
             label: 'Width (m)',
             min: 1.5, // Narrow gauge
@@ -678,7 +583,6 @@ export class RollingStock {
             step: 0.05
         }).on('change', () => updateConfig(config));
 
-        // NEW: Height
         physFolder.addBinding(targetConfig, 'height', {
             label: 'Height (m)',
             min: 2.0,
@@ -693,8 +597,6 @@ export class RollingStock {
             step: 0.5
         }).on('change', () => updateConfig(config));
 
-        // --- 2. Connections (Couplers) ---
-        // Added a separate folder for these as requested
         const connKey = getFolderKey([...basePath, 'Connections']);
         const connFolder = this.paneFolder.addFolder({
             title: 'Connections',
@@ -702,7 +604,6 @@ export class RollingStock {
         });
         registerFolder(connFolder, connKey);
 
-        // NEW: Coupler Front
         connFolder.addBinding(targetConfig, 'couplerLengthFront', {
             label: 'Coupler Front (m)',
             min: 0.0, // Buffers touching
@@ -710,7 +611,6 @@ export class RollingStock {
             step: 0.05
         }).on('change', () => updateConfig(config));
 
-        // NEW: Coupler Rear
         connFolder.addBinding(targetConfig, 'couplerLengthRear', {
             label: 'Coupler Rear (m)',
             min: 0.0,
@@ -718,7 +618,6 @@ export class RollingStock {
             step: 0.05
         }).on('change', () => updateConfig(config));
 
-        // --- 3. Engine Configuration ---
         const engineToggle = this.paneFolder.addBinding(targetConfig, 'engine', {
             label: 'Is Engine'
         });
@@ -729,7 +628,6 @@ export class RollingStock {
             expanded: getFolderExpanded(engKey, true)
         });
         registerFolder(engFolder, engKey);
-        // Set initial visibility
         engFolder.hidden = !targetConfig.engine;
 
         engineToggle.on('change', (ev) => {
@@ -751,7 +649,6 @@ export class RollingStock {
             step: 1
         }).on('change', () => updateConfig(config));
 
-        // --- 4. Visuals & Model Loading ---
         const visKey = getFolderKey([...basePath, 'Visuals']);
         const visFolder = this.paneFolder.addFolder({
             title: 'Visuals',
@@ -794,7 +691,6 @@ export class RollingStock {
             z: { min: -maxModelOffset, max: maxModelOffset }
         }).on('change', () => updateConfig(config));
 
-        // Ensure modelForwardAxis exists
         if (!targetConfig.modelForwardAxis) {
             targetConfig.modelForwardAxis = { x: 0, y: 0, z: 1 };
         }
@@ -810,7 +706,6 @@ export class RollingStock {
             label: 'Reverse On Track'
         }).on('change', () => updateConfig(config));
 
-        // --- 5. Bogie Configuration ---
         const bogieKey = getFolderKey([...basePath, 'Bogie Setup']);
         const bogieMainFolder = this.paneFolder.addFolder({
             title: 'Bogie Setup',
@@ -818,11 +713,9 @@ export class RollingStock {
         });
         registerFolder(bogieMainFolder, bogieKey);
 
-        // Helper to keep code dry
         const addBogieControls = (folder: any, bogie: any, isRear: boolean) => {
             folder.addBinding(bogie, 'zOffset', {
                 label: 'Z Offset',
-                // Dynamically set min/max based on whether it's front or rear
                 min: isRear ? -maxBogieZOffset : 0,
                 max: isRear ? 0 : maxBogieZOffset,
                 step: 0.1
@@ -870,7 +763,6 @@ export class RollingStock {
         registerFolder(rearBogieFolder, rearBogieKey);
         addBogieControls(rearBogieFolder, targetConfig.rearBogie, true);
 
-        // --- 6. Wheels Configuration ---
         const wheelsKey = getFolderKey([...basePath, 'Wheels']);
         const wheelsFolder = this.paneFolder.addFolder({
             title: 'Wheels',
@@ -878,14 +770,11 @@ export class RollingStock {
         });
         registerFolder(wheelsFolder, wheelsKey);
 
-        // Ensure wheels array exists
         if (!targetConfig.wheels) {
             targetConfig.wheels = [];
         }
 
-        // Helper to rebuild wheel UI
         const rebuildWheelUI = () => {
-            // Remove all children from wheelsFolder except the Add button
             const children = [...wheelsFolder.children];
             children.forEach((child) => {
                 if (child !== addWheelButton) {
@@ -893,7 +782,6 @@ export class RollingStock {
                 }
             });
 
-            // Add UI for each wheel config
             targetConfig.wheels.forEach((wheelConfig, index) => {
                 const wheelKey = getFolderKey([...basePath, 'Wheels', `Wheel ${index + 1}`]);
                 const wheelFolder = wheelsFolder.addFolder({
@@ -938,7 +826,6 @@ export class RollingStock {
             });
         };
 
-        // Add Wheel button
         const addWheelButton = wheelsFolder.addButton({ title: 'Add Wheel Config' }).on('click', () => {
             targetConfig.wheels.push({
                 pattern: '',
@@ -949,10 +836,8 @@ export class RollingStock {
             rebuildWheelUI();
         });
 
-        // Initial build
         rebuildWheelUI();
 
-        // --- 7. Lights ---
         const interiorKey = getFolderKey([...basePath, 'Lights']);
         const interiorFolder = this.paneFolder.addFolder({
             title: 'Lights',
@@ -967,7 +852,7 @@ export class RollingStock {
             updateConfig(config);
         });
 
-        // Color picker - tweakpane expects {r, g, b} object
+        // Tweakpane color picker expects {r, g, b} object
         const colorProxy = {
             color: {
                 r: (targetConfig.interiorMaterial.emissiveColor >> 16) & 0xff,
@@ -997,9 +882,6 @@ export class RollingStock {
         return this.paneFolder;
     }
 
-    /**
-     * Exports the current config with animation groups included.
-     */
     public exportConfig(): RollingStockConfig {
         const exported = { ...this.config };
         if (this.animator) {
@@ -1008,10 +890,6 @@ export class RollingStock {
         return exported;
     }
 
-    /**
-     * Plays a named animation group with the given settings.
-     * If the group doesn't exist in the animator, this is a no-op.
-     */
     public setEmissiveEnabled(enabled: boolean): void {
         if (!this.model || !this.config.interiorMaterial.pattern) return;
         const regex = new RegExp(this.config.interiorMaterial.pattern);
@@ -1040,7 +918,6 @@ export class RollingStock {
             this.animator.update(delta);
         }
 
-        // Rotate wheels based on distance traveled
         if (distanceDelta !== 0) {
             this.rotateWheels(distanceDelta);
         }
@@ -1049,13 +926,8 @@ export class RollingStock {
     private rotateWheels(distanceDelta: number): void {
         const directionMultiplier = this.config.reverseOnTrack ? -1 : 1;
         for (const wheel of this.wheels) {
-            // Wheel rotation calculation:
-            // Circumference = 2 * π * radius
-            // Full rotation (2π radians) occurs when distance = circumference
-            // So: angle = (distance / circumference) * 2π = (distance / (2πr)) * 2π = distance / radius
+            // angle = distance / radius (circumference cancels out)
             const angle = (distanceDelta / wheel.radius) * directionMultiplier;
-
-            // Rotate around the wheel's rotation axis in local space
             wheel.mesh.rotateOnAxis(wheel.rotationAxis, angle);
         }
     }
@@ -1079,7 +951,6 @@ export class RollingStock {
     }
 
     public cleanup(): void {
-        // Clean up model
         if (this.model) {
             this.model.traverse((child) => {
                 if (child instanceof Mesh) {
@@ -1089,7 +960,6 @@ export class RollingStock {
                 }
             });
         }
-        // Clean up debug meshes
         Object.values(this.debugMeshes).forEach(mesh => {
             if (mesh) {
                 mesh.geometry.dispose();

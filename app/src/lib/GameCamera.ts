@@ -10,9 +10,8 @@ export type CameraMode = 'free' | 'cockpit' | 'side' | 'top' | 'cinematic';
 
 const CAMERA_MODES: CameraMode[] = ['free', 'cockpit', 'side', 'top', 'cinematic'];
 
-// Cockpit mode settings
-const COCKPIT_ORBIT_MAX_ANGLE = Math.PI / 3; // max horizontal look angle (~60deg each way)
-const COCKPIT_ORBIT_VERTICAL_MAX = Math.PI / 6; // max vertical look angle (~30deg)
+const COCKPIT_ORBIT_MAX_ANGLE = Math.PI / 3;
+const COCKPIT_ORBIT_VERTICAL_MAX = Math.PI / 6;
 
 export class GameCamera {
     public camera: PerspectiveCamera;
@@ -29,7 +28,6 @@ export class GameCamera {
 
     private cockpitInitialized = false;
 
-    // Reusable temp vectors
     private _delta = new Vector3();
     private _trainPos = new Vector3();
     private _trainQuat = new Quaternion();
@@ -40,7 +38,6 @@ export class GameCamera {
         this.camera = camera;
         this.domElement = domElement;
 
-        // Set up OrbitControls
         this.controls = new OrbitControls(this.camera, this.domElement);
         this.controls.minDistance = 10;
         this.controls.maxDistance = 500;
@@ -50,13 +47,12 @@ export class GameCamera {
         this.controls.autoRotate = false;
         this.controls.enablePan = false;
 
-        // Scroll wheel for non-free modes
         this.boundOnWheel = this.onWheel.bind(this);
         this.domElement.addEventListener('wheel', this.boundOnWheel, { passive: false });
     }
 
     private onWheel(event: WheelEvent): void {
-        if (this.mode === 'free' || this.mode === 'cockpit') return; // OrbitControls handles zoom in free mode, no zoom in cockpit
+        if (this.mode === 'free' || this.mode === 'cockpit') return;
 
         event.preventDefault();
         event.stopPropagation();
@@ -66,27 +62,22 @@ export class GameCamera {
         this.zoomDistance = Math.max(20, Math.min(500, this.zoomDistance));
     }
 
-    /** Cycle to the next camera mode. */
     public cycleMode(): void {
         const idx = CAMERA_MODES.indexOf(this.mode);
         const nextMode = CAMERA_MODES[(idx + 1) % CAMERA_MODES.length];
         this.setMode(nextMode);
     }
 
-    /** Switch to a specific camera mode. */
     public setMode(mode: CameraMode): void {
         const prevMode = this.mode;
         this.mode = mode;
 
         if (mode === 'cinematic' && prevMode !== 'cinematic') {
-            // Compute initial cinematic angle from current camera position
-            // so the transition is seamless
             this._delta.copy(this.camera.position).sub(this.currentTarget);
             this._delta.y = 0;
             this.cinematicAngle = Math.atan2(this._delta.z, this._delta.x);
         }
 
-        // Enable/disable OrbitControls — cockpit uses its own orbit limits
         if (mode === 'cockpit') {
             this.controls.enabled = true;
             this.controls.enableDamping = false;
@@ -97,8 +88,6 @@ export class GameCamera {
             this.controls.maxPolarAngle = Math.PI / 2 + COCKPIT_ORBIT_VERTICAL_MAX;
             this.controls.minAzimuthAngle = -COCKPIT_ORBIT_MAX_ANGLE;
             this.controls.maxAzimuthAngle = COCKPIT_ORBIT_MAX_ANGLE;
-
-            // Flag so the first updateCockpit frame sets the look direction from the train
             this.cockpitInitialized = false;
         } else {
             this.controls.enableDamping = true;
@@ -113,10 +102,6 @@ export class GameCamera {
         }
     }
 
-    /**
-     * Snap target to a position immediately (no lerp).
-     * Used for initial camera positioning on route load.
-     */
     public snapTo(position: Vector3): void {
         this.currentTarget.copy(position);
         this.controls.target.copy(position);
@@ -128,11 +113,9 @@ export class GameCamera {
         this.controls.update();
     }
 
-    /** Main update — call each frame. */
     public update(dt: number, train: Train): void {
         const desired = train.getActiveCabinWorldPosition();
 
-        // Cockpit: no smoothing, snap directly
         if (this.mode === 'cockpit') {
             this.currentTarget.copy(desired);
         } else {
@@ -161,7 +144,6 @@ export class GameCamera {
 
     private updateCockpit(train: Train): void {
         if (!this.cockpitInitialized) {
-            // First frame: place camera at cabin, look along train's forward direction
             this.camera.position.copy(this.currentTarget);
 
             const rollingStock = train.getRollingStockTransform(0);
@@ -171,8 +153,7 @@ export class GameCamera {
 
             this.controls.target.copy(this.camera.position).addScaledVector(this._delta, 0.01);
 
-            // Compute current azimuth and center limits around it
-            // (OrbitControls azimuth is in world space, not relative to train direction)
+            // Center azimuth limits around train's current forward direction
             this._localOffset.copy(this.camera.position).sub(this.controls.target);
             const currentAzimuth = Math.atan2(this._localOffset.x, this._localOffset.z);
             this.controls.minAzimuthAngle = currentAzimuth - COCKPIT_ORBIT_MAX_ANGLE;
@@ -183,8 +164,7 @@ export class GameCamera {
             return;
         }
 
-        // Translate-rig: move both camera and orbit target by the same delta
-        // so the user's look direction (relative to orbit target) is preserved
+        // Translate both camera and target to follow train, preserving user's look direction
         this._delta.copy(this.currentTarget).sub(this.camera.position);
         this.camera.position.add(this._delta);
         this.controls.target.add(this._delta);
@@ -192,7 +172,6 @@ export class GameCamera {
     }
 
     private updateFree(): void {
-        // Translate the orbit rig to follow the smoothed target
         this._delta.copy(this.currentTarget).sub(this.controls.target);
         this.controls.target.add(this._delta);
         this.camera.position.add(this._delta);
@@ -204,18 +183,12 @@ export class GameCamera {
         rollingStock.getWorldPosition(this._trainPos);
         rollingStock.getWorldQuaternion(this._trainQuat);
 
-        // Snap camera to train position and rotation
         this.camera.position.copy(this._trainPos);
         this.camera.quaternion.copy(this._trainQuat);
-
-        // Move to the right and slightly up
         this.camera.translateX(this.zoomDistance);
         this.camera.translateY(5);
-
-        // Look left at the train
         this.camera.rotateY(Math.PI / 2);
 
-        // Keep controls target in sync for smooth mode switching
         this.controls.target.copy(this.currentTarget);
     }
 
@@ -224,20 +197,12 @@ export class GameCamera {
         rollingStock.getWorldPosition(this._trainPos);
         rollingStock.getWorldQuaternion(this._trainQuat);
 
-        // Snap camera to train position and rotation
         this.camera.position.copy(this._trainPos);
         this.camera.quaternion.copy(this._trainQuat);
-
-        // Move up
         this.camera.translateY(this.zoomDistance);
-
-        // Look down
         this.camera.rotateX(-Math.PI / 2);
-
-        // Rotate so train forward points up on screen
         this.camera.rotateZ(Math.PI);
 
-        // Keep controls target in sync
         this.controls.target.copy(this.currentTarget);
     }
 
@@ -246,10 +211,8 @@ export class GameCamera {
         rollingStock.getWorldPosition(this._trainPos);
         rollingStock.getWorldQuaternion(this._trainQuat);
 
-        // Increment orbit angle
         this.cinematicAngle += dt * 0.3;
 
-        // Orbit radius and height with gentle sine wave variation
         const radius = this.zoomDistance;
         const baseHeight = radius * 0.4;
         const heightVariation = radius * 0.15 * Math.sin(this.cinematicAngle * 0.7);
@@ -260,16 +223,13 @@ export class GameCamera {
             Math.sin(this.cinematicAngle) * radius,
         );
 
-        // Transform local offset to world space using train rotation
         const worldPos = this._localOffset.applyQuaternion(this._trainQuat).add(this._trainPos);
         this.camera.position.copy(worldPos);
 
-        // Use train's up direction
         this._trainUp.set(0, 1, 0).applyQuaternion(this._trainQuat);
         this.camera.up.copy(this._trainUp);
         this.camera.lookAt(this.currentTarget);
 
-        // Keep controls target in sync
         this.controls.target.copy(this.currentTarget);
     }
 

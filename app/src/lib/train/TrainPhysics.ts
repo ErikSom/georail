@@ -1,24 +1,13 @@
 import type { TrainConfig } from './TrainConfig';
 
-/**
- * Interface for objects that TrainPhysics can control.
- * The Train class implements this to allow physics to update its position.
- */
 export interface IPhysicsTarget {
     distanceTraveled: number;
 }
 
-/**
- * TrainPhysics manages realistic physics simulation for train movement.
- *
- * Physics Model:
- * - Acceleration = (Engine Force - Resistance Forces) / Effective Mass
- * - Engine Force = Power * Efficiency / Velocity (with minimum speed handling)
- * - Engine Force is capped by adhesion (max tractive effort) for realistic low-speed accel
- * - Effective Mass includes rotating mass factor (wheels, motors, drivetrain inertia)
- * - Resistance = Rolling Resistance + Air Resistance
- * - Braking Force = Braking Force * Brake Application
- */
+// Acceleration = (Engine Force - Resistance) / Effective Mass
+// Engine Force = Power * Efficiency / Velocity, capped by adhesion
+// Effective Mass includes rotating mass factor (wheels, motors, drivetrain)
+// Resistance = Rolling + Air drag
 export class TrainPhysics {
     private target: IPhysicsTarget;
 
@@ -93,9 +82,7 @@ export class TrainPhysics {
         const currentForce = Math.abs(this.calculateEngineForce());
         const maxForce = this.getMaxTractiveEffort();
 
-        if (maxForce === 0) return 0; // Prevent divide by zero
-
-        // Clamp simply for safety, though physics shouldn't exceed maxForce
+        if (maxForce === 0) return 0;
         return Math.min(1, Math.max(0, currentForce / maxForce));
     }
 
@@ -134,18 +121,14 @@ export class TrainPhysics {
 
         const netForce = engineForce - resistanceForce - brakeForce;
 
-        // Effective mass includes rotating inertia (more realistic acceleration)
         const effectiveMass = this.totalMass * this.ROTATING_MASS_FACTOR;
         const acceleration = netForce / effectiveMass;
 
         const prevVelocity = this.velocity;
         this.velocity += acceleration * deltaTime;
 
-        // Prevent velocity from crossing zero due to braking/resistance.
-        // Without this, brake force overshoots past zero, flips sign, and causes
-        // visible forward-backward oscillation ("train shaking").
+        // Prevent velocity zero-crossing from braking (causes oscillation/shaking)
         if (prevVelocity !== 0 && Math.sign(this.velocity) !== Math.sign(prevVelocity)) {
-            // Only allow zero-crossing if engine is actively driving in the new direction
             const engineDrivingNewDir =
                 (this.velocity > 0 && engineForce > 0) ||
                 (this.velocity < 0 && engineForce < 0);
@@ -154,14 +137,12 @@ export class TrainPhysics {
             }
         }
 
-        // Snap very small velocities to zero when not under power
         if (Math.abs(this.powerSetting) <= this.BRAKE_THRESHOLD && Math.abs(this.velocity) < 0.01) {
             this.velocity = 0;
         }
 
         this.target.distanceTraveled += this.velocity * deltaTime;
 
-        // Boundary enforcement: gradual power decay and braking when past path edges
         const dist = this.target.distanceTraveled;
         if (dist < this.minBound && this.velocity < 0) {
             this.powerSetting *= this.BOUNDARY_POWER_DECAY;
@@ -175,7 +156,6 @@ export class TrainPhysics {
             if (Math.abs(this.velocity) < 0.05) this.velocity = 0;
         }
 
-        // Hard clamp to prevent excessive overshoot
         this.target.distanceTraveled = Math.max(
             this.minBound - this.BOUNDARY_MAX_OVERSHOOT,
             Math.min(this.maxBound + this.BOUNDARY_MAX_OVERSHOOT, this.target.distanceTraveled)
@@ -190,10 +170,9 @@ export class TrainPhysics {
 
         const speedForCalculation = Math.max(Math.abs(this.velocity), this.MIN_SPEED_FOR_POWER);
 
-        // Power-limited force
         let force = powerWatts / speedForCalculation;
 
-        // Adhesion (tractive effort) limit: clamps unrealistic low-speed acceleration
+        // Adhesion limit: clamps unrealistic low-speed acceleration
         const maxTractiveEffort = this.getMaxTractiveEffort();
         force = Math.max(-maxTractiveEffort, Math.min(maxTractiveEffort, force));
 

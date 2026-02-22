@@ -67,7 +67,6 @@ export class World {
         this.setCreditsCallback = setCreditsCallback;
         this.routeData = routeData || null;
 
-        // Get performance config (defaults to MEDIUM, can override with ?perf=low/high/etc)
         this.perfConfig = getPerformanceConfig();
         console.log('Performance preset:', this.perfConfig);
 
@@ -79,12 +78,10 @@ export class World {
         this.scene = new Scene();
         this.clock = new Clock();
 
-        // Apply performance config
         this.renderer = new WebGLRenderer({
             antialias: this.perfConfig.antialias,
             powerPreference: 'high-performance'
         });
-        // Ensure correct color output and a brighter, filmic response.
         this.renderer.outputColorSpace = SRGBColorSpace;
         this.renderer.toneMapping = NeutralToneMapping;
         this.renderer.toneMappingExposure = 1.08;
@@ -100,37 +97,30 @@ export class World {
         );
         this.camera.position.set(1e3, 1e3, 1e3).multiplyScalar(0.5);
 
-        // Initialize Audio Listener
         this.audioListener = new AudioListener();
         this.camera.add(this.audioListener);
         audioListener.value = this.audioListener;
 
-        // Initialize MapViewer but don't call init() yet - wait for route data
         this.mapViewer = new MapViewer();
 
         this.sky = new Sky(this.scene);
 
-        // Initialize Train
         const trainConfig = getTrainConfiguration(nssgmTrainType);
         this.train = new Train(trainConfig, trainDebugMode.value);
         this.scene.add(this.train.group);
 
-        // Only add debug group if debug mode is enabled
         if (trainDebugMode.value) {
             this.scene.add(this.train.globalDebugGroup);
         }
 
-        // Set train instance in store for controls to use
         trainInstance.value = this.train;
         trainMaxSpeedKmh.value = trainConfig.general?.maxSpeed ?? 120;
 
         this.gameCamera = new GameCamera(this.camera, this.renderer.domElement);
         this.gameCamera.snapTo(this.train.group.position);
 
-        // Initialize Input system
         Input.init(this.renderer.domElement);
 
-        // Initialize stats-gl (hidden by default, toggle with F2)
         this.stats = new Stats({
             trackGPU: true,
             trackHz: true,
@@ -144,9 +134,8 @@ export class World {
         });
         this.stats.init(this.renderer);
         this.mountElement.appendChild(this.stats.dom);
-        this.stats.dom.style.display = 'none'; // Hidden by default
+        this.stats.dom.style.display = 'none';
 
-        // handle query params
         const urlParams = new URLSearchParams(window.location.search);
         const urlStats = urlParams.get('stats');
         if (urlStats !== null) {
@@ -157,7 +146,6 @@ export class World {
 
         this.animate();
 
-        // Automatically start following the route if provided
         if (this.routeData) {
             this.startPathFollowing();
         }
@@ -171,7 +159,6 @@ export class World {
         window.removeEventListener('resize', this.onWindowResize);
         Input.cleanup();
 
-        // Clear train instance from store
         trainInstance.value = null;
 
         this.sky.cleanup();
@@ -229,49 +216,28 @@ export class World {
             }
             console.log('Using provided route:', routeData.properties);
 
-            // More detailed logging to inspect the incoming data structure
-            console.log('--- Raw Route Data Received ---');
-            console.log(JSON.stringify(routeData, null, 2));
-            console.log('---------------------------------');
-
-            // Use the definitive 'node_coords' array from the new function
             if (!routeData?.geometry?.route || routeData.geometry.route.length < 2) {
                 console.warn("No valid path found. Check the route data structure.");
                 return;
             }
 
-            // Route data is: [lon, lat, world_offset_x, world_offset_y, world_offset_z]
-            const pathCoordinates = routeData.geometry.route;
-
-            console.log(pathCoordinates)
-
-            console.log(`Processed into a single path with ${pathCoordinates.length} total coordinates.`);
-
-            // Extract starting coordinates from route
             // Route point format: [lon, lat, world_offset_x, world_offset_y, world_offset_z]
-            // world_offset_y is the vertical offset (altitude)
-            const [startLon, startLat, , world_offset_y] = pathCoordinates[0];
-            console.log('Starting location:', { lat: startLat, lon: startLon, offset_y: world_offset_y });
+            const pathCoordinates = routeData.geometry.route;
+            const [startLon, startLat] = pathCoordinates[0];
 
-            // Initialize or reorient MapViewer at the starting location (ground level - height 0)
-            // Always reorient to ground level to keep coordinate system consistent
             if (!this.mapViewer.initialized) {
-                // First time: initialize MapViewer with performance config
                 this.mapViewer.init(this.scene, this.camera, this.renderer, startLat, startLon, 0, this.perfConfig);
             }
             this.mapViewer.reorient(startLat, startLon, 0);
 
-            // Now, convert all geographic coordinates with offsets applied to world positions
             const pathPoints = pathCoordinates
                 .map((routePoint: number[]) => {
                     return routePointToWorldPosition(routePoint, this.mapViewer);
                 })
-                .filter((p: Vector3 | null): p is Vector3 => p !== null); // Filter out any null results
-
-            console.log(`Successfully converted to ${pathPoints.length} world coordinate points.`);
+                .filter((p: Vector3 | null): p is Vector3 => p !== null);
 
             if (pathPoints.length < 2) {
-                console.error('Could not convert enough coordinates to form a valid path.');
+                console.error('Not enough valid coordinates for path.');
                 return;
             }
 
@@ -279,7 +245,6 @@ export class World {
             this.train.setPath(path);
             this.train.positionOnPath();
 
-            // Create boundary walls at path edges, offset by half train length
             this.boundaryWall = new BoundaryWall(
                 path.getStartPoint(),
                 path.getEndPoint(),
@@ -290,13 +255,11 @@ export class World {
             );
             this.scene.add(this.boundaryWall.group);
 
-            // Create station indicators (walls + beams at each stop)
             updateTrainState();
             this.stationIndicator = new StationIndicator();
             this.stationIndicator.createIndicators(path);
             this.scene.add(this.stationIndicator.group);
 
-            // Focus camera on train
             this.gameCamera.snapTo(this.train.group.position);
         } catch (error) {
             console.error('Failed to start path following:', error);
@@ -304,17 +267,14 @@ export class World {
     }
 
     private handleInput(): void {
-        // Cycle camera mode with C key
         if (Input.isPressed('KeyC')) {
             this.gameCamera.cycleMode();
         }
 
-        // Check for debug free-fly camera toggle (Shift + ~)
         if (Input.isPressed('Backquote') && Input.isShift) {
             this.freeFlyCameraMode = !this.freeFlyCameraMode;
 
             if (this.freeFlyCameraMode) {
-                // Initialize FlightControls if not already created
                 if (!this.flightControls) {
                     this.flightControls = new FlightControls(this.camera, this.renderer.domElement);
                     this.flightControls.init();
@@ -323,14 +283,8 @@ export class World {
             }
         }
 
-        if (Input.isPressed('F1')) {
-            // Toggle Sky UI
-            this.sky.toggleUI();
-        }
-        if (Input.isPressed('F2')) {
-            // Toggle Renderer UI
-            this.toggleRendererUI();
-        }
+        if (Input.isPressed('F1')) this.sky.toggleUI();
+        if (Input.isPressed('F2')) this.toggleRendererUI();
 
         Input.update();
     }
@@ -341,32 +295,21 @@ export class World {
         const rawDeltaTime = this.clock.getDelta();
         const deltaTime = rawDeltaTime * timeScale.value;
 
-        // Set global scaled delta time for other systems to use
         scaledDeltaTime.value = deltaTime;
 
-        // Update Input
         this.handleInput();
-
-        // Update train state and trigger React component updates
         updateTrainState();
 
-        // 1. Update Sky
         this.sky.update(deltaTime, this.camera);
-
-        // 2. Update MapViewer (tiles) - always update to allow tiles to load
         this.mapViewer.update();
-
-        // 3. Update Train (before camera so camera reads current-frame positions)
         this.train.update(deltaTime);
 
-        // 4. Update camera
         if (this.freeFlyCameraMode && this.flightControls) {
             this.flightControls.update(deltaTime);
         } else {
             this.gameCamera.update(deltaTime, this.train);
         }
 
-        // 5b. Update boundary walls
         if (this.boundaryWall) {
             this.boundaryWall.update(
                 this.train.distanceTraveled,
@@ -376,61 +319,50 @@ export class World {
             );
         }
 
-        // 5c. Update station indicators
         if (this.stationIndicator) {
             this.stationIndicator.update(deltaTime);
         }
 
-        // 6. Update Camera
         this.camera.updateMatrixWorld();
 
-        // 6. Render
         this.stats.begin();
         this.renderer.render(this.scene, this.camera);
         this.stats.end();
         this.stats.update();
 
         const trainCoords = this.mapViewer.getLatLonHeightFromWorldPosition(this.train.group.position);
-
-        // Store coordinates as integers (multiplied by 1e7 for precision)
         if (trainCoords) {
             trainLatE7.value = Math.round(trainCoords.lat * 1e7);
             trainLonE7.value = Math.round(trainCoords.lon * 1e7);
 
-            // Get front and back positions of the cab for 2D map bearing calculation
+            // getLatLonHeightFromWorldPosition returns a reusable object — consume each result before the next call
             const cabRailPositions = this.train.getCabRailPositions();
             const frontCoords = this.mapViewer.getLatLonHeightFromWorldPosition(cabRailPositions.bogieFront);
-            const backCoords = this.mapViewer.getLatLonHeightFromWorldPosition(cabRailPositions.bogieRear);
-
             if (frontCoords) {
                 trainFrontLatE7.value = Math.round(frontCoords.lat * 1e7);
                 trainFrontLonE7.value = Math.round(frontCoords.lon * 1e7);
             }
+            const backCoords = this.mapViewer.getLatLonHeightFromWorldPosition(cabRailPositions.bogieRear);
             if (backCoords) {
                 trainBackLatE7.value = Math.round(backCoords.lat * 1e7);
                 trainBackLonE7.value = Math.round(backCoords.lon * 1e7);
             }
 
-            // Calculate camera yaw relative to train
-            // Get vector from train to camera, projected onto horizontal plane
+            // Camera yaw relative to train (projected onto horizontal plane)
             dummyVec3.copy(this.camera.position).sub(this.train.group.position);
-            dummyVec3.y = 0; // Project to horizontal plane
+            dummyVec3.y = 0;
             const cameraAngle = Math.atan2(dummyVec3.x, dummyVec3.z) * MathUtils.RAD2DEG;
 
-            // Get train's forward direction projected onto horizontal plane
             dummyVec3B.set(0, 0, 1).applyQuaternion(this.train.group.quaternion);
             dummyVec3B.y = 0;
             const trainAngle = Math.atan2(dummyVec3B.x, dummyVec3B.z) * MathUtils.RAD2DEG;
 
-            // Relative yaw: how much the camera is rotated around the train
-            // Add 180 to match screen visuals (camera looks at train, not from train)
+            // +180 because camera looks at train, not from train
             let relativeYaw = cameraAngle - trainAngle + 180;
-            // Normalize to 0-360
             if (relativeYaw < 0) relativeYaw += 360;
             if (relativeYaw >= 360) relativeYaw -= 360;
             cameraYawRelativeToTrain.value = relativeYaw;
         }
-        // 7. Update UI and store train coordinates - only if MapViewer is initialized
         if (this.mapViewer.initialized) {
             if (trainCoords) {
                 const attribution = this.mapViewer.getCredits();
@@ -471,7 +403,6 @@ export class World {
             label: 'exposure',
         });
 
-        // Add renderer info monitors
         const infoFolder = this.rendererPane.addFolder({ title: 'Render Info' });
         infoFolder.addBinding(this.renderer.info.render, 'calls', { readonly: true, label: 'Draw Calls' });
         infoFolder.addBinding(this.renderer.info.render, 'triangles', { readonly: true, label: 'Triangles' });
@@ -494,12 +425,10 @@ export class World {
 
         this.isRendererPaneVisible = !this.isRendererPaneVisible;
 
-        // Toggle stats-gl visibility
         if (this.stats) {
             this.stats.dom.style.display = this.isRendererPaneVisible ? 'block' : 'none';
         }
 
-        // Toggle tweakpane visibility
         if (this.rendererPane) {
             this.rendererPane.element.style.display = this.isRendererPaneVisible ? 'block' : 'none';
         }
