@@ -67,15 +67,16 @@ function pingStationArrival(stationIndex: number): void {
  * Zone length = train length + leniency, extending half on each side
  * Train must be stopped within this zone to count as "arrived"
  */
+// Reusable stop zone object to avoid per-frame allocations
+const _stopZone = { start: 0, end: 0 };
 function getStopZone(stopDistanceKm: number): { start: number; end: number } {
     const trainLengthKm = trainLength.value / 1000;
     const leniencyKm = configs.value.stationStopLeniencyM / 1000;
     const halfZoneLengthKm = (trainLengthKm + leniencyKm) / 2;
 
-    return {
-        start: Math.max(0, stopDistanceKm - halfZoneLengthKm),
-        end: stopDistanceKm + halfZoneLengthKm,
-    };
+    _stopZone.start = Math.max(0, stopDistanceKm - halfZoneLengthKm);
+    _stopZone.end = stopDistanceKm + halfZoneLengthKm;
+    return _stopZone;
 }
 
 /**
@@ -107,8 +108,7 @@ export function updateStopStatuses(): void {
         }));
     }
 
-    const newStatuses = [...stopStatuses.value];
-    let changed = false;
+    let newStatuses: typeof stopStatuses.value | null = null;
 
     for (let i = 0; i < stopsArr.length; i++) {
         const stopDistanceKm = distances[i];
@@ -117,15 +117,17 @@ export function updateStopStatuses(): void {
         const isInStopZone = trainCenterKm >= stopZone.start && trainCenterKm <= stopZone.end;
         const isPastStopZone = trainCenterKm > stopZone.end;
 
+        const current = (newStatuses ?? stopStatuses.value)[i];
+
         // Check for arrival: in stop zone AND stopped
-        if (!newStatuses[i].arrived && isInStopZone && isStopped) {
+        if (!current.arrived && isInStopZone && isStopped) {
+            if (!newStatuses) newStatuses = [...stopStatuses.value];
             newStatuses[i] = {
-                ...newStatuses[i],
+                ...current,
                 arrived: true,
                 actualArrivalTime: elapsed,
                 arrivalDelta: Math.round(elapsed - stopsArr[i].arrivalTime),
             };
-            changed = true;
 
             // Ping server for non-first stations (first is recorded at session start)
             if (i > 0) {
@@ -134,18 +136,18 @@ export function updateStopStatuses(): void {
         }
 
         // Check for departure: must have arrived, and train front has left the stop zone
-        if (newStatuses[i].arrived && !newStatuses[i].departed && isPastStopZone) {
+        if (current.arrived && !current.departed && isPastStopZone) {
+            if (!newStatuses) newStatuses = [...stopStatuses.value];
             newStatuses[i] = {
-                ...newStatuses[i],
+                ...current,
                 departed: true,
                 actualDepartureTime: elapsed,
                 departureDelta: Math.round(elapsed - stopsArr[i].departureTime),
             };
-            changed = true;
         }
     }
 
-    if (changed) {
+    if (newStatuses) {
         stopStatuses.value = newStatuses;
     }
 }

@@ -30,19 +30,18 @@ class Gradient {
         this.stops = stops.sort((a, b) => a.t - b.t);
     }
 
-    sample(t: number): Color {
-        if (t <= this.stops[0].t) return this.stops[0].color.clone();
-        if (t >= this.stops[this.stops.length - 1].t) return this.stops[this.stops.length - 1].color.clone();
+    sample(t: number, out: Color): Color {
+        if (t <= this.stops[0].t) return out.copy(this.stops[0].color);
+        if (t >= this.stops[this.stops.length - 1].t) return out.copy(this.stops[this.stops.length - 1].color);
 
         for (let i = 0; i < this.stops.length - 1; i++) {
             if (t >= this.stops[i].t && t < this.stops[i + 1].t) {
                 const stop1 = this.stops[i];
                 const stop2 = this.stops[i + 1];
-                // Linear interpolation on existing Color objects
-                return stop1.color.clone().lerp(stop2.color, (t - stop1.t) / (stop2.t - stop1.t));
+                return out.copy(stop1.color).lerp(stop2.color, (t - stop1.t) / (stop2.t - stop1.t));
             }
         }
-        return this.stops[this.stops.length - 1].color.clone();
+        return out.copy(this.stops[this.stops.length - 1].color);
     }
 }
 
@@ -411,6 +410,11 @@ export class Sky {
     private pane: Tweakpane.Pane | null = null;
     private isPaneVisible: boolean = false;
 
+    // Reusable temp objects to avoid per-frame allocations
+    private _sunVec = new Vector3();
+    private _tmpColor = new Color();
+    private _tmpColorB = new Color();
+
     constructor(scene: Scene, lutPath: string = '/textures/scatteringLUT.HDR') {
         this.scene = scene;
 
@@ -534,10 +538,10 @@ export class Sky {
         const angle = (hourMapped * Math.PI * 2) - (Math.PI / 2);
         const sunY = Math.sin(angle);
         const sunZ = Math.cos(angle);
-        const sunVec = new Vector3(0, sunY, sunZ).normalize();
+        const sunVec = this._sunVec.set(0, sunY, sunZ).normalize();
 
         this.skyMaterial.uniforms.sunPosition.value.copy(sunVec);
-        this.skyMaterial.uniforms.moonPosition.value.copy(sunVec.clone().negate());
+        this.skyMaterial.uniforms.moonPosition.value.copy(sunVec).negate();
 
 
         this.sunLight.position.copy(sunVec).multiplyScalar(50000);
@@ -554,8 +558,9 @@ export class Sky {
     private updateSkyColors(): void {
         const pos = this.sunPosAlpha;
         const preset = godotPreset;
-        const skyColor = preset.baseSkyColor.sample(pos);
-        const groundColor = preset.horizonFogColor.sample(pos);
+        // _tmpColor = skyColor, _tmpColorB = groundColor (reused throughout)
+        const skyColor = preset.baseSkyColor.sample(pos, this._tmpColor);
+        const groundColor = preset.horizonFogColor.sample(pos, this._tmpColorB);
 
         if (!this.skyMaterial.uniforms.useLUT.value) {
             this.skyMaterial.uniforms.baseColor.value.copy(skyColor);
@@ -565,14 +570,15 @@ export class Sky {
 
         this.skyMaterial.uniforms.horizonFogColor.value.copy(groundColor);
 
-        const baseC = preset.baseCloudColor.sample(pos);
-        const overcastC = preset.overcastCloudColor.sample(pos);
         const normalizedCoverage = (this.cloudCoverage + 1.0) * 0.5;
-        this.skyMaterial.uniforms.baseCloudColor.value.copy(baseC.clone().lerp(overcastC, normalizedCoverage));
+        // Sample baseCloudColor directly into the uniform, then lerp in-place with overcastCloudColor
+        preset.baseCloudColor.sample(pos, this.skyMaterial.uniforms.baseCloudColor.value);
+        preset.overcastCloudColor.sample(pos, this.ambientLight.color); // borrow as temp
+        this.skyMaterial.uniforms.baseCloudColor.value.lerp(this.ambientLight.color, normalizedCoverage);
 
-        this.skyMaterial.uniforms.sunDiscColor.value.copy(preset.sunDiscColor.sample(pos));
-        this.skyMaterial.uniforms.sunGlowColor.value.copy(preset.sunGlowColor.sample(pos));
-        this.skyMaterial.uniforms.moonGlowColor.value.copy(preset.moonGlowColor.sample(pos));
+        preset.sunDiscColor.sample(pos, this.skyMaterial.uniforms.sunDiscColor.value);
+        preset.sunGlowColor.sample(pos, this.skyMaterial.uniforms.sunGlowColor.value);
+        preset.moonGlowColor.sample(pos, this.skyMaterial.uniforms.moonGlowColor.value);
         this.skyMaterial.uniforms.cloudCoverage.value = this.cloudCoverage;
 
         const sunInt = preset.sunLightIntensity.sample(pos);
@@ -581,15 +587,15 @@ export class Sky {
         const dayFactor = MathUtils.smoothstep(pos, 0.5, 1.0);
         const moonFactor = MathUtils.clamp(moonInt, 0, 1);
 
-        this.sunLight.color.copy(preset.sunLightColor.sample(pos));
+        preset.sunLightColor.sample(pos, this.sunLight.color);
         this.sunLight.intensity = Math.max(0, sunInt * cloudDamp * this.sunPeakIntensity);
-        this.moonLight.color.copy(preset.moonLightColor.sample(pos));
+        preset.moonLightColor.sample(pos, this.moonLight.color);
         this.moonLight.intensity = Math.max(0, moonInt * cloudDamp * this.moonPeakIntensity);
-        const ambientBase = groundColor.clone().lerp(skyColor, 0.35);
+        // ambientBase = groundColor lerped toward skyColor — write directly into ambientLight.color
+        this.ambientLight.color.copy(groundColor).lerp(skyColor, 0.35);
         if (this.ambientTintBlend > 0) {
-            ambientBase.lerp(this.ambientTint, this.ambientTintBlend);
+            this.ambientLight.color.lerp(this.ambientTint, this.ambientTintBlend);
         }
-        this.ambientLight.color.copy(ambientBase);
         this.ambientLight.intensity = MathUtils.lerp(
             this.ambientNightIntensity,
             this.ambientDayIntensity,

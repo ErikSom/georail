@@ -57,6 +57,11 @@ export class TrainAudio {
     private currentInitializationId: number = 0;
     private opusSupported: boolean = true;
 
+    // Reusable objects to avoid per-frame allocations
+    private _trainState: TrainState = { throttlePower: 0, velocityKmh: 0, brakePower: 0, tractiveEffort: 0 };
+    private _volumeValues: number[] = [];
+    private _pitchValues: number[] = [];
+
     constructor() {
         this.audioLoader = new AudioLoader();
     }
@@ -541,23 +546,23 @@ export class TrainAudio {
             brakePower = 0.3;
         }
 
-        const state = {
-            throttlePower: Math.abs(power),
-            velocityKmh: Math.abs(velocityKmh),
-            brakePower: brakePower,
-            tractiveEffort: trainTractiveEffort.value
-        };
+        this._trainState.throttlePower = Math.abs(power);
+        this._trainState.velocityKmh = Math.abs(velocityKmh);
+        this._trainState.brakePower = brakePower;
+        this._trainState.tractiveEffort = trainTractiveEffort.value;
 
-        return state;
+        return this._trainState;
     }
 
     /**
      * Update a single audio instance based on its curves and train state
      */
     private updateAudioInstance(instance: AudioInstance, trainState: TrainState): void {
-        // Collect all volume and pitch values from curves
-        const volumeValues: number[] = [];
-        const pitchValues: number[] = [];
+        // Collect all volume and pitch values from curves (reuse arrays)
+        const volumeValues = this._volumeValues;
+        const pitchValues = this._pitchValues;
+        volumeValues.length = 0;
+        pitchValues.length = 0;
 
         for (const curve of instance.sound.curves) {
             const xAxis = curve.axis?.x.label || '';
@@ -580,7 +585,10 @@ export class TrainAudio {
 
         // Apply the LOWEST value for each property (lowest wins)
         // If no curves control a property, default to maximum (1.0)
-        const finalVolume = volumeValues.length > 0 ? Math.min(...volumeValues) : 1.0;
+        let finalVolume = 1.0;
+        for (let i = 0; i < volumeValues.length; i++) {
+            if (volumeValues[i] < finalVolume) finalVolume = volumeValues[i];
+        }
         instance.audio.setVolume(finalVolume);
 
         // Auto-play if volume is above 0 and not already playing
@@ -593,7 +601,10 @@ export class TrainAudio {
         }
 
         if (pitchValues.length > 0) {
-            const finalPitch = Math.min(...pitchValues);
+            let finalPitch = pitchValues[0];
+            for (let i = 1; i < pitchValues.length; i++) {
+                if (pitchValues[i] < finalPitch) finalPitch = pitchValues[i];
+            }
             instance.audio.setPlaybackRate(finalPitch);
         } else {
             // Default pitch to 1.0 if no curves control it
@@ -629,22 +640,25 @@ export class TrainAudio {
         if (points.length === 0) return 0;
         if (points.length === 1) return points[0].y;
 
-        // Sort points by x value (just in case they're not sorted)
-        const sortedPoints = [...points].sort((a, b) => a.x - b.x);
+        // Ensure points are sorted (mutates in place, only re-sorts if needed on first call)
+        if (!(curve as any)._sorted) {
+            points.sort((a, b) => a.x - b.x);
+            (curve as any)._sorted = true;
+        }
 
         // Clamp input to curve range
-        const minX = sortedPoints[0].x;
-        const maxX = sortedPoints[sortedPoints.length - 1].x;
+        const minX = points[0].x;
+        const maxX = points[points.length - 1].x;
         const clampedInput = Math.max(minX, Math.min(maxX, inputValue));
 
         // Find the two points to interpolate between
-        let leftPoint = sortedPoints[0];
-        let rightPoint = sortedPoints[sortedPoints.length - 1];
+        let leftPoint = points[0];
+        let rightPoint = points[points.length - 1];
 
-        for (let i = 0; i < sortedPoints.length - 1; i++) {
-            if (clampedInput >= sortedPoints[i].x && clampedInput <= sortedPoints[i + 1].x) {
-                leftPoint = sortedPoints[i];
-                rightPoint = sortedPoints[i + 1];
+        for (let i = 0; i < points.length - 1; i++) {
+            if (clampedInput >= points[i].x && clampedInput <= points[i + 1].x) {
+                leftPoint = points[i];
+                rightPoint = points[i + 1];
                 break;
             }
         }

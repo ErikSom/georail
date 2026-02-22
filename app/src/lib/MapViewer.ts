@@ -42,6 +42,8 @@ export class MapViewer {
     private tempMatrix = new Matrix4();
     private tempVec = new Vector3();
     private tempCartographic = { lat: 0, lon: 0, height: 0 };
+    private _coordResult = { lat: 0, lon: 0, height: 0 };
+    private _creditsResult: Tiles3DAttributionCredits = { latLonStr: '', source: '' };
 
     constructor() { }
 
@@ -256,11 +258,10 @@ export class MapViewer {
 
         WGS84_ELLIPSOID.getPositionToCartographic(this.tempVec, this.tempCartographic);
 
-        return {
-            lat: MathUtils.radToDeg(this.tempCartographic.lat),
-            lon: MathUtils.radToDeg(this.tempCartographic.lon),
-            height: this.tempCartographic.height ?? 0
-        };
+        this._coordResult.lat = MathUtils.radToDeg(this.tempCartographic.lat);
+        this._coordResult.lon = MathUtils.radToDeg(this.tempCartographic.lon);
+        this._coordResult.height = this.tempCartographic.height ?? 0;
+        return this._coordResult;
     }
 
     public latLonHeightToWorldPosition(lat: number, lon: number, height: number): Vector3 | null {
@@ -297,14 +298,19 @@ export class MapViewer {
 
         WGS84_ELLIPSOID.getPositionToCartographic(this.tempVec, this.tempCartographic);
 
-        const attributions = this.tiles.getAttributions()
-            .map(a => a.value)
-            .filter(Boolean)
-            .join(', ');
+        const rawAttributions = this.tiles.getAttributions();
+        let attributions = '';
+        for (let i = 0; i < rawAttributions.length; i++) {
+            const v = rawAttributions[i].value;
+            if (v) {
+                if (attributions) attributions += ', ';
+                attributions += v;
+            }
+        }
 
         // @ts-ignore - GeoUtils types might be outdated or incorrect
-        const latLonStr = GeoUtils.toLatLonString(this.tempCartographic.lat, this.tempCartographic.lon, true);
-
-        return { latLonStr, source: attributions };
+        this._creditsResult!.latLonStr = GeoUtils.toLatLonString(this.tempCartographic.lat, this.tempCartographic.lon, true);
+        this._creditsResult!.source = attributions;
+        return this._creditsResult;
     }
 }

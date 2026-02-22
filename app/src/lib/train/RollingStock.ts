@@ -16,6 +16,7 @@ export class RollingStock {
     public globalDebugGroup: Group;
 
     protected config: RollingStockConfig;
+    private _targetRotation = new Quaternion();
     private model: Group | null = null;
 
     private animator: RollingStockAnimator | null = null;
@@ -565,7 +566,7 @@ export class RollingStock {
             // preventing the "sideways roll" issue.
             dummy.position.set(0, 0, 0);
             dummy.lookAt(localDirection);
-            const targetRotation = dummy.quaternion.clone();
+            const targetRotation = this._targetRotation.copy(dummy.quaternion);
 
             // C. Calculate Axis Correction
             // If your model uses X or Y as forward, we calculate the offset 
