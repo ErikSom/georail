@@ -21,6 +21,7 @@ import {
 import { Lensflare } from './train/Lensflare';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import * as Tweakpane from 'tweakpane';
+import { Rain } from './Rain';
 
 
 class Gradient {
@@ -414,6 +415,8 @@ export class Sky {
     private _tmpColor = new Color();
     private _tmpColorB = new Color();
 
+    public rain: Rain;
+
     constructor(scene: Scene, lutPath: string = '/textures/scatteringLUT.HDR') {
         this.scene = scene;
 
@@ -506,6 +509,8 @@ export class Sky {
             this.moonLightHelper = new DirectionalLightHelper(this.moonLight, 100, 0x8888ff);
             this.scene.add(this.moonLightHelper);
         }
+
+        this.rain = new Rain(scene);
     }
 
 
@@ -526,6 +531,8 @@ export class Sky {
         }
 
         this.skyMaterial.uniforms.time.value = this.timeOfDay * this.timeConversionFactor;
+
+        this.rain.update(deltaTime, camera, this.skyMaterial.uniforms.horizonFogColor.value);
     }
 
     private updateRotation(): void {
@@ -626,6 +633,8 @@ export class Sky {
 
         this.skyMaterial.uniforms.cloudNoise.value.dispose();
         this.skyMaterial.uniforms.weatherMap.value.dispose();
+
+        this.rain.cleanup();
 
         if (this.pane) {
             this.pane.dispose();
@@ -765,6 +774,29 @@ export class Sky {
             step: 0.05,
             label: 'hemiMoon'
         });
+        this.pane.addBlade({ view: 'separator' });
+
+        this.pane.addBinding(this.rain, 'intensity', {
+            min: 0,
+            max: 1,
+            step: 0.01,
+            label: 'rainIntensity'
+        });
+        this.pane.addBinding(this.rain, 'dropLength', {
+            min: 0.2,
+            max: 3,
+            step: 0.1,
+            label: 'rainDropLen'
+        });
+        this.pane.addBinding(this.rain, 'fogDensity', {
+            min: 0.001,
+            max: 0.05,
+            step: 0.001,
+            label: 'rainFog'
+        });
+
+        this.pane.addBlade({ view: 'separator' });
+
         this.pane.addBinding(this, 'debugLights').on('change', (ev: any) => {
             if (ev.value) {
                 if (!this.sunLightHelper) {
