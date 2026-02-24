@@ -65,6 +65,17 @@ export const startJourneySession = async (req, res) => {
 			}
 		}
 
+		// Check which route stations the user has already visited
+		const sessionCountry = country || 'NL';
+		const { data: existingVisits } = await supabase
+			.from('user_station_visits')
+			.select('station_code')
+			.eq('user_id', req.userId)
+			.eq('country', sessionCountry)
+			.in('station_code', station_codes);
+
+		const alreadyVisited = (existingVisits || []).map(v => v.station_code);
+
 		const { data, error } = await supabase
 			.from('journey_sessions')
 			.insert({
@@ -72,7 +83,7 @@ export const startJourneySession = async (req, res) => {
 				station_codes,
 				station_coords,
 				segment_distances,
-				country: country || 'NL',
+				country: sessionCountry,
 				last_station_index: 0,
 				last_ping_at: new Date().toISOString(),
 				total_km_earned: 0,
@@ -86,7 +97,7 @@ export const startJourneySession = async (req, res) => {
 		}
 
 		res.set('Cache-Control', 'no-store');
-		res.json({ session_id: data.id });
+		res.json({ session_id: data.id, already_visited: alreadyVisited });
 	} catch (err) {
 		console.error('Journey start error:', err);
 		res.status(500).json({ error: 'Server error' });
@@ -169,17 +180,14 @@ export const reportStationArrival = async (req, res) => {
 		}
 
 		const toCode = session.station_codes[station_index];
-		const { data: visitResult } = await supabase
+		await supabase
 			.from('user_station_visits')
 			.upsert({
 				user_id: req.userId,
 				station_code: toCode,
 				country: sessionCountry,
 				first_visited_at: now.toISOString(),
-			}, { onConflict: 'user_id,station_code,country', ignoreDuplicates: true })
-			.select();
-
-		const newStation = visitResult && visitResult.length > 0;
+			}, { onConflict: 'user_id,station_code,country', ignoreDuplicates: true });
 
 		const { count: totalStationsVisited } = await supabase
 			.from('user_station_visits')
@@ -191,8 +199,6 @@ export const reportStationArrival = async (req, res) => {
 			valid: true,
 			km_added: Math.round(distanceKm * 100) / 100,
 			total_km: Math.round(newTotalKm * 100) / 100,
-			new_station: !!newStation,
-			station_code: toCode,
 			is_complete: isComplete,
 			total_stations_visited: totalStationsVisited || 0,
 			journey_km: Math.round(newTotalKmEarned * 100) / 100,

@@ -1,6 +1,6 @@
 import { signal, computed } from "@preact/signals";
 import type { RouteData, RouteStop } from "../lib/api/navigation";
-import { trainDistanceTraveled, trainPathTotalLength, trainVelocityKmh, trainLength } from "./train";
+import { trainDistanceTraveled, trainPathTotalLength, trainVelocityKmh, trainLength, resetTrain } from "./train";
 import { configs, scaledDeltaTime } from "./globals";
 import { startJourneySession as apiStartJourney, reportStationArrival, type StationArrivalResponse } from "../lib/api/journey";
 import { country } from "./globals";
@@ -22,6 +22,7 @@ export const stopStatuses = signal<StopStatus[]>([]);
 export const journeySessionId = signal<string | null>(null);
 export const journeyCompleted = signal(false);
 export const stationArrivalResults = signal<StationArrivalResponse[]>([]);
+export const alreadyVisitedStations = signal<Set<string>>(new Set());
 const pendingStationPings = new Set<number>();
 
 function pingStationArrival(stationIndex: number): void {
@@ -165,34 +166,24 @@ function computeSegmentDistances(route: RouteData): number[] {
             const [lon2, lat2] = routePoints[j + 1];
             segmentDistance += haversineDistanceKm(lat1, lon1, lat2, lon2);
         }
-        segments.push(Math.round(segmentDistance * 100) / 100);
+        segments.push(segmentDistance);
     }
     return segments;
 }
 
 export const stopDistances = computed<number[]>(() => {
-    const route = routeData.value?.geometry?.route;
-    const stopIndices = routeData.value?.geometry?.stop_indices;
+    const route = routeData.value;
+    if (!route) return [];
 
-    if (!route || !stopIndices || stopIndices.length === 0) {
-        return [];
-    }
+    const segments = computeSegmentDistances(route);
+    if (segments.length === 0) return [];
 
     const distances: number[] = [0];
     let cumulative = 0;
-
-    for (let i = 1; i < stopIndices.length; i++) {
-        const startIdx = stopIndices[i - 1];
-        const endIdx = stopIndices[i];
-
-        for (let j = startIdx; j < endIdx; j++) {
-            const [lon1, lat1] = route[j];
-            const [lon2, lat2] = route[j + 1];
-            cumulative += haversineDistanceKm(lat1, lon1, lat2, lon2);
-        }
+    for (const seg of segments) {
+        cumulative += seg;
         distances.push(cumulative);
     }
-
     return distances;
 });
 
@@ -387,6 +378,7 @@ export function startJourney(route: RouteData, customStartTime?: number): void {
     journeyCompleted.value = false;
     stationArrivalResults.value = [];
     journeySessionId.value = null;
+    alreadyVisitedStations.value = new Set();
     pendingStationPings.clear();
 
     const stopsArr = route.properties?.stops ?? [];
@@ -403,11 +395,11 @@ export function startJourney(route: RouteData, customStartTime?: number): void {
 
     const stationCodes = stopsArr.map(s => s.code).filter(Boolean);
     if (stationCodes.length >= 2) {
-        // Compute per-segment route distances from geometry for accurate km rewards
-        const segmentDistances = computeSegmentDistances(route);
+        const segmentDistances = computeSegmentDistances(route).map(d => Math.round(d * 100) / 100);
         apiStartJourney(stationCodes, country.value, segmentDistances).then(result => {
             if (result) {
                 journeySessionId.value = result.session_id;
+                alreadyVisitedStations.value = new Set(result.already_visited);
             }
         });
     }
@@ -432,7 +424,9 @@ export function resetJourney(): void {
     journeySessionId.value = null;
     journeyCompleted.value = false;
     stationArrivalResults.value = [];
+    alreadyVisitedStations.value = new Set();
     pendingStationPings.clear();
+    resetTrain();
 }
 
 export function formatRelativeTime(minutes: number): string {

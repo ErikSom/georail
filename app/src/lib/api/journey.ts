@@ -15,8 +15,6 @@ export interface StationArrivalResponse {
     valid: boolean;
     km_added: number;
     total_km: number;
-    new_station: boolean;
-    station_code: string;
     is_complete: boolean;
     total_stations_visited: number;
     journey_km: number;
@@ -30,11 +28,9 @@ export interface UserStats {
 
 export interface JourneyStartResponse {
     session_id: string;
+    already_visited: string[];
 }
 
-/**
- * Start a journey session for server-side tracking
- */
 export async function startJourneySession(stationCodes: string[], country: string, segmentDistances: number[]): Promise<JourneyStartResponse | null> {
     try {
         const headers = await getAuthHeaders();
@@ -54,9 +50,6 @@ export async function startJourneySession(stationCodes: string[], country: strin
     }
 }
 
-/**
- * Report arrival at a station
- */
 export async function reportStationArrival(
     sessionId: string,
     stationIndex: number,
@@ -79,9 +72,6 @@ export async function reportStationArrival(
     }
 }
 
-/**
- * Fetch user stats (total km, visited stations)
- */
 export async function fetchUserStats(country: string): Promise<UserStats | null> {
     try {
         const headers = await getAuthHeaders();

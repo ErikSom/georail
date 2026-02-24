@@ -4,6 +4,7 @@ import {
     stationArrivalResults,
     stopDistances,
     stops,
+    alreadyVisitedStations,
 } from '../store/journey';
 import { computeLevel, getLevelInfo } from '../lib/levels';
 import { clearProfileCache } from '../lib/api/profile';
@@ -39,11 +40,11 @@ export default function JourneyComplete({ onDismiss }: JourneyCompleteProps) {
     const levelAfter = computeLevel(totalKmAfter);
     const didLevelUp = levelAfter > levelBefore;
 
-    // New stations unlocked this journey — map codes to full names using stops data
-    const codeToName = new Map(stopsArr.map(s => [s.code, s.station]));
-    const newStations = results
-        .filter(r => r.new_station)
-        .map(r => ({ code: r.station_code, name: codeToName.get(r.station_code) || r.station_code }));
+    // New stations = route stops that weren't already visited before this journey
+    const visited = alreadyVisitedStations.value;
+    const newStations = stopsArr
+        .filter(s => s.code && !visited.has(s.code))
+        .map(s => ({ code: s.code, name: s.station }));
 
     // Animated km counter
     useEffect(() => {

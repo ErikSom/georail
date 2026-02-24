@@ -101,6 +101,11 @@ export function updateTrainState() {
 // Helper to reset train
 export function resetTrain() {
     trainPower.value = 0;
+    trainVelocityKmh.value = 0;
+    trainDistanceTraveled.value = 0;
+    trainPathTotalLength.value = 0;
+    trainLength.value = 0;
+    trainTractiveEffort.value = 0;
     const train = trainInstance.value;
     if (train) {
         train.setPower(0);
