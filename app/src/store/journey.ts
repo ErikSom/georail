@@ -147,6 +147,29 @@ function haversineDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function computeSegmentDistances(route: RouteData): number[] {
+    const routePoints = route.geometry?.route;
+    const stopIndices = route.geometry?.stop_indices;
+
+    if (!routePoints || !stopIndices || stopIndices.length < 2) {
+        return [];
+    }
+
+    const segments: number[] = [];
+    for (let i = 1; i < stopIndices.length; i++) {
+        const startIdx = stopIndices[i - 1];
+        const endIdx = stopIndices[i];
+        let segmentDistance = 0;
+        for (let j = startIdx; j < endIdx; j++) {
+            const [lon1, lat1] = routePoints[j];
+            const [lon2, lat2] = routePoints[j + 1];
+            segmentDistance += haversineDistanceKm(lat1, lon1, lat2, lon2);
+        }
+        segments.push(Math.round(segmentDistance * 100) / 100);
+    }
+    return segments;
+}
+
 export const stopDistances = computed<number[]>(() => {
     const route = routeData.value?.geometry?.route;
     const stopIndices = routeData.value?.geometry?.stop_indices;
@@ -380,7 +403,9 @@ export function startJourney(route: RouteData, customStartTime?: number): void {
 
     const stationCodes = stopsArr.map(s => s.code).filter(Boolean);
     if (stationCodes.length >= 2) {
-        apiStartJourney(stationCodes, country.value).then(result => {
+        // Compute per-segment route distances from geometry for accurate km rewards
+        const segmentDistances = computeSegmentDistances(route);
+        apiStartJourney(stationCodes, country.value, segmentDistances).then(result => {
             if (result) {
                 journeySessionId.value = result.session_id;
             }

@@ -3,9 +3,6 @@ import { supabase } from '../supabase.js';
 const MAX_AVERAGE_SPEED_KMH = 250;
 const MAX_STATIONS = 30;
 
-/**
- * Haversine distance in km between two lat/lon points
- */
 function haversineKm(lat1, lon1, lat2, lon2) {
 	const R = 6371;
 	const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -16,27 +13,26 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 	return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-/**
- * POST /user/journey/start
- * Body: { station_codes: string[] }
- * Creates a journey session and returns its ID.
- */
 export const startJourneySession = async (req, res) => {
 	try {
-		const { station_codes, country } = req.body;
+		const { station_codes, country, segment_distances } = req.body;
 
 		if (!Array.isArray(station_codes) || station_codes.length < 2 || station_codes.length > MAX_STATIONS) {
 			return res.status(400).json({ error: 'Between 2 and 30 station codes required' });
 		}
 
-		// Cancel any existing active sessions for this user
+		if (!Array.isArray(segment_distances)
+			|| segment_distances.length !== station_codes.length - 1
+			|| !segment_distances.every(d => typeof d === 'number' && d > 0)) {
+			return res.status(400).json({ error: 'segment_distances must have N-1 positive numbers' });
+		}
+
 		await supabase
 			.from('journey_sessions')
 			.update({ completed: true })
 			.eq('user_id', req.userId)
 			.eq('completed', false);
 
-		// Fetch coordinates for all stations via PostGIS function
 		const { data: coordRows, error: coordErr } = await supabase
 			.rpc('get_station_coords_batch', { codes: station_codes });
 
@@ -49,25 +45,33 @@ export const startJourneySession = async (req, res) => {
 			coordMap.set(row.code, [row.lon, row.lat]);
 		}
 
-		// Build ordered coordinate array matching station_codes order
 		const station_coords = station_codes.map(code => {
 			const coord = coordMap.get(code);
-			return coord || [0, 0]; // fallback shouldn't happen
+			return coord || [0, 0];
 		});
 
-		// Verify all stations were found
 		const missingCodes = station_codes.filter(code => !coordMap.has(code));
 		if (missingCodes.length > 0) {
 			return res.status(400).json({ error: `Unknown stations: ${missingCodes.join(', ')}` });
 		}
 
-		// Create session
+		// Validate segment distances against straight-line (anti-cheat)
+		for (let i = 0; i < segment_distances.length; i++) {
+			const [fromLon, fromLat] = station_coords[i];
+			const [toLon, toLat] = station_coords[i + 1];
+			const straightLine = haversineKm(fromLat, fromLon, toLat, toLon);
+			if (segment_distances[i] < straightLine * 0.95 || segment_distances[i] > straightLine * 3) {
+				return res.status(400).json({ error: 'Invalid segment distances' });
+			}
+		}
+
 		const { data, error } = await supabase
 			.from('journey_sessions')
 			.insert({
 				user_id: req.userId,
 				station_codes,
 				station_coords,
+				segment_distances,
 				country: country || 'NL',
 				last_station_index: 0,
 				last_ping_at: new Date().toISOString(),
@@ -89,11 +93,6 @@ export const startJourneySession = async (req, res) => {
 	}
 };
 
-/**
- * POST /user/journey/station
- * Body: { session_id: string, station_index: number }
- * Validates arrival and accumulates km.
- */
 export const reportStationArrival = async (req, res) => {
 	try {
 		const { session_id, station_index } = req.body;
@@ -102,7 +101,6 @@ export const reportStationArrival = async (req, res) => {
 			return res.status(400).json({ error: 'session_id and station_index required' });
 		}
 
-		// Fetch session
 		const { data: session, error: sessionError } = await supabase
 			.from('journey_sessions')
 			.select('*')
@@ -115,16 +113,12 @@ export const reportStationArrival = async (req, res) => {
 			return res.status(404).json({ error: 'Session not found or completed' });
 		}
 
-		// Validate station_index is the next expected
 		const expectedIndex = session.last_station_index + 1;
 		if (station_index !== expectedIndex || station_index >= session.station_codes.length) {
 			return res.status(400).json({ error: 'Invalid station_index' });
 		}
 
-		// Compute distance between previous and current station using stored coords
-		const [fromLon, fromLat] = session.station_coords[session.last_station_index];
-		const [toLon, toLat] = session.station_coords[station_index];
-		const distanceKm = haversineKm(fromLat, fromLon, toLat, toLon);
+		const distanceKm = session.segment_distances[station_index - 1];
 
 		// Anti-cheat: check travel time (250 km/h max with 10% tolerance)
 		const now = new Date();
@@ -139,7 +133,6 @@ export const reportStationArrival = async (req, res) => {
 		const newTotalKmEarned = session.total_km_earned + distanceKm;
 		const isComplete = station_index === session.station_codes.length - 1;
 
-		// Update session
 		await supabase
 			.from('journey_sessions')
 			.update({
@@ -150,7 +143,6 @@ export const reportStationArrival = async (req, res) => {
 			})
 			.eq('id', session_id);
 
-		// Atomically increment user total_km
 		const { data: profile } = await supabase
 			.from('profiles')
 			.select('total_km')
@@ -163,8 +155,7 @@ export const reportStationArrival = async (req, res) => {
 			.update({ total_km: newTotalKm })
 			.eq('id', req.userId);
 
-		// When arriving at station 1, also credit the start station
-		// (start station is only unlocked after proving you traveled to the next one)
+		// Credit start station when arriving at station 1
 		const sessionCountry = session.country || 'NL';
 		if (station_index === 1) {
 			await supabase
@@ -177,7 +168,6 @@ export const reportStationArrival = async (req, res) => {
 				}, { onConflict: 'user_id,station_code,country', ignoreDuplicates: true });
 		}
 
-		// Record station visit (upsert, ignore if exists)
 		const toCode = session.station_codes[station_index];
 		const { data: visitResult } = await supabase
 			.from('user_station_visits')
@@ -191,7 +181,6 @@ export const reportStationArrival = async (req, res) => {
 
 		const newStation = visitResult && visitResult.length > 0;
 
-		// Count total stations visited
 		const { count: totalStationsVisited } = await supabase
 			.from('user_station_visits')
 			.select('*', { count: 'exact', head: true })
@@ -214,10 +203,6 @@ export const reportStationArrival = async (req, res) => {
 	}
 };
 
-/**
- * GET /user/stats
- * Returns user stats: total_km, visited stations.
- */
 export const getUserStats = async (req, res) => {
 	try {
 		const { country } = req.query;

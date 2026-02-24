@@ -35,7 +35,7 @@ export interface JourneyStartResponse {
 /**
  * Start a journey session for server-side tracking
  */
-export async function startJourneySession(stationCodes: string[], country: string): Promise<JourneyStartResponse | null> {
+export async function startJourneySession(stationCodes: string[], country: string, segmentDistances: number[]): Promise<JourneyStartResponse | null> {
     try {
         const headers = await getAuthHeaders();
         if (!headers) return null;
@@ -43,7 +43,7 @@ export async function startJourneySession(stationCodes: string[], country: strin
         const response = await fetch(`${API_BASE}/journey/start`, {
             method: 'POST',
             headers,
-            body: JSON.stringify({ station_codes: stationCodes, country }),
+            body: JSON.stringify({ station_codes: stationCodes, country, segment_distances: segmentDistances }),
         });
 
         if (!response.ok) return null;
