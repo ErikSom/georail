@@ -15,7 +15,7 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 
 export const startJourneySession = async (req, res) => {
 	try {
-		const { station_codes, country, segment_distances } = req.body;
+		const { station_codes, country, segment_distances, station_tracks } = req.body;
 
 		if (!Array.isArray(station_codes) || station_codes.length < 2 || station_codes.length > MAX_STATIONS) {
 			return res.status(400).json({ error: 'Between 2 and 30 station codes required' });
@@ -34,33 +34,34 @@ export const startJourneySession = async (req, res) => {
 			.eq('completed', false);
 
 		const { data: coordRows, error: coordErr } = await supabase
-			.rpc('get_station_coords_batch', { codes: station_codes });
+			.rpc('get_station_coords_batch', { codes: station_codes, tracks: station_tracks });
 
 		if (coordErr || !coordRows) {
 			return res.status(500).json({ error: 'Could not fetch station coordinates' });
 		}
 
-		const coordMap = new Map();
+		const coordByCode = new Map();
 		for (const row of coordRows) {
-			coordMap.set(row.code, [row.lon, row.lat]);
+			coordByCode.set(row.code, [row.lon, row.lat]);
 		}
 
-		const station_coords = station_codes.map(code => {
-			const coord = coordMap.get(code);
-			return coord || [0, 0];
-		});
+		const station_coords = coordRows.map(row => [row.lon, row.lat]);
 
-		const missingCodes = station_codes.filter(code => !coordMap.has(code));
+		const missingCodes = station_codes.filter(code => !coordByCode.has(code));
 		if (missingCodes.length > 0) {
+			console.warn('Journey start rejected: unknown stations', missingCodes);
 			return res.status(400).json({ error: `Unknown stations: ${missingCodes.join(', ')}` });
 		}
 
 		// Validate segment distances against straight-line (anti-cheat)
+		// Only check upper bound — lower bound triggers false positives due to
+		// station coords vs pgr vertex mismatch on short segments
 		for (let i = 0; i < segment_distances.length; i++) {
 			const [fromLon, fromLat] = station_coords[i];
 			const [toLon, toLat] = station_coords[i + 1];
 			const straightLine = haversineKm(fromLat, fromLon, toLat, toLon);
-			if (segment_distances[i] < straightLine * 0.95 || segment_distances[i] > straightLine * 3) {
+			if (segment_distances[i] > straightLine * 3) {
+				console.warn(`Journey start rejected: segment ${station_codes[i]}→${station_codes[i + 1]} distance ${segment_distances[i].toFixed(2)} km, straight-line ${straightLine.toFixed(2)} km (max: ${(straightLine * 3).toFixed(2)})`);
 				return res.status(400).json({ error: 'Invalid segment distances' });
 			}
 		}

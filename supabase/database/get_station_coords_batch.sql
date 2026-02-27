@@ -1,5 +1,6 @@
 CREATE OR REPLACE FUNCTION get_station_coords_batch(
   codes text[],
+  tracks text[] DEFAULT NULL,
   p_country text DEFAULT NULL
 )
 RETURNS TABLE(code text, lon float, lat float)
@@ -8,12 +9,13 @@ STABLE
 SECURITY DEFINER
 SET search_path = public, extensions
 AS $$
-  SELECT DISTINCT ON (s.code)
-    s.code,
+  SELECT DISTINCT ON (idx)
+    codes[idx] AS code,
     ST_X(s.geom)::float AS lon,
     ST_Y(s.geom)::float AS lat
-  FROM stations s
-  WHERE s.code = ANY(codes)
+  FROM generate_subscripts(codes, 1) AS idx
+  JOIN stations s ON s.code = codes[idx]
     AND (p_country IS NULL OR s.country = p_country)
-  ORDER BY s.code;
+    AND (tracks IS NULL OR tracks[idx] IS NULL OR s.ref = tracks[idx])
+  ORDER BY idx;
 $$;

@@ -31,7 +31,7 @@ export interface JourneyStartResponse {
     already_visited: string[];
 }
 
-export async function startJourneySession(stationCodes: string[], country: string, segmentDistances: number[]): Promise<JourneyStartResponse | null> {
+export async function startJourneySession(stationCodes: string[], country: string, segmentDistances: number[], stationTracks: (string | null)[]): Promise<JourneyStartResponse | null> {
     try {
         const headers = await getAuthHeaders();
         if (!headers) return null;
@@ -39,7 +39,7 @@ export async function startJourneySession(stationCodes: string[], country: strin
         const response = await fetch(`${API_BASE}/journey/start`, {
             method: 'POST',
             headers,
-            body: JSON.stringify({ station_codes: stationCodes, country, segment_distances: segmentDistances }),
+            body: JSON.stringify({ station_codes: stationCodes, country, segment_distances: segmentDistances, station_tracks: stationTracks }),
         });
 
         if (!response.ok) return null;

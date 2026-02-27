@@ -394,9 +394,10 @@ export function startJourney(route: RouteData, customStartTime?: number): void {
     }
 
     const stationCodes = stopsArr.map(s => s.code).filter(Boolean);
+    const stationTracks = stopsArr.map(s => s.track || null);
     if (stationCodes.length >= 2) {
         const segmentDistances = computeSegmentDistances(route).map(d => Math.round(d * 100) / 100);
-        apiStartJourney(stationCodes, country.value, segmentDistances).then(result => {
+        apiStartJourney(stationCodes, country.value, segmentDistances, stationTracks).then(result => {
             if (result) {
                 journeySessionId.value = result.session_id;
                 alreadyVisitedStations.value = new Set(result.already_visited);
