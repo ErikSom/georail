@@ -149,11 +149,13 @@ export class RouteEditor {
             const worldOffset = new Vector3(world_offset_x, world_offset_y, world_offset_z);
 
             // Apply world offset to get actual position
-            const origGeoCoords = this.mapViewer.getLatLonHeightFromWorldPosition(originalPosition);
-            if (!origGeoCoords) {
+            const origGeoCoordsRef = this.mapViewer.getLatLonHeightFromWorldPosition(originalPosition);
+            if (!origGeoCoordsRef) {
                 console.warn(`Failed to get geo coords for node ${nodeKey}`);
                 return;
             }
+            // Clone — getLatLonHeightFromWorldPosition returns a shared mutable reference
+            const origGeoCoords = { lat: origGeoCoordsRef.lat, lon: origGeoCoordsRef.lon, height: origGeoCoordsRef.height };
 
             const position = applyENUOffset(origGeoCoords, worldOffset, this.mapViewer);
             if (!position) {
