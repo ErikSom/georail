@@ -400,4 +400,88 @@ export class StationIndicator {
         this.group.clear();
         this.path = null;
     }
+
+    /**
+     * Create standalone station visuals (for use in the editor without Path/store dependencies).
+     * Includes beams and end walls. All meshes have raycast disabled so they don't block node selection.
+     */
+    public static createBeamGroup(): { group: Group; materials: ShaderMaterial[] } {
+        if (!beamGeom) beamGeom = new PlaneGeometry(BEAM_WIDTH, BEAM_HEIGHT);
+        if (!endWallGeom) endWallGeom = new PlaneGeometry(WALL_WIDTH, WALL_HEIGHT);
+
+        const noRaycast = () => {};
+        const zoneHalf = 15;
+
+        const beamMat = new ShaderMaterial({
+            vertexShader: beamVertex,
+            fragmentShader: beamFragment,
+            uniforms: {
+                uTime: { value: 0 },
+                uOpacity: { value: 0.8 },
+                uColor: { value: ACTIVE_COLOR.clone() },
+            },
+            transparent: true,
+            depthWrite: false,
+            side: DoubleSide,
+            blending: AdditiveBlending,
+        });
+
+        const wallMat = new ShaderMaterial({
+            vertexShader: wallVertex,
+            fragmentShader: wallFragment,
+            uniforms: {
+                uTime: { value: 0 },
+                uOpacity: { value: 0.8 },
+                uColor: { value: ACTIVE_COLOR.clone() },
+            },
+            transparent: true,
+            depthWrite: false,
+            side: DoubleSide,
+            blending: AdditiveBlending,
+        });
+
+        const group = new Group();
+
+        // Beams
+        const beam1 = new Mesh(beamGeom, beamMat);
+        beam1.position.y = BEAM_HEIGHT / 2;
+        beam1.frustumCulled = false;
+        beam1.raycast = noRaycast;
+        group.add(beam1);
+
+        const beam2 = new Mesh(beamGeom, beamMat);
+        beam2.position.y = BEAM_HEIGHT / 2;
+        beam2.rotation.y = Math.PI / 2;
+        beam2.frustumCulled = false;
+        beam2.raycast = noRaycast;
+        group.add(beam2);
+
+        // End walls cross the track — default PlaneGeometry faces +Z = track direction
+        const wallStart = new Mesh(endWallGeom, wallMat);
+        wallStart.position.set(0, WALL_HEIGHT / 2 + WALL_Y_OFFSET, -zoneHalf);
+        wallStart.raycast = noRaycast;
+        group.add(wallStart);
+
+        const wallEnd = new Mesh(endWallGeom, wallMat);
+        wallEnd.position.set(0, WALL_HEIGHT / 2 + WALL_Y_OFFSET, zoneHalf);
+        wallEnd.raycast = noRaycast;
+        group.add(wallEnd);
+
+        // Side walls run along the track — rotate so they face +X (left/right)
+        const sideWallGeom = new PlaneGeometry(zoneHalf * 2, WALL_HEIGHT);
+
+        const wallLeft = new Mesh(sideWallGeom, wallMat);
+        wallLeft.position.set(-WALL_WIDTH / 2, WALL_HEIGHT / 2 + WALL_Y_OFFSET, 0);
+        wallLeft.rotation.y = Math.PI / 2;
+        wallLeft.raycast = noRaycast;
+        group.add(wallLeft);
+
+        const wallRight = new Mesh(sideWallGeom, wallMat);
+        wallRight.position.set(WALL_WIDTH / 2, WALL_HEIGHT / 2 + WALL_Y_OFFSET, 0);
+        wallRight.rotation.y = Math.PI / 2;
+        wallRight.raycast = noRaycast;
+        group.add(wallRight);
+
+        return { group, materials: [beamMat, wallMat] };
+    }
 }

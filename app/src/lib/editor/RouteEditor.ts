@@ -9,6 +9,7 @@ import {
     LineBasicMaterial,
     BufferGeometry,
     Line,
+    type ShaderMaterial,
 } from 'three';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import type { RouteData } from '../api/navigation';
@@ -17,6 +18,7 @@ import type { PatchData } from '../types/Patch';
 import { Input } from '../utils/Input';
 import { geoToENU, applyENUOffset, type GeoCoords } from '../utils/CoordinateHelpers';
 import { NodeIndicator } from './NodeIndicator';
+import { StationIndicator } from '../StationIndicator';
 
 interface NodeSnapshot {
     position: Vector3;
@@ -32,6 +34,7 @@ export interface NodeData {
     world_offset: Vector3; // [x, y, z] offset in world space (East, Up, North)
     originalWorldOffset: Vector3; // Original offset from route data (East, Up, North)
     isKeyNode: boolean;
+    isStationNode: boolean;
     position: Vector3;
     originalPosition: Vector3;
     originalGeoCoords?: { lat: number; lon: number; height: number }; // Cache to avoid repeated conversions
@@ -63,6 +66,8 @@ export class RouteEditor {
     private selectedNode: string | null = null;
     private reviewMode: boolean = false;
     private offsetIndicators: Map<string, Mesh> = new Map();
+    private stationBeamMaterials: ShaderMaterial[] = [];
+    private stationTime = 0;
 
     // Undo system
     private undoStack: UndoState[] = [];
@@ -123,6 +128,9 @@ export class RouteEditor {
             return;
         }
 
+        // Build set of station node indices for quick lookup
+        const stationIndices = new Set<number>(routeData.geometry.stop_indices || []);
+
         // Store meshes in order for orientation calculation
         const orderedMeshes: Mesh[] = [];
 
@@ -164,12 +172,14 @@ export class RouteEditor {
             }
 
             // Create node data with cached geo coordinates
+            const isStation = stationIndices.has(idx);
             const nodeData: NodeData = {
                 segment_id,
                 index,
                 world_offset: worldOffset.clone(),
                 originalWorldOffset: worldOffset.clone(),
                 isKeyNode: false, // Will be set by applyPatchData
+                isStationNode: isStation,
                 position: position.clone(),
                 originalPosition: originalPosition.clone(),
                 originalGeoCoords: origGeoCoords, // Cache to avoid repeated conversions
@@ -177,11 +187,16 @@ export class RouteEditor {
 
             this.nodes.set(nodeKey, nodeData);
 
-            // Create node indicator
-            const nodeIndicator = new NodeIndicator();
+            // Create node indicator — station nodes are larger
+            const nodeIndicator = new NodeIndicator(isStation ? 2.5 : 1);
             nodeIndicator.mesh.position.copy(position);
             nodeIndicator.mesh.name = nodeKey;
             nodeIndicator.mesh.userData.nodeKey = nodeKey;
+
+            if (isStation) {
+                nodeIndicator.setMode('station');
+                this.addStationBeams(nodeIndicator.mesh);
+            }
 
             this.nodeIndicators.set(nodeKey, nodeIndicator);
             this.routeGroup.add(nodeIndicator.mesh);
@@ -254,6 +269,12 @@ export class RouteEditor {
         }
     }
 
+    private addStationBeams(nodeMesh: Mesh): void {
+        const { group, materials } = StationIndicator.createBeamGroup();
+        nodeMesh.add(group);
+        this.stationBeamMaterials.push(...materials);
+    }
+
     private createOffsetIndicator(nodeKey: string, nodeData: NodeData): void {
         // Create a vertical line from original position pointing 100m up
         const points = [];
@@ -277,7 +298,7 @@ export class RouteEditor {
             const prevIndicator = this.nodeIndicators.get(this.selectedNode);
             const prevData = this.nodes.get(this.selectedNode);
             if (prevIndicator && prevData) {
-                const mode = prevData.isKeyNode ? 'keyNode' : 'normal';
+                const mode = prevData.isKeyNode ? 'keyNode' : prevData.isStationNode ? 'station' : 'normal';
                 prevIndicator.setMode(mode);
             }
         }
@@ -292,7 +313,8 @@ export class RouteEditor {
                 // Highlight selected node
                 nodeIndicator.setMode('selected');
 
-                // Attach transform controls
+                // Attach transform controls — show Z axis (along track) for station nodes
+                this.transformControls.showZ = nodeData.isStationNode;
                 this.transformControls.attach(nodeIndicator.mesh);
 
                 // Notify callback
@@ -308,6 +330,7 @@ export class RouteEditor {
                 }
             }
         } else {
+            this.transformControls.showZ = false;
             this.transformControls.detach();
             if (this.onNodeSelected) {
                 this.onNodeSelected(null);
@@ -329,7 +352,7 @@ export class RouteEditor {
             if (nodeKey === this.selectedNode) {
                 nodeIndicator.setMode('selected');
             } else {
-                const mode = nodeData.isKeyNode ? 'keyNode' : 'normal';
+                const mode = nodeData.isKeyNode ? 'keyNode' : nodeData.isStationNode ? 'station' : 'normal';
                 nodeIndicator.setMode(mode);
             }
 
@@ -658,6 +681,8 @@ export class RouteEditor {
                     nodeIndicator.setMode('selected');
                 } else if (nodeData.isKeyNode) {
                     nodeIndicator.setMode('keyNode');
+                } else if (nodeData.isStationNode) {
+                    nodeIndicator.setMode('station');
                 } else {
                     nodeIndicator.setMode('normal');
                 }
@@ -680,7 +705,7 @@ export class RouteEditor {
         return true;
     }
 
-    public update(): void {
+    public update(dt: number = 0): void {
         if (Input.isPressed('KeyZ') && Input.isControl) {
             this.undo();
         }
@@ -689,6 +714,12 @@ export class RouteEditor {
         if (Input.isPressed('KeyF') && this.selectedNode) {
             this.bringNodeIntoView(this.selectedNode);
         }
+
+        // Animate station beams
+        this.stationTime += dt;
+        for (const mat of this.stationBeamMaterials) {
+            mat.uniforms.uTime.value = this.stationTime;
+        }
     }
 
     public clear(): void {
@@ -696,6 +727,12 @@ export class RouteEditor {
         for (const indicator of this.nodeIndicators.values()) {
             indicator.dispose();
         }
+
+        for (const mat of this.stationBeamMaterials) {
+            mat.dispose();
+        }
+        this.stationBeamMaterials = [];
+        this.stationTime = 0;
 
         this.nodes.clear();
         this.nodeIndicators.clear();

@@ -15,6 +15,7 @@ const sharedMaterials = {
     normal: new MeshBasicMaterial({ color: 0x00ff00, wireframe: false }),
     keyNode: new MeshBasicMaterial({ color: 0xff0000, wireframe: false }),
     selected: new MeshBasicMaterial({ color: 0xffff00, wireframe: false }),
+    station: new MeshBasicMaterial({ color: 0x00bfff, wireframe: false }),
     xray: new MeshBasicMaterial({
         color: 0xff69b4,
         transparent: true,
@@ -24,7 +25,7 @@ const sharedMaterials = {
     }),
 };
 
-export type NodeMode = 'normal' | 'keyNode' | 'selected';
+export type NodeMode = 'normal' | 'keyNode' | 'selected' | 'station';
 
 export class NodeIndicator {
     public mesh: Mesh;

@@ -319,7 +319,7 @@ export class Editor {
 
         // Only update route editor if mapViewer is initialized
         if (this.mapViewer.initialized) {
-            this.routeEditor?.update();
+            this.routeEditor?.update(dt);
         }
 
         this.renderer.render(this.scene, this.camera);

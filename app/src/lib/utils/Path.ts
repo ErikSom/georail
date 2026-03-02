@@ -414,6 +414,33 @@ export default class Path {
         return d < 0 ? d + L : d;
     }
 
+    /**
+     * Get the cumulative path distance (meters) at a given input point index.
+     * Useful for computing stop distances from route point indices.
+     */
+    public getDistanceAtPointIndex(pointIndex: number): number {
+        if (pointIndex <= 0) return 0;
+        if (pointIndex >= this.points.length - 1) return this.totalLength;
+
+        for (let seg = 0; seg < this.logicalCount; seg++) {
+            const startPt = this.segPointIndices[seg];
+            const isCurve = this.segTypes[seg] === SEG_CURVE;
+            const endPt = startPt + (isCurve ? 2 : 1);
+
+            if (pointIndex === startPt) {
+                return this.cumulativeLengths[seg];
+            }
+            if (pointIndex === endPt) {
+                return this.cumulativeLengths[seg + 1];
+            }
+            if (isCurve && pointIndex === startPt + 1) {
+                // Middle point of curve — approximate as midpoint of segment
+                return (this.cumulativeLengths[seg] + this.cumulativeLengths[seg + 1]) / 2;
+            }
+        }
+        return this.totalLength;
+    }
+
     public getTotalLength(): number { return this.totalLength; }
     public getStartDirection(): Vector3 { return this.startDir; }
     public getEndDirection(): Vector3 { return this.endDir; }

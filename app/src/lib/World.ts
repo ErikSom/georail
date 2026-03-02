@@ -35,6 +35,7 @@ import { getPerformanceConfig, type PerformanceConfig } from './utils/Performanc
 import type { Tiles3DAttributionCredits } from '../components/HUD/Tiles3DAttribution';
 import { Pane } from 'tweakpane';
 import { audioListener, timeScale, scaledDeltaTime } from '../store/globals';
+import { trainPath } from '../store/journey';
 
 export class World {
     private scene!: Scene;
@@ -244,6 +245,9 @@ export class World {
             const path = new Path(pathPoints);
             this.train.setPath(path);
             this.train.positionOnPath();
+
+            // Store path so journey store can reactively compute stop distances
+            trainPath.value = path;
 
             this.boundaryWall = new BoundaryWall(
                 path.getStartPoint(),

@@ -1,5 +1,6 @@
 import { signal, computed } from "@preact/signals";
 import type { RouteData, RouteStop } from "../lib/api/navigation";
+import type Path from "../lib/utils/Path";
 import { trainDistanceTraveled, trainPathTotalLength, trainVelocityKmh, trainLength, resetTrain } from "./train";
 import { configs, scaledDeltaTime } from "./globals";
 import { startJourneySession as apiStartJourney, reportStationArrival, type StationArrivalResponse } from "../lib/api/journey";
@@ -171,20 +172,22 @@ function computeSegmentDistances(route: RouteData): number[] {
     return segments;
 }
 
+/** The active 3D path — set by World.ts after path construction. */
+export const trainPath = signal<Path | null>(null);
+
+/** Cumulative stop distances in km, derived from the 3D Path arc-length.
+ *  Reactively updates when either routeData or trainPath changes.
+ *  Uses actual path distance rather than haversine, so distances
+ *  correctly reflect world_offset movements (e.g. station Z adjustments). */
 export const stopDistances = computed<number[]>(() => {
+    const path = trainPath.value;
     const route = routeData.value;
-    if (!route) return [];
+    if (!path || !route) return [];
 
-    const segments = computeSegmentDistances(route);
-    if (segments.length === 0) return [];
+    const stopIndices = route.geometry.stop_indices;
+    if (!stopIndices?.length) return [];
 
-    const distances: number[] = [0];
-    let cumulative = 0;
-    for (const seg of segments) {
-        cumulative += seg;
-        distances.push(cumulative);
-    }
-    return distances;
+    return stopIndices.map(idx => path.getDistanceAtPointIndex(idx) / 1000);
 });
 
 export function getExpectedPositionKm(elapsed: number): number {
@@ -418,6 +421,7 @@ export function getScheduleBasedStartTime(initialDwellMinutes: number): number {
 
 export function resetJourney(): void {
     routeData.value = null;
+    trainPath.value = null;
     journeyStartTime.value = null;
     currentRouteIndex.value = 0;
     elapsedMinutes.value = 0;
