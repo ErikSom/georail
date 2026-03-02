@@ -53,6 +53,12 @@ DECLARE
 
   -- FIX: Helper variable for regex construction
   track_regex text;
+
+  -- Edge-based node snapping (prefer junction vertices over dead-ends)
+  snap_source bigint;
+  snap_target bigint;
+  src_degree int;
+  tgt_degree int;
 BEGIN
   stop_count := jsonb_array_length(stops);
 
@@ -92,14 +98,28 @@ BEGIN
         RETURN json_build_object('error', format('Station not found: %s', current_stop->>'code'));
       END IF;
 
-      -- Find start_node on network
-      SELECT v.id INTO start_node
-      FROM rail_lines_vertices_pgr v
-      ORDER BY v.the_geom <-> ST_Transform(
-        ST_SetSRID(ST_MakePoint(start_coords[1], start_coords[2]), 4326),
-        ST_SRID(v.the_geom)
-      )
+      -- Find start_node on network (edge-based snap, prefer junction vertex)
+      SELECT rl.source, rl.target INTO snap_source, snap_target
+      FROM rail_lines rl
+      ORDER BY rl.geom <-> ST_SetSRID(ST_MakePoint(start_coords[1], start_coords[2]), 4326)
       LIMIT 1;
+
+      SELECT COUNT(*) INTO src_degree FROM rail_lines WHERE source = snap_source OR target = snap_source;
+      SELECT COUNT(*) INTO tgt_degree FROM rail_lines WHERE source = snap_target OR target = snap_target;
+
+      IF src_degree > tgt_degree THEN
+        start_node := snap_source;
+      ELSIF tgt_degree > src_degree THEN
+        start_node := snap_target;
+      ELSE
+        SELECT CASE
+          WHEN ST_Distance(v1.the_geom, ST_SetSRID(ST_MakePoint(start_coords[1], start_coords[2]), 4326))
+            <= ST_Distance(v2.the_geom, ST_SetSRID(ST_MakePoint(start_coords[1], start_coords[2]), 4326))
+          THEN snap_source ELSE snap_target
+        END INTO start_node
+        FROM rail_lines_vertices_pgr v1, rail_lines_vertices_pgr v2
+        WHERE v1.id = snap_source AND v2.id = snap_target;
+      END IF;
     END IF;
 
     -- 2. DETERMINE END NODE
@@ -125,14 +145,28 @@ BEGIN
       RETURN json_build_object('error', format('Station not found: %s', next_stop->>'code'));
     END IF;
 
-    -- Find end_node on network
-    SELECT v.id INTO end_node
-    FROM rail_lines_vertices_pgr v
-    ORDER BY v.the_geom <-> ST_Transform(
-      ST_SetSRID(ST_MakePoint(end_coords[1], end_coords[2]), 4326),
-      ST_SRID(v.the_geom)
-    )
+    -- Find end_node on network (edge-based snap, prefer junction vertex)
+    SELECT rl.source, rl.target INTO snap_source, snap_target
+    FROM rail_lines rl
+    ORDER BY rl.geom <-> ST_SetSRID(ST_MakePoint(end_coords[1], end_coords[2]), 4326)
     LIMIT 1;
+
+    SELECT COUNT(*) INTO src_degree FROM rail_lines WHERE source = snap_source OR target = snap_source;
+    SELECT COUNT(*) INTO tgt_degree FROM rail_lines WHERE source = snap_target OR target = snap_target;
+
+    IF src_degree > tgt_degree THEN
+      end_node := snap_source;
+    ELSIF tgt_degree > src_degree THEN
+      end_node := snap_target;
+    ELSE
+      SELECT CASE
+        WHEN ST_Distance(v1.the_geom, ST_SetSRID(ST_MakePoint(end_coords[1], end_coords[2]), 4326))
+          <= ST_Distance(v2.the_geom, ST_SetSRID(ST_MakePoint(end_coords[1], end_coords[2]), 4326))
+        THEN snap_source ELSE snap_target
+      END INTO end_node
+      FROM rail_lines_vertices_pgr v1, rail_lines_vertices_pgr v2
+      WHERE v1.id = snap_source AND v2.id = snap_target;
+    END IF;
 
     -- 3. DISTANCE CHECKS
     segment_distance := ST_Distance(
