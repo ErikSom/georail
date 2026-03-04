@@ -82,7 +82,7 @@ export default function StationPicker({
                     onClick={() => !disabled && setIsOpen(true)}
                     disabled={disabled}
                 >
-                    <span className={selectedStation ? undefined : styles.placeholder}>
+                    <span className={selectedStation ? styles.selectedStation : styles.placeholder}>
                         {selectedStation || 'Select station'}
                     </span>
                     {selectedTrack && (

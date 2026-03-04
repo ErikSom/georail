@@ -25,6 +25,12 @@
     cursor: not-allowed;
 }
 
+.selectedStation {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .placeholder {
     color: var(--menu-dim);
     font-weight: 400;
