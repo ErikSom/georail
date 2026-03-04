@@ -97,10 +97,9 @@ export default function StationPicker({
         <div ref={containerRef} className={styles.container}>
             {pickingTrack ? (
                 <div>
-                    <div className={styles.trackHeader}>Select track</div>
                     <div className={styles.trackList}>
                         <button className={styles.trackOption} onClick={() => handleTrackClick('')}>
-                            Any
+                            Any track
                         </button>
                         {[...availableTracks].sort((a, b) => {
                             const numA = parseInt(a), numB = parseInt(b);
