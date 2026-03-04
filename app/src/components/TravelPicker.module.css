@@ -1,10 +1,12 @@
+/* ─── Overlay & Container ──────────────────────────────────── */
+
 .overlay {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #78b27b;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -13,64 +15,72 @@
 }
 
 .container {
-    background: white;
-    border-radius: 16px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     max-width: 480px;
     width: 100%;
     overflow: hidden;
+    color: var(--menu-dark);
+    background: var(--menu-panel);
+    border-radius: 42px;
 }
 
+/* ─── Title ────────────────────────────────────────────────── */
+
 .title {
-    margin: 0;
-    padding: 32px 32px 24px;
-    font-size: 28px;
-    font-weight: 700;
-    color: #1a202c;
-    text-align: center;
+    margin: 0 0 0 4px;
+    padding: 32px 20px 16px;
+    font-size: 44px;
+    font-weight: 600;
 }
+
+/* ─── Tabs ─────────────────────────────────────────────────── */
 
 .tabs {
     display: flex;
-    border-bottom: 1px solid #e2e8f0;
+    background: var(--menu-light);
+    margin: 0 24px;
+    border-radius: 16px;
+    padding: 6px;
+    gap: 4px;
 }
 
 .tab {
     flex: 1;
-    padding: 16px;
-    background: none;
+    padding: 8px;
     border: none;
     font-size: 16px;
-    font-weight: 500;
-    color: #718096;
+    font-weight: 400;
+    background: none;
+    color: var(--menu-dim);
     cursor: pointer;
     transition: all 0.2s;
+    border-radius: 12px;
     position: relative;
 }
 
 .tab:hover {
-    background: #f7fafc;
-    color: #4a5568;
+    color: var(--menu-dark);
+    background: var(--menu-light);
+    filter: brightness(0.96);
 }
 
-.activeTab {
-    color: #667eea;
-    font-weight: 600;
+.activeTab,
+.activeTab:hover {
+    color: var(--menu-light);
+    font-weight: 500;
+    background: var(--menu-dark);
 }
 
 .activeTab::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: #667eea;
+    display: none;
 }
 
+/* ─── Content ──────────────────────────────────────────────── */
+
 .content {
-    padding: 32px;
+    padding: 20px 24px 28px;
 }
+
+/* ─── Form Fields ──────────────────────────────────────────── */
 
 .field {
     margin-bottom: 20px;
@@ -79,38 +89,43 @@
 .label {
     display: block;
     margin-bottom: 8px;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
-    color: #4a5568;
+    color: var(--p-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
 }
 
 .select {
     width: 100%;
-    padding: 12px 16px;
     font-size: 16px;
-    border: 2px solid #e2e8f0;
-    border-radius: 8px;
-    background: white;
-    color: #1a202c;
+    font-weight: 600;
+    color: var(--menu-dark);
     cursor: pointer;
-    transition: all 0.2s;
+    appearance: none;
+    background: none;
+    border: none;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 .select:hover {
-    border-color: #cbd5e0;
+    background: var(--p-glass-hover);
+    border-color: var(--p-mid);
 }
 
 .select:focus {
     outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    border-color: var(--p-accent);
+    box-shadow: 0 0 0 3px var(--p-accent-glow);
 }
 
 .select:disabled {
-    background: #f7fafc;
+    opacity: 0.4;
     cursor: not-allowed;
-    opacity: 0.6;
 }
+
+/* ─── Swap Button ──────────────────────────────────────────── */
 
 .swapContainer {
     display: flex;
@@ -121,10 +136,12 @@
 .swapButton {
     width: 40px;
     height: 40px;
-    border: 2px solid #e2e8f0;
-    border-radius: 50%;
-    background: white;
-    color: #667eea;
+    border: 1px solid var(--p-glass-border);
+    border-radius: 12px;
+    background: var(--p-glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color: var(--p-accent);
     font-size: 20px;
     cursor: pointer;
     transition: all 0.2s;
@@ -134,72 +151,87 @@
 }
 
 .swapButton:hover {
-    background: #f7fafc;
-    border-color: #667eea;
+    background: var(--p-glass-hover);
+    border-color: var(--p-mid);
     transform: rotate(180deg);
 }
 
 .swapButton:disabled {
     cursor: not-allowed;
-    opacity: 0.4;
+    opacity: 0.3;
 }
+
+/* ─── Error ────────────────────────────────────────────────── */
 
 .error {
     padding: 12px 16px;
     margin-bottom: 20px;
-    background: #fed7d7;
-    color: #c53030;
-    border-radius: 8px;
+    background: var(--p-error-surface);
+    color: var(--p-error);
+    border: 1px solid oklch(35% 0.12 25);
+    border-radius: 12px;
     font-size: 14px;
     font-weight: 500;
 }
 
+/* ─── Go Button ────────────────────────────────────────────── */
+
 .goButton {
     width: 100%;
     padding: 16px;
-    font-size: 18px;
-    font-weight: 600;
-    color: white;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--p-on-accent);
+    background: var(--p-accent);
     border: none;
-    border-radius: 8px;
+    border-radius: 14px;
     cursor: pointer;
     transition: all 0.2s;
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    box-shadow: 0 4px 16px var(--p-accent-glow);
+    letter-spacing: 0.02em;
 }
 
 .goButton:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+    background: var(--p-accent-muted);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 24px oklch(88% 0.25 145 / 0.3);
 }
 
 .goButton:active:not(:disabled) {
     transform: translateY(0);
+    box-shadow: 0 2px 8px oklch(88% 0.25 145 / 0.15);
 }
 
 .goButton:disabled {
-    opacity: 0.5;
+    opacity: 0.35;
     cursor: not-allowed;
     box-shadow: none;
 }
 
+/* ─── Loading ──────────────────────────────────────────────── */
+
 .loading {
     text-align: center;
     padding: 40px;
-    color: #718096;
-    font-size: 16px;
+    color: var(--p-text-muted);
+    font-size: 15px;
 }
 
-/* Departures List Styles */
+/* ─── Departures List ──────────────────────────────────────── */
+
 .departuresList {
     max-height: 400px;
     overflow-y: auto;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
+    border: 1px solid var(--p-glass-border);
+    border-radius: 14px;
+    background: var(--p-glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    margin-bottom: 20px;
 }
 
 .departureItem {
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid var(--p-glass-border);
 }
 
 .departureItem:last-child {
@@ -207,7 +239,7 @@
 }
 
 .departureItem.cancelled {
-    opacity: 0.5;
+    opacity: 0.4;
 }
 
 .departureItem.cancelled .departureDestination {
@@ -217,41 +249,43 @@
 .departureHeader {
     display: flex;
     align-items: center;
-    padding: 12px 16px;
+    padding: 14px 16px;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background 0.15s;
     gap: 12px;
 }
 
 .departureHeader:hover {
-    background: #f7fafc;
+    background: var(--p-glass-hover);
 }
 
 .departureTime {
-    font-weight: 600;
-    color: #667eea;
+    font-weight: 700;
+    color: var(--p-accent);
     min-width: 50px;
+    font-variant-numeric: tabular-nums;
 }
 
 .departureDestination {
     flex: 1;
-    color: #1a202c;
+    color: var(--p-text);
     font-weight: 500;
 }
 
 .departureTrack {
-    background: #e2e8f0;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 14px;
-    color: #4a5568;
+    background: var(--p-mid-dim);
+    padding: 3px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--p-text-secondary);
     min-width: 30px;
     text-align: center;
 }
 
 .expandIcon {
-    color: #718096;
-    font-size: 12px;
+    color: var(--p-text-muted);
+    font-size: 11px;
     transition: transform 0.2s;
 }
 
@@ -261,25 +295,27 @@
 
 .departureDetails {
     padding: 0 16px 16px;
-    background: #f7fafc;
-    border-top: 1px solid #e2e8f0;
+    background: oklch(100% 0 0 / 0.05);
+    border-top: 1px solid var(--p-glass-border);
 }
 
 .trainInfo {
-    font-size: 14px;
-    color: #718096;
+    font-size: 13px;
+    color: var(--p-text-muted);
     margin-bottom: 8px;
-    padding-top: 12px;
+    padding-top: 14px;
+    font-weight: 500;
 }
 
 .loadingStops {
     text-align: center;
     padding: 20px;
-    color: #718096;
+    color: var(--p-text-muted);
     font-size: 14px;
 }
 
-/* Timeline styles */
+/* ─── Timeline ─────────────────────────────────────────────── */
+
 .timeline {
     margin: 16px 0;
     max-height: 300px;
@@ -296,9 +332,10 @@
     width: 50px;
     font-size: 13px;
     font-weight: 600;
-    color: #4a5568;
+    color: var(--p-text-secondary);
     padding-top: 2px;
     flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
 }
 
 .timelineTrack {
@@ -314,27 +351,28 @@
     width: 12px;
     height: 12px;
     border-radius: 50%;
-    background: #f6ad55;
-    border: 2px solid #f6ad55;
+    background: var(--p-accent);
+    border: 2px solid var(--p-accent);
     z-index: 1;
     flex-shrink: 0;
 }
 
 .timelineDot.origin {
-    background: white;
-    border: 3px solid #f6ad55;
+    background: var(--p-surface);
+    border: 3px solid var(--p-accent);
     width: 14px;
     height: 14px;
 }
 
 .timelineDot.destination {
-    background: #f6ad55;
+    background: var(--p-accent);
+    box-shadow: 0 0 8px oklch(88% 0.25 145 / 0.5);
 }
 
 .timelineLine {
-    width: 3px;
+    width: 2px;
     flex: 1;
-    background: #f6ad55;
+    background: var(--p-mid);
     min-height: 28px;
     margin-top: -1px;
 }
@@ -342,42 +380,45 @@
 .timelineStation {
     flex: 1;
     font-size: 14px;
-    color: #1a202c;
+    color: var(--p-text);
     padding: 2px 0 0 12px;
 }
 
 .departureDetails .goButton {
     width: 100%;
     padding: 12px;
-    font-size: 16px;
+    font-size: 15px;
 }
 
 .noDepartures {
     text-align: center;
     padding: 40px;
-    color: #718096;
+    color: var(--p-text-muted);
     font-size: 14px;
 }
 
-/* Multi-stop styles */
+/* ─── Multi-stop (Custom tab) ──────────────────────────────── */
+
 .stopsList {
     display: flex;
     flex-direction: column;
     gap: 12px;
     margin-bottom: 16px;
+    background: var(--menu-light);
+    border-radius: 32px;
+    padding: 32px 32px 32px 64px;
 }
 
 .stopRow {
+    position: relative;
     display: flex;
-    align-items: center;
-    gap: 12px;
+    gap: 16px;
 }
 
 .stopLabel {
-    min-width: 60px;
-    font-size: 14px;
-    font-weight: 600;
-    color: #4a5568;
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--menu-dim);
 }
 
 .stopFields {
@@ -390,90 +431,69 @@
     flex: 1;
 }
 
-.trackSelect {
-    width: 100px;
-    padding: 12px 16px;
-    font-size: 16px;
-    border: 2px solid #e2e8f0;
-    border-radius: 8px;
-    background: white;
-    color: #1a202c;
-    cursor: pointer;
-    transition: all 0.2s;
+.stopField {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
-.trackSelect:hover {
-    border-color: #cbd5e0;
-}
-
-.trackSelect:focus {
-    outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.trackSelect:disabled {
-    background: #f7fafc;
-    cursor: not-allowed;
-    opacity: 0.6;
+.stopDivider {
+    height: 1px;
+    background: var(--menu-dim);
+    width: 100%;
+    opacity: 0.3;
 }
 
 .removeStopButton {
+    position: absolute;
+    background: none;
+    border: none;
+    top: 50%;
+    right: 0;
     width: 32px;
     height: 32px;
-    border: none;
-    border-radius: 50%;
-    background: #fed7d7;
-    color: #c53030;
-    font-size: 20px;
+    font-size: 18px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s;
-    flex-shrink: 0;
+    transform: translate(0%, -50%);
+    margin: 0 -32px 0 0;
+    color: var(--menu-dim);
 }
 
-.removeStopButton:hover {
-    background: #fc8181;
-    color: white;
-}
-
-.removeStopButton:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
 
 .addStopButton {
     width: 100%;
     padding: 12px;
-    font-size: 14px;
-    font-weight: 500;
-    color: #667eea;
-    background: #f7fafc;
-    border: 2px dashed #e2e8f0;
-    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--p-text-muted);
+    background: transparent;
+    border: 1px dashed var(--p-mid-dim);
+    border-radius: 12px;
     cursor: pointer;
     transition: all 0.2s;
     margin-bottom: 16px;
 }
 
 .addStopButton:hover {
-    background: #edf2f7;
-    border-color: #667eea;
+    background: var(--p-glass);
+    border-color: var(--p-mid);
+    color: var(--p-accent);
 }
 
 .addStopButton:disabled {
-    opacity: 0.4;
+    opacity: 0.3;
     cursor: not-allowed;
 }
 
 .returnCheckbox {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     font-size: 14px;
-    color: #4a5568;
+    color: var(--p-text-secondary);
     cursor: pointer;
     margin-bottom: 20px;
 }
@@ -481,5 +501,5 @@
 .returnCheckbox input[type="checkbox"] {
     width: 18px;
     height: 18px;
-    accent-color: #667eea;
+    accent-color: var(--p-accent);
 }

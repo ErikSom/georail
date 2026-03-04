@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&display=swap');
+
 html,
 body {
     margin: 0;
@@ -5,11 +7,23 @@ body {
     width: 100%;
     height: 100%;
     height: 100dvh;
-    font-family: system-ui, sans-serif;
+    font-family: "Google Sans", sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 400;
+    font-style: normal;
+    font-variation-settings:
+        "GRAD" 0;
     overflow: hidden;
     color: #333;
     touch-action: none;
     background-color: #000;
+}
+
+input,
+button,
+textarea,
+select {
+    font: inherit;
 }
 
 :global(#tweakpane-container) {

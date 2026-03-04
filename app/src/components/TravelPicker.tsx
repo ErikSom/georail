@@ -1,4 +1,3 @@
-import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import { fetchAllStations, fetchStationDepartures, fetchJourney, type StationTrackInfo, type Departure, type Journey } from '../lib/api/station';
 import { fetchJourneyRoute, calculateStopTimes, type RouteData, type RouteStop, type JourneyStopInput } from '../lib/api/navigation';
@@ -9,12 +8,84 @@ interface TravelPickerProps {
     onRouteSelected: (routeData: RouteData) => void;
 }
 
-type TabType = 'regular' | 'custom';
+type TabType = 'regular' | 'custom' | 'archive';
 
 interface Stop {
     station: string;
     track: string;
     availableTracks: string[];
+}
+
+function StopRow({ index, stops, stations, onUpdate, onRemove, canRemove, disabled }: {
+    index: number;
+    stops: Stop[];
+    stations: StationTrackInfo[];
+    onUpdate: (index: number, field: 'station' | 'track', value: string) => void;
+    onRemove: (index: number) => void;
+    canRemove: boolean;
+    disabled: boolean;
+}) {
+    const getStopLabel = (index: number): string => {
+        if (index === 0) return 'From';
+        if (index === stops.length - 1) return 'To';
+        return `Stop ${index}`;
+    };
+
+    const stop = stops[index];
+
+    return (
+        <>
+            <div key={index} className={styles.stopRow} >
+                <div className={styles.stopField}>
+                    <div className={styles.stopLabel}>{getStopLabel(index)}</div>
+                    <select
+                        className={styles.select}
+                        value={stop.station}
+                        onChange={(e) => onUpdate(index, 'station', (e.target as HTMLSelectElement).value)}
+                        disabled={disabled}
+                    >
+                        <option value="">Select station</option>
+                        {stations.map((station) => (
+                            <option key={station.name} value={station.name}>
+                                {station.name}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+                {stop.availableTracks.length > 0 && (
+                    <div className={styles.stopField}>
+                        <div className={styles.stopLabel}>Track</div>
+                        <select
+                            className={styles.select}
+                            value={stop.track}
+                            onChange={(e) => onUpdate(index, 'track', (e.target as HTMLSelectElement).value)}
+                            disabled={disabled}
+                        >
+                            <option value="">Any</option>
+                            {stop.availableTracks.map((track: string) => (
+                                <option key={track} value={track}>
+                                    {track}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                )}
+                {
+                    index > 0 && index < stops.length - 1 && (
+                        <button
+                            className={styles.removeStopButton}
+                            onClick={() => onRemove(index)}
+                            disabled={disabled}
+                            title="Remove stop"
+                        >
+                            ×
+                        </button>
+                    )
+                }
+            </div >
+            {(index < stops.length - 1) && <div className={styles.stopDivider} />}
+        </>
+    )
 }
 
 export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
@@ -366,11 +437,6 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
     };
 
     // Get label for a stop
-    const getStopLabel = (index: number): string => {
-        if (index === 0) return 'From';
-        if (index === stops.length - 1) return 'To';
-        return `Stop ${index + 1}`;
-    };
 
     const canSubmit = stops.every(s => s.station) && !fetchingRoute;
     const fromStation = stops[0]?.station || '';
@@ -378,7 +444,7 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
     return (
         <div className={styles.overlay}>
             <div className={styles.container}>
-                <h1 className={styles.title}>Plan Your Journey</h1>
+                <h1 className={styles.title}>Plan Journey</h1>
 
                 {/* Tabs */}
                 <div className={styles.tabs}>
@@ -393,6 +459,13 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
                         onClick={() => setActiveTab('custom')}
                     >
                         Custom
+                    </button>
+
+                    <button
+                        className={`${styles.tab} ${activeTab === 'archive' ? styles.activeTab : ''}`}
+                        onClick={() => setActiveTab('archive')}
+                    >
+                        Archive
                     </button>
                 </div>
 
@@ -531,49 +604,16 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
                             {/* Stops List */}
                             <div className={styles.stopsList}>
                                 {stops.map((stop, index) => (
-                                    <div key={index} className={styles.stopRow}>
-                                        <div className={styles.stopLabel}>{getStopLabel(index)}</div>
-                                        <div className={styles.stopFields}>
-                                            <select
-                                                className={styles.select}
-                                                value={stop.station}
-                                                onChange={(e) => updateStop(index, 'station', (e.target as HTMLSelectElement).value)}
-                                                disabled={fetchingRoute}
-                                            >
-                                                <option value="">Select station</option>
-                                                {stations.map((station) => (
-                                                    <option key={station.name} value={station.name}>
-                                                        {station.name}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            {stop.availableTracks.length > 0 && (
-                                                <select
-                                                    className={styles.trackSelect}
-                                                    value={stop.track}
-                                                    onChange={(e) => updateStop(index, 'track', (e.target as HTMLSelectElement).value)}
-                                                    disabled={fetchingRoute}
-                                                >
-                                                    <option value="">Any track</option>
-                                                    {stop.availableTracks.map((track: string) => (
-                                                        <option key={track} value={track}>
-                                                            {track}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            )}
-                                        </div>
-                                        {index > 0 && index < stops.length - 1 && (
-                                            <button
-                                                className={styles.removeStopButton}
-                                                onClick={() => removeStop(index)}
-                                                disabled={fetchingRoute}
-                                                title="Remove stop"
-                                            >
-                                                ×
-                                            </button>
-                                        )}
-                                    </div>
+                                    <StopRow
+                                        key={index}
+                                        index={index}
+                                        stops={stops}
+                                        stations={stations}
+                                        onUpdate={updateStop}
+                                        onRemove={removeStop}
+                                        canRemove={stops.length > 2 && index !== 0 && index !== stops.length - 1}
+                                        disabled={fetchingRoute}
+                                    />
                                 ))}
                             </div>
 
