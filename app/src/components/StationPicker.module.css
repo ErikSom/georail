@@ -1,0 +1,143 @@
+.container {
+    position: relative;
+    width: 100%;
+}
+
+/* ─── Closed state ────────────────────────────────────────── */
+
+.display {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--menu-dark);
+    text-align: left;
+    padding: 0;
+}
+
+.display:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.placeholder {
+    color: var(--menu-dim);
+    font-weight: 400;
+}
+
+.trackBadge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--menu-accent);
+    color: var(--menu-dark);
+    font-size: 12px;
+    font-weight: 700;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 11px;
+    flex-shrink: 0;
+}
+
+/* ─── Search input ────────────────────────────────────────── */
+
+.searchInput {
+    width: 100%;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--menu-dark);
+    background: none;
+    border: none;
+    border-bottom: 2px solid var(--menu-accent);
+    outline: none;
+    padding: 0 0 4px 0;
+}
+
+.searchInput::placeholder {
+    color: var(--menu-dim);
+    font-weight: 400;
+}
+
+/* ─── Results dropdown ────────────────────────────────────── */
+
+.resultsList {
+    position: absolute;
+    top: 100%;
+    left: -32px;
+    right: -32px;
+    max-height: 200px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--menu-light);
+    border-radius: 0 0 16px 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    z-index: 10;
+    margin-top: 8px;
+}
+
+.resultItem {
+    display: block;
+    width: 100%;
+    padding: 10px 32px;
+    border: none;
+    background: none;
+    text-align: left;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--menu-dark);
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.resultItem:hover {
+    background: var(--menu-dark-06);
+    color: var(--menu-light);
+}
+
+.noResults {
+    padding: 16px 32px;
+    color: var(--menu-dim);
+    font-size: 14px;
+    text-align: center;
+}
+
+/* ─── Track picker ────────────────────────────────────────── */
+
+.trackHeader {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--menu-dim);
+    margin-bottom: 6px;
+}
+
+.trackList {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.trackOption {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--menu-panel);
+    border: none;
+    border-radius: 10px;
+    padding: 6px 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--menu-dark);
+    cursor: pointer;
+    transition: background 0.15s;
+    min-width: 36px;
+}
+
+.trackOption:hover {
+    background: var(--menu-accent);
+}

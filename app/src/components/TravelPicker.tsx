@@ -2,6 +2,7 @@ import { useState, useEffect } from 'preact/hooks';
 import { fetchAllStations, fetchStationDepartures, fetchJourney, type StationTrackInfo, type Departure, type Journey } from '../lib/api/station';
 import { fetchJourneyRoute, calculateStopTimes, type RouteData, type RouteStop, type JourneyStopInput } from '../lib/api/navigation';
 import { configs, country } from '../store/globals';
+import StationPicker from './StationPicker';
 import styles from './TravelPicker.module.css';
 
 interface TravelPickerProps {
@@ -36,41 +37,19 @@ function StopRow({ index, stops, stations, onUpdate, onRemove, canRemove, disabl
 
     return (
         <>
-            <div key={index} className={styles.stopRow} >
+            <div key={index} className={styles.stopRow}>
                 <div className={styles.stopField}>
                     <div className={styles.stopLabel}>{getStopLabel(index)}</div>
-                    <select
-                        className={styles.select}
-                        value={stop.station}
-                        onChange={(e) => onUpdate(index, 'station', (e.target as HTMLSelectElement).value)}
+                    <StationPicker
+                        stations={stations}
+                        selectedStation={stop.station}
+                        selectedTrack={stop.track}
+                        availableTracks={stop.availableTracks}
+                        onSelectStation={(name) => onUpdate(index, 'station', name)}
+                        onSelectTrack={(track) => onUpdate(index, 'track', track)}
                         disabled={disabled}
-                    >
-                        <option value="">Select station</option>
-                        {stations.map((station) => (
-                            <option key={station.name} value={station.name}>
-                                {station.name}
-                            </option>
-                        ))}
-                    </select>
+                    />
                 </div>
-                {stop.availableTracks.length > 0 && (
-                    <div className={styles.stopField}>
-                        <div className={styles.stopLabel}>Track</div>
-                        <select
-                            className={styles.select}
-                            value={stop.track}
-                            onChange={(e) => onUpdate(index, 'track', (e.target as HTMLSelectElement).value)}
-                            disabled={disabled}
-                        >
-                            <option value="">Any</option>
-                            {stop.availableTracks.map((track: string) => (
-                                <option key={track} value={track}>
-                                    {track}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                )}
                 {
                     index > 0 && index < stops.length - 1 && (
                         <button
@@ -83,7 +62,7 @@ function StopRow({ index, stops, stations, onUpdate, onRemove, canRemove, disabl
                         </button>
                     )
                 }
-            </div >
+            </div>
             {(index < stops.length - 1) && <div className={styles.stopDivider} />}
         </>
     )
