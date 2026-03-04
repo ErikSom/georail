@@ -9,6 +9,7 @@ interface TravelPickerProps {
 }
 
 type TabType = 'regular' | 'custom' | 'archive';
+const TAB_ORDER: TabType[] = ['regular', 'custom', 'archive'];
 
 interface Stop {
     station: string;
@@ -467,6 +468,10 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
                     >
                         Archive
                     </button>
+                    <div
+                        className={styles.tabIndicator}
+                        style={{ transform: `translateX(${TAB_ORDER.indexOf(activeTab) * 100}%)` }}
+                    />
                 </div>
 
                 {/* Content */}

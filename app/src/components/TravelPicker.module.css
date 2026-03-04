@@ -27,19 +27,21 @@
 
 .title {
     margin: 0 0 0 4px;
-    padding: 32px 20px 16px;
-    font-size: 44px;
+    padding: 12px;
+    font-size: 32px;
     font-weight: 600;
+    text-align: center;
 }
 
 /* ─── Tabs ─────────────────────────────────────────────────── */
 
 .tabs {
+    position: relative;
     display: flex;
-    background: var(--menu-light);
+    background: var(--menu-dark-06);
     margin: 0 24px;
     border-radius: 16px;
-    padding: 6px;
+    padding: 8px;
     gap: 4px;
 }
 
@@ -50,7 +52,7 @@
     font-size: 16px;
     font-weight: 400;
     background: none;
-    color: var(--menu-dim);
+    color: var(--menu-light-06);
     cursor: pointer;
     transition: all 0.2s;
     border-radius: 12px;
@@ -58,20 +60,35 @@
 }
 
 .tab:hover {
-    color: var(--menu-dark);
-    background: var(--menu-light);
-    filter: brightness(0.96);
+    background: var(--menu-light-01);
 }
 
 .activeTab,
 .activeTab:hover {
     color: var(--menu-light);
     font-weight: 500;
-    background: var(--menu-dark);
+    background: var(--menu-light-03);
 }
 
-.activeTab::after {
-    display: none;
+.tabIndicator {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: calc(100% / 3);
+    height: 4px;
+    transition: transform 0.3s ease;
+}
+
+.tabIndicator::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60%;
+    height: 100%;
+    background: var(--menu-accent);
+    border-radius: 4px 4px 0px 0px;
 }
 
 /* ─── Content ──────────────────────────────────────────────── */
