@@ -82,7 +82,9 @@ export default function StationPicker({
 
     const filteredStations = searchQuery
         ? stations.filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 50)
-        : stations.slice(0, 50);
+        : stations;
+
+    console.log("**** Filtered stations:", filteredStations, searchQuery)
 
     const handleStationClick = (station: StationTrackInfo) => {
         onSelectStation(station.name);
@@ -145,16 +147,19 @@ export default function StationPicker({
                 onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
                 placeholder="Search stations..."
             />
-            <div className={mobileMode ? styles.mobileResultsList : styles.resultsList}>
-                {filteredStations.map(station => (
-                    <button
-                        key={station.code}
-                        className={styles.resultItem}
-                        onClick={() => handleStationClick(station)}
-                    >
-                        {station.name}
-                    </button>
-                ))}
+            <div key={searchQuery} className={mobileMode ? styles.mobileResultsList : styles.resultsList}>
+                {filteredStations.map(station => {
+                    console.log("**** Rendering station:", station.name, station.code);
+                    return (
+                        <button
+                            key={station.code}
+                            className={styles.resultItem}
+                            onClick={() => handleStationClick(station)}
+                        >
+                            {station.name}
+                        </button>
+                    )
+                })}
                 {filteredStations.length === 0 && (
                     <div className={styles.noResults}>No stations found</div>
                 )}

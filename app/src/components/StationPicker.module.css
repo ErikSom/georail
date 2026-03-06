@@ -12,12 +12,14 @@
     gap: 8px;
     background: none;
     border: none;
+    border-bottom: 2px solid transparent;
+    margin: 0 0 -2px 0;
     cursor: pointer;
     font-size: 16px;
     font-weight: 600;
     color: var(--menu-dark);
     text-align: left;
-    padding: 0;
+    padding: 0 0 4px 0;
 }
 
 .display:disabled {
@@ -45,7 +47,7 @@
     font-size: 12px;
     font-weight: 700;
     min-width: 22px;
-    height: 22px;
+    height: 20px;
     padding: 0 6px;
     border-radius: 11px;
     flex-shrink: 0;
@@ -61,6 +63,7 @@
     background: none;
     border: none;
     border-bottom: 2px solid var(--menu-accent);
+    margin: 0 0 -2px 0;
     outline: none;
     padding: 0 0 4px 0;
 }
@@ -75,8 +78,8 @@
 .resultsList {
     position: absolute;
     top: 100%;
-    left: -32px;
-    right: -32px;
+    left: -24px;
+    right: -24px;
     max-height: 200px;
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -99,7 +102,7 @@
 .resultItem {
     display: block;
     width: 100%;
-    padding: 10px 32px;
+    padding: 10px 24px;
     border: none;
     background: none;
     text-align: left;
@@ -116,7 +119,7 @@
 }
 
 .noResults {
-    padding: 16px 32px;
+    padding: 16px 24px;
     color: var(--menu-dim);
     font-size: 14px;
     text-align: center;
@@ -221,8 +224,13 @@
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
 }
 
 @keyframes slideDown {
@@ -230,6 +238,7 @@
         opacity: 0;
         transform: translateY(-20px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);

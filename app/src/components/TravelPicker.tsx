@@ -76,6 +76,8 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
     const [error, setError] = useState<string | null>(null);
     const [fetchingRoute, setFetchingRoute] = useState(false);
 
+    console.log("**** Staitions in TravelPicker:", stations);
+
     // Form state - multi-stop support
     const [stops, setStops] = useState<Stop[]>([
         { station: '', track: '', availableTracks: [] },
@@ -141,7 +143,7 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
             .catch(() => {
                 if (!cancelled) {
                     setMinimapReady(false);
-            setPreviewRoute(null);
+                    setPreviewRoute(null);
                     setPreviewStopIndices([]);
                 }
             });
