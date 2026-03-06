@@ -3,6 +3,7 @@ import { fetchAllStations, fetchStationDepartures, fetchJourney, type StationTra
 import { fetchJourneyRoute, calculateStopTimes, type RouteData, type RouteStop, type JourneyStopInput } from '../lib/api/navigation';
 import { configs, country } from '../store/globals';
 import StationPicker from './StationPicker';
+import RouteMinimap from './RouteMinimap';
 import styles from './TravelPicker.module.css';
 
 interface TravelPickerProps {
@@ -84,6 +85,11 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
     const MAX_STOPS = 10;
     const STORAGE_KEY = 'travelPickerStops';
 
+    // Route preview for minimap
+    const [previewRoute, setPreviewRoute] = useState<number[][] | null>(null);
+    const [previewStopIndices, setPreviewStopIndices] = useState<number[]>([]);
+    const [minimapReady, setMinimapReady] = useState(false);
+
     // Regular mode state
     const [departures, setDepartures] = useState<Departure[]>([]);
     const [loadingDepartures, setLoadingDepartures] = useState(false);
@@ -105,6 +111,43 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({ stops: toSave, returnToStart }));
         }
     }, [stops, returnToStart, stations]);
+
+    // Auto-fetch route preview for minimap when all stops are filled
+    useEffect(() => {
+        const allFilled = stops.every(s => s.station);
+        if (!allFilled || stops.length < 2 || stations.length === 0) {
+            setMinimapReady(false);
+            setPreviewRoute(null);
+            setPreviewStopIndices([]);
+            return;
+        }
+
+        const journeyStops: JourneyStopInput[] = stops.map(stop => {
+            const stationData = stations.find(s => s.name === stop.station);
+            return { code: stationData?.code || '', track: stop.track || undefined };
+        }).filter(s => s.code);
+
+        if (journeyStops.length < 2) return;
+
+        let cancelled = false;
+        fetchJourneyRoute(journeyStops)
+            .then(data => {
+                if (!cancelled) {
+                    setMinimapReady(false);
+                    setPreviewRoute(data.geometry.route);
+                    setPreviewStopIndices(data.geometry.stop_indices);
+                }
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setMinimapReady(false);
+            setPreviewRoute(null);
+                    setPreviewStopIndices([]);
+                }
+            });
+
+        return () => { cancelled = true; };
+    }, [stops, stations]);
 
     // Fetch departures when switching to Regular tab with a station already selected
     useEffect(() => {
@@ -585,20 +628,35 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
                     ) : (
                         /* Custom Tab Content */
                         <>
-                            {/* Stops List */}
-                            <div className={styles.stopsList}>
-                                {stops.map((stop, index) => (
-                                    <StopRow
-                                        key={index}
-                                        index={index}
-                                        stops={stops}
-                                        stations={stations}
-                                        onUpdate={updateStop}
-                                        onRemove={removeStop}
-                                        canRemove={stops.length > 2 && index !== 0 && index !== stops.length - 1}
-                                        disabled={fetchingRoute}
-                                    />
-                                ))}
+                            <div className={`${styles.customRow} ${minimapReady ? styles.customRowWithMap : ''}`}>
+                                {/* Stops List */}
+                                <div className={styles.stopsList}>
+                                    {stops.map((stop, index) => (
+                                        <StopRow
+                                            key={index}
+                                            index={index}
+                                            stops={stops}
+                                            stations={stations}
+                                            onUpdate={updateStop}
+                                            onRemove={removeStop}
+                                            canRemove={stops.length > 2 && index !== 0 && index !== stops.length - 1}
+                                            disabled={fetchingRoute}
+                                        />
+                                    ))}
+                                </div>
+
+                                {/* Route Minimap */}
+                                <div className={`${styles.minimapContainer} ${minimapReady ? styles.minimapVisible : ''}`}>
+                                    <div className={styles.minimapInner}>
+                                        {previewRoute && (
+                                            <RouteMinimap
+                                                route={previewRoute}
+                                                stopIndices={previewStopIndices}
+                                                onReady={() => setMinimapReady(true)}
+                                            />
+                                        )}
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Add Stop Button */}
