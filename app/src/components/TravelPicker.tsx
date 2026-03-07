@@ -2,13 +2,11 @@ import { useState, useEffect } from 'preact/hooks';
 import { fetchAllStations, fetchStationDepartures, fetchJourney, type StationTrackInfo, type Departure, type Journey } from '../lib/api/station';
 import { fetchJourneyRoute, calculateStopTimes, type RouteData, type RouteStop, type JourneyStopInput } from '../lib/api/navigation';
 import { configs, country } from '../store/globals';
+import { appScreen } from '../store/app';
+import { startJourney } from '../store/journey';
 import StationPicker from './StationPicker';
 import RouteMinimap from './RouteMinimap';
 import styles from './TravelPicker.module.css';
-
-interface TravelPickerProps {
-    onRouteSelected: (routeData: RouteData) => void;
-}
 
 type TabType = 'regular' | 'custom' | 'archive';
 const TAB_ORDER: TabType[] = ['regular', 'custom', 'archive'];
@@ -69,7 +67,7 @@ function StopRow({ index, stops, stations, onUpdate, onRemove, canRemove, disabl
     )
 }
 
-export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
+export default function TravelPicker() {
     const [activeTab, setActiveTab] = useState<TabType>('custom');
     const [stations, setStations] = useState<StationTrackInfo[]>([]);
     const [loading, setLoading] = useState(true);
@@ -298,7 +296,8 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
                 }
             };
 
-            onRouteSelected(routeData);
+            startJourney(routeData, routeData.properties.startTime);
+            appScreen.value = 'game';
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to fetch route');
             console.error(err);
@@ -445,7 +444,8 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
                     }
                 };
 
-                onRouteSelected(routeData);
+                startJourney(routeData, routeData.properties.startTime);
+            appScreen.value = 'game';
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'Failed to fetch route');
                 console.error('Failed to fetch journey route:', err);
@@ -467,8 +467,7 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
     const fromStation = stops[0]?.station || '';
 
     return (
-        <div className={styles.overlay}>
-            <div className={styles.container}>
+        <div className={styles.container}>
                 <h1 className={styles.title}>Plan Journey</h1>
 
                 {/* Tabs */}
@@ -698,6 +697,5 @@ export default function TravelPicker({ onRouteSelected }: TravelPickerProps) {
                     )}
                 </div>
             </div>
-        </div>
     );
 }

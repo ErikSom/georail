@@ -1,40 +1,35 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { World } from '../lib/World';
-import TravelPicker from './TravelPicker';
 import JourneyComplete from './JourneyComplete';
 import TrainControls from './HUD/TrainControls';
-import type { RouteData } from '../lib/api/navigation';
 import Maps2D from './HUD/Maps2D';
 import Transit from './HUD/Transit';
 import Tiles3DAttribution, { type Tiles3DAttributionCredits } from './HUD/Tiles3DAttribution';
 import styles from './ThreeViewer.module.css';
 import Speedometer from './HUD/Speedometer';
-import { startJourney, resetJourney, journeyCompleted } from '../store/journey';
+import { routeData, resetJourney, journeyCompleted } from '../store/journey';
+import { appScreen } from '../store/app';
 import { hudSettings } from '../store/globals';
 
 function ThreeViewer() {
     const mountRef = useRef<HTMLDivElement | null>(null);
     const worldRef = useRef<World | null>(null);
     const [attribution, setAttribution] = useState<Tiles3DAttributionCredits>(null);
-    const [showPicker, setShowPicker] = useState(true);
     const [showComplete, setShowComplete] = useState(false);
-    const [routeData, setRouteData] = useState<RouteData | null>(null);
 
-    // Initialize World only after route is selected
+    // Initialize World on mount
     useEffect(() => {
-        if (!routeData || !mountRef.current || worldRef.current) {
-            return;
-        }
+        const route = routeData.value;
+        if (!mountRef.current || worldRef.current || !route) return;
 
-        worldRef.current = new World(mountRef.current, setAttribution, routeData);
+        worldRef.current = new World(mountRef.current, setAttribution, route);
         worldRef.current.init();
 
-        // Cleanup function
         return () => {
             worldRef.current?.cleanup();
             worldRef.current = null;
         };
-    }, [routeData]);
+    }, []);
 
     // Watch for journey completion
     useEffect(() => {
@@ -46,19 +41,12 @@ function ThreeViewer() {
         return unsub;
     }, []);
 
-    const handleRouteSelected = (route: RouteData) => {
-        setRouteData(route);
-        setShowPicker(false);
-        startJourney(route, route.properties.startTime);
-    };
-
     const handleJourneyDismiss = () => {
         setShowComplete(false);
         worldRef.current?.cleanup();
         worldRef.current = null;
         resetJourney();
-        setRouteData(null);
-        setShowPicker(true);
+        appScreen.value = 'menu';
     };
 
     // Reset journey on unmount
@@ -72,7 +60,7 @@ function ThreeViewer() {
         <div className={styles.container}>
             <div ref={mountRef} className={styles.canvas} />
 
-            {!showPicker && !showComplete && (
+            {!showComplete && (
                 <>
                     <TrainControls />
                     {hudSettings.value.showMap2D && <Maps2D />}
@@ -82,8 +70,6 @@ function ThreeViewer() {
             )}
 
             <Tiles3DAttribution attribution={attribution} />
-
-            {showPicker && <TravelPicker onRouteSelected={handleRouteSelected} />}
 
             {showComplete && <JourneyComplete onDismiss={handleJourneyDismiss} />}
         </div>
