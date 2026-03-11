@@ -197,7 +197,7 @@ export function getExpectedPositionKm(elapsed: number): number {
     if (stopsArr.length === 0 || distances.length === 0) return 0;
 
     if (elapsed <= stopsArr[0].departureTime) {
-        return 0;
+        return distances[0];
     }
 
     const lastStop = stopsArr[stopsArr.length - 1];

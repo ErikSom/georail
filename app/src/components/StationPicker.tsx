@@ -188,10 +188,19 @@ export default function StationPicker({
         );
     }
 
-    // Desktop mode: inline dropdown
+    // Desktop mode: dropdown
     return (
         <div ref={containerRef} className={styles.container}>
-            {pickerContent}
+            {pickingTrack ? (
+                <>
+                    <div className={styles.display}>
+                        <span className={styles.selectedStation}>{selectedStation}</span>
+                    </div>
+                    {pickerContent}
+                </>
+            ) : (
+                pickerContent
+            )}
         </div>
     );
 }

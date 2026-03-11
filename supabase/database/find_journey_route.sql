@@ -59,6 +59,14 @@ DECLARE
   snap_target bigint;
   src_degree int;
   tgt_degree int;
+
+  -- Post-processing: snap stops to closest existing route point
+  all_stop_lons float[] := ARRAY[]::float[];
+  all_stop_lats float[] := ARRAY[]::float[];
+  snap_best_d float8;
+  snap_best_j int;
+  snap_d float8;
+  snap_p jsonb;
 BEGIN
   stop_count := jsonb_array_length(stops);
 
@@ -97,6 +105,10 @@ BEGIN
       IF start_coords IS NULL THEN
         RETURN json_build_object('error', format('Station not found: %s', current_stop->>'code'));
       END IF;
+
+      -- Collect first stop coordinates for post-processing
+      all_stop_lons := array_append(all_stop_lons, start_coords[1]);
+      all_stop_lats := array_append(all_stop_lats, start_coords[2]);
 
       -- Find start_node on network (edge-based snap, prefer junction vertex)
       SELECT rl.source, rl.target INTO snap_source, snap_target
@@ -144,6 +156,10 @@ BEGIN
     IF end_coords IS NULL THEN
       RETURN json_build_object('error', format('Station not found: %s', next_stop->>'code'));
     END IF;
+
+    -- Collect end stop coordinates for post-processing
+    all_stop_lons := array_append(all_stop_lons, end_coords[1]);
+    all_stop_lats := array_append(all_stop_lats, end_coords[2]);
 
     -- Find end_node on network (edge-based snap, prefer junction vertex)
     SELECT rl.source, rl.target INTO snap_source, snap_target
@@ -306,6 +322,29 @@ BEGIN
     FROM unnest(all_metadata) WITH ORDINALITY AS segments(metadata_segment, seg_idx),
     LATERAL json_array_elements(metadata_segment) WITH ORDINALITY AS points(point, point_idx)
   ) subq WHERE seg_idx = 1 OR point_idx > 1;
+
+  -- 7. SNAP STOP INDICES: For each stop, find the closest
+  --    existing route point to the actual station coordinates.
+  IF combined_route IS NOT NULL AND array_length(all_stop_lons, 1) >= 2 THEN
+    FOR s IN 1..array_length(all_stop_lons, 1) LOOP
+      snap_best_d := float8 'infinity';
+      snap_best_j := stop_indices[s];
+
+      FOR j IN GREATEST(0, stop_indices[s] - 50)..LEAST(json_array_length(combined_route) - 1, stop_indices[s] + 50) LOOP
+        snap_p := combined_route->j;
+        snap_d := ST_Distance(
+          ST_SetSRID(ST_MakePoint((snap_p->>0)::float8, (snap_p->>1)::float8), 4326),
+          ST_SetSRID(ST_MakePoint(all_stop_lons[s], all_stop_lats[s]), 4326)
+        );
+        IF snap_d < snap_best_d THEN
+          snap_best_d := snap_d;
+          snap_best_j := j;
+        END IF;
+      END LOOP;
+
+      stop_indices[s] := snap_best_j;
+    END LOOP;
+  END IF;
 
   IF editor THEN
     RETURN json_build_object(

@@ -114,7 +114,7 @@ export default function TravelPicker() {
 
     // Auto-fetch route preview for minimap when all stops are filled
     useEffect(() => {
-        const allFilled = stops.every(s => s.station);
+        const allFilled = stops.every(s => s.station && (s.availableTracks.length === 0 || s.track));
         if (!allFilled || stops.length < 2 || stations.length === 0) {
             setMinimapReady(false);
             setPreviewRoute(null);
@@ -671,16 +671,17 @@ export default function TravelPicker() {
                                 </button>
                             )}
 
-                            {/* Return to Start Checkbox */}
-                            <label className={styles.returnCheckbox}>
-                                <input
-                                    type="checkbox"
-                                    checked={returnToStart}
-                                    onChange={(e) => setReturnToStart((e.target as HTMLInputElement).checked)}
-                                    disabled={fetchingRoute}
-                                />
-                                Return to start
-                            </label>
+                            {/* Round trip toggle */}
+                            <div
+                                className={styles.returnToggle}
+                                onClick={() => !fetchingRoute && setReturnToStart(prev => !prev)}
+                            >
+                                <div className={styles.returnToggleText}>
+                                    <span className={styles.returnToggleLabel}>Round trip</span>
+                                    <span className={styles.returnToggleHint}>Include the journey back</span>
+                                </div>
+                                <div className={`${styles.returnToggleSwitch} ${returnToStart ? styles.returnToggleSwitchOn : ''}`} />
+                            </div>
 
                             {/* Error message */}
                             {error && <div className={styles.error}>{error}</div>}

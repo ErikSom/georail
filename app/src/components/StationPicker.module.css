@@ -128,7 +128,16 @@
 /* ─── Track picker ────────────────────────────────────────── */
 
 .trackPicker {
-    padding: 8px 0;
+    position: absolute;
+    top: 100%;
+    left: -24px;
+    right: -24px;
+    background: var(--menu-light);
+    border-radius: 0 0 16px 16px;
+    box-shadow: 0 24px 24px rgba(0, 0, 0, 0.15);
+    z-index: 10;
+    margin-top: 12px;
+    padding: 12px 24px 16px;
 }
 
 .trackList {

@@ -12,7 +12,6 @@
 .container {
     max-width: 480px;
     width: 100%;
-    overflow: hidden;
     color: var(--menu-dark);
     background: var(--menu-panel);
     border-radius: 42px;
@@ -89,6 +88,9 @@
 /* ─── Content ──────────────────────────────────────────────── */
 
 .content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     padding: 20px 16px 28px;
 }
 
@@ -190,34 +192,30 @@
 
 .goButton {
     width: 100%;
-    padding: 16px;
+    padding: 14px;
     font-size: 16px;
     font-weight: 700;
-    color: var(--p-on-accent);
-    background: var(--p-accent);
+    color: var(--menu-dark);
+    background: var(--menu-accent);
     border: none;
-    border-radius: 14px;
+    border-radius: 16px;
     cursor: pointer;
     transition: all 0.2s;
-    box-shadow: 0 4px 16px var(--p-accent-glow);
-    letter-spacing: 0.02em;
 }
 
 .goButton:hover:not(:disabled) {
-    background: var(--p-accent-muted);
+    filter: brightness(0.95);
     transform: translateY(-1px);
-    box-shadow: 0 6px 24px oklch(88% 0.25 145 / 0.3);
 }
 
 .goButton:active:not(:disabled) {
     transform: translateY(0);
-    box-shadow: 0 2px 8px oklch(88% 0.25 145 / 0.15);
+    filter: brightness(0.9);
 }
 
 .goButton:disabled {
-    opacity: 0.35;
+    opacity: 0.3;
     cursor: not-allowed;
-    box-shadow: none;
 }
 
 /* ─── Loading ──────────────────────────────────────────────── */
@@ -414,7 +412,6 @@
 .customRow {
     display: flex;
     gap: 0px;
-    margin-bottom: 16px;
     container-type: inline-size;
     transition: gap 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -511,41 +508,87 @@
 
 .addStopButton {
     width: 100%;
-    padding: 12px;
+    padding: 10px;
     font-size: 13px;
     font-weight: 600;
-    color: var(--p-text-muted);
-    background: transparent;
-    border: 1px dashed var(--p-mid-dim);
-    border-radius: 12px;
+    color: var(--menu-dim);
+    background: none;
+    border: 1.5px dashed var(--menu-dim);
+    border-radius: 16px;
     cursor: pointer;
     transition: all 0.2s;
-    margin-bottom: 16px;
+    opacity: 0.5;
 }
 
 .addStopButton:hover {
-    background: var(--p-glass);
-    border-color: var(--p-mid);
-    color: var(--p-accent);
+    opacity: 1;
+    color: var(--menu-dark);
+    border-color: var(--menu-dark);
 }
 
 .addStopButton:disabled {
-    opacity: 0.3;
+    opacity: 0.2;
     cursor: not-allowed;
 }
 
-.returnCheckbox {
+.returnToggle {
     display: flex;
     align-items: center;
-    gap: 10px;
-    font-size: 14px;
-    color: var(--p-text-secondary);
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--menu-light);
+    border-radius: 16px;
     cursor: pointer;
-    margin-bottom: 20px;
+    transition: background 0.15s;
 }
 
-.returnCheckbox input[type="checkbox"] {
+.returnToggle:hover {
+    background: var(--menu-panel);
+}
+
+.returnToggleText {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.returnToggleLabel {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--menu-dark);
+}
+
+.returnToggleHint {
+    font-size: 12px;
+    color: var(--menu-dim);
+}
+
+.returnToggleSwitch {
+    position: relative;
+    width: 40px;
+    height: 24px;
+    background: var(--menu-dim);
+    border-radius: 12px;
+    transition: background 0.2s;
+    flex-shrink: 0;
+}
+
+.returnToggleSwitch::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
     width: 18px;
     height: 18px;
-    accent-color: var(--p-accent);
+    background: var(--menu-light);
+    border-radius: 50%;
+    transition: transform 0.2s;
+}
+
+.returnToggleSwitchOn {
+    background: var(--menu-accent);
+}
+
+.returnToggleSwitchOn::after {
+    transform: translateX(16px);
 }
