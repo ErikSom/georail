@@ -4,6 +4,7 @@ import {
     Mesh,
     Group,
     Vector3,
+    Matrix4,
     Raycaster,
     CylinderGeometry,
     LineBasicMaterial,
@@ -90,6 +91,9 @@ export class RouteEditor {
         this.routeGroup.name = 'RouteEditorGroup';
         this.scene.add(this.routeGroup);
 
+        // Register for automatic reorientation
+        this.mapViewer.onReorient = (delta) => this.handleReorient(delta);
+
         // Setup TransformControls (disabled in review mode)
         this.transformControls = new TransformControls(camera, domElement);
         this.transformControls.enabled = !reviewMode;
@@ -145,6 +149,13 @@ export class RouteEditor {
             // Create unique key
             const nodeKey = `${segment_id}-${index}`;
 
+            // Store world offset
+            const worldOffset = new Vector3(world_offset_x, world_offset_y, world_offset_z);
+
+            // Use original lat/lon directly as ENU reference
+            // (avoids precision loss from round-tripping through world space)
+            const origGeoCoords = { lat, lon, height: 0 };
+
             // Store original position at altitude 0
             const originalPosition = this.mapViewer.latLonHeightToWorldPosition(lat, lon, 0);
 
@@ -152,18 +163,6 @@ export class RouteEditor {
                 console.warn(`Failed to convert coordinates for node ${nodeKey}`);
                 return;
             }
-
-            // Store world offset
-            const worldOffset = new Vector3(world_offset_x, world_offset_y, world_offset_z);
-
-            // Apply world offset to get actual position
-            const origGeoCoordsRef = this.mapViewer.getLatLonHeightFromWorldPosition(originalPosition);
-            if (!origGeoCoordsRef) {
-                console.warn(`Failed to get geo coords for node ${nodeKey}`);
-                return;
-            }
-            // Clone — getLatLonHeightFromWorldPosition returns a shared mutable reference
-            const origGeoCoords = { lat: origGeoCoordsRef.lat, lon: origGeoCoordsRef.lon, height: origGeoCoordsRef.height };
 
             const position = applyENUOffset(origGeoCoords, worldOffset, this.mapViewer);
             if (!position) {
@@ -445,29 +444,54 @@ export class RouteEditor {
 
         if (!nodeData || !nodeIndicator) return;
 
-        // Get the node's world position
+        // Use geo coords to place camera correctly on the globe
+        // MapViewer.update() handles reorientation automatically
+        const geo = nodeData.originalGeoCoords;
+        if (geo) {
+            const camPos = this.mapViewer.latLonHeightToWorldPosition(geo.lat, geo.lon, 30);
+            const lookAtPos = this.mapViewer.latLonHeightToWorldPosition(geo.lat, geo.lon, 5);
+
+            if (camPos && lookAtPos) {
+                this.camera.position.copy(camPos);
+                this.camera.lookAt(lookAtPos);
+                this.camera.updateMatrixWorld();
+                return;
+            }
+        }
+
+        // Fallback
         const targetPosition = nodeIndicator.mesh.position.clone();
-
-        // Calculate an offset position for the camera (angled view like Unity's F key)
-        // Position camera at an angle: behind and above the node
-        const heightOffset = 30; // meters above the node
-        const backwardOffset = 40; // meters behind the node
-
-        // Create camera position offset
-        const cameraPosition = targetPosition.clone();
-        cameraPosition.y += heightOffset;
-        cameraPosition.z -= backwardOffset; // Move camera back (assuming Z is forward/backward)
-
-        // Smoothly move camera to the new position
-        this.camera.position.copy(cameraPosition);
-
-        // Look at the node (slightly above it for better view)
-        const lookAtTarget = targetPosition.clone();
-        lookAtTarget.y += 5; // Look at a point slightly above the node
-        this.camera.lookAt(lookAtTarget);
-
-        // Update camera matrix
+        this.camera.position.copy(targetPosition.clone().setY(targetPosition.y + 30));
+        this.camera.lookAt(targetPosition);
         this.camera.updateMatrixWorld();
+    }
+
+    private handleReorient(deltaMatrix: Matrix4): void {
+        // Transform camera so it stays in the correct position after reorientation
+        this.camera.position.applyMatrix4(deltaMatrix);
+        this.camera.updateMatrixWorld();
+
+        // Recalculate all node positions from geo coords (authoritative source)
+        // This is more reliable than delta matrix transform for editor nodes
+        for (const [nodeKey, nodeData] of this.nodes) {
+            if (nodeData.originalGeoCoords) {
+                const newOrigPos = this.mapViewer.latLonHeightToWorldPosition(
+                    nodeData.originalGeoCoords.lat, nodeData.originalGeoCoords.lon, 0
+                );
+                if (newOrigPos) {
+                    nodeData.originalPosition.copy(newOrigPos);
+                }
+
+                const newPos = applyENUOffset(nodeData.originalGeoCoords, nodeData.world_offset, this.mapViewer);
+                if (newPos) {
+                    nodeData.position.copy(newPos);
+                    const indicator = this.nodeIndicators.get(nodeKey);
+                    if (indicator) {
+                        indicator.mesh.position.copy(newPos);
+                    }
+                }
+            }
+        }
     }
 
     public applyPatchData(patchData: PatchData[]): void {

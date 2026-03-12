@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
-import type { RouteInfo, OpenRoute } from '../lib/types/Patch';
+import type { RouteInfo, ViaStop, OpenRoute } from '../lib/types/Patch';
 import { fetchAllStations, type StationTrackInfo } from '../lib/api/station';
 import { country } from '../store/globals';
 
@@ -10,6 +10,11 @@ interface PatchCreatorProps {
     onSubmit: (patchId: number, routeInfo: RouteInfo) => void;
 }
 
+interface ViaStopLocal {
+    station: string;
+    track: string;
+}
+
 function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
     const [stations, setStations] = useState<StationTrackInfo[]>([]);
     const [loading, setLoading] = useState(true);
@@ -17,6 +22,8 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
     const [fromTrack, setFromTrack] = useState('');
     const [toStation, setToStation] = useState('');
     const [toTrack, setToTrack] = useState('');
+    const [viaStops, setViaStops] = useState<ViaStopLocal[]>([]);
+    const [shortcode, setShortcode] = useState('');
     const [description, setDescription] = useState('');
     const [suggesting, setSuggesting] = useState(false);
     const [suggestion, setSuggestion] = useState<OpenRoute | null>(null);
@@ -45,6 +52,82 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
         return station?.tracks || [];
     };
 
+    const getStationByCode = (code: string): StationTrackInfo | undefined => {
+        return stations.find(s => s.code?.toLowerCase() === code.toLowerCase());
+    };
+
+    const parseShortcode = (input: string) => {
+        const trimmed = input.trim();
+        if (!trimmed) return;
+
+        let parts: string[] = [];
+
+        if (trimmed.startsWith('[')) {
+            try {
+                const arr = JSON.parse(trimmed);
+                if (Array.isArray(arr) && arr.every(s => typeof s === 'string')) {
+                    parts = arr;
+                }
+            } catch {
+                return;
+            }
+        } else {
+            parts = trimmed.split(',').map(s => s.trim()).filter(Boolean);
+        }
+
+        if (parts.length < 2) return;
+
+        const parseStop = (part: string) => {
+            // Format: CODE-track or just CODE
+            const dashIdx = part.indexOf('-');
+            if (dashIdx !== -1) {
+                return { code: part.slice(0, dashIdx), track: part.slice(dashIdx + 1) };
+            }
+            return { code: part, track: '' };
+        };
+
+        const parsed = parts.map(parseStop);
+
+        const fromData = getStationByCode(parsed[0].code);
+        const toData = getStationByCode(parsed[parsed.length - 1].code);
+
+        if (!fromData || !toData) {
+            alert(`Could not find stations for codes: ${!fromData ? parsed[0].code : parsed[parsed.length - 1].code}`);
+            return;
+        }
+
+        setFromStation(fromData.name);
+        setFromTrack(parsed[0].track);
+        setToStation(toData.name);
+        setToTrack(parsed[parsed.length - 1].track);
+
+        if (parsed.length > 2) {
+            const via = parsed.slice(1, -1).map(p => {
+                const s = getStationByCode(p.code);
+                return { station: s?.name || '', track: p.track };
+            }).filter(v => v.station);
+            setViaStops(via);
+        } else {
+            setViaStops([]);
+        }
+    };
+
+    const addViaStop = () => {
+        setViaStops(prev => [...prev, { station: '', track: '' }]);
+    };
+
+    const removeViaStop = (index: number) => {
+        setViaStops(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const updateViaStop = (index: number, field: 'station' | 'track', value: string) => {
+        setViaStops(prev => prev.map((v, i) => {
+            if (i !== index) return v;
+            if (field === 'station') return { station: value, track: '' };
+            return { ...v, [field]: value };
+        }));
+    };
+
     const handleSubmit = async (e: Event) => {
         e.preventDefault();
 
@@ -58,19 +141,25 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
 
             const { submitPatch } = await import('../lib/api/patches');
 
-            // Create empty patch with route info
+            const resolvedViaStops: ViaStop[] = viaStops
+                .filter(v => v.station)
+                .map(v => {
+                    const s = stations.find(st => st.name === v.station);
+                    return { station: v.station, stationCode: s?.code || '', track: v.track };
+                });
+
             const result = await submitPatch({
-                data: [], // Empty data initially
+                data: [],
                 fromStation,
                 fromTrack: fromTrack || undefined,
                 toStation,
                 toTrack: toTrack || undefined,
+                viaStops: resolvedViaStops.length > 0 ? resolvedViaStops : undefined,
                 description: description || undefined,
             });
 
             const patchId = result.patchId;
 
-            // Look up station codes
             const fromStationData = stations.find(s => s.name === fromStation);
             const toStationData = stations.find(s => s.name === toStation);
 
@@ -81,6 +170,7 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
                 toStation,
                 toStationCode: toStationData?.code || '',
                 toTrack,
+                viaStops: resolvedViaStops.length > 0 ? resolvedViaStops : undefined,
                 description: description || undefined,
             });
         } catch (err) {
@@ -101,6 +191,7 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
         setFromTrack(fromMatch?.tracks?.[0] || '');
         setToStation(toMatch?.name || route.station_b);
         setToTrack(toMatch?.tracks?.[0] || '');
+        setViaStops([]);
     };
 
     const fetchAndApplyRoutes = async () => {
@@ -131,7 +222,6 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
 
         const nextIndex = routeIndex + 1;
         if (nextIndex >= cachedRoutes.length) {
-            // Exhausted cache, fetch a fresh batch
             setCachedRoutes([]);
             await fetchAndApplyRoutes();
         } else {
@@ -142,9 +232,13 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
 
     const getTitle = () => {
         if (!fromStation || !toStation) return 'New Patch';
-        const fromTrackText = fromTrack ? ` (${fromTrack})` : '';
-        const toTrackText = toTrack ? ` (${toTrack})` : '';
-        return `${fromStation}${fromTrackText} → ${toStation}${toTrackText}`;
+        const fromText = fromStation + (fromTrack ? ` (${fromTrack})` : '');
+        const toText = toStation + (toTrack ? ` (${toTrack})` : '');
+        if (viaStops.length > 0) {
+            const viaText = viaStops.filter(v => v.station).map(v => v.station + (v.track ? ` (${v.track})` : '')).join(' → ');
+            return `${fromText} → ${viaText} → ${toText}`;
+        }
+        return `${fromText} → ${toText}`;
     };
 
     if (loading) {
@@ -176,6 +270,28 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
                         <div className={styles.previewTitle}>{getTitle()}</div>
                     </div>
 
+                    <div className={styles.section}>
+                        <label className={styles.label}>
+                            Journey shortcode
+                            <div className={styles.shortcodeRow}>
+                                <input
+                                    type="text"
+                                    value={shortcode}
+                                    onInput={(e) => setShortcode((e.target as HTMLInputElement).value)}
+                                    placeholder='e.g. ASD-7a,HN,UT-1 or ["ASD-7a","HN","UT-1"]'
+                                    className={styles.input}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => parseShortcode(shortcode)}
+                                    className={styles.applyButton}
+                                >
+                                    Apply
+                                </button>
+                            </div>
+                        </label>
+                    </div>
+
                     <button
                         type="button"
                         onClick={handleSuggestRoute}
@@ -201,7 +317,7 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
                                     value={fromStation}
                                     onChange={(e) => {
                                         setFromStation((e.target as HTMLSelectElement).value);
-                                        setFromTrack(''); // Reset track when station changes
+                                        setFromTrack('');
                                     }}
                                     className={styles.select}
                                     required
@@ -233,6 +349,65 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
                         </div>
                     </div>
 
+                    {viaStops.map((via, i) => {
+                        const viaTracks = getTracksForStation(via.station);
+                        return (
+                            <div key={i} className={styles.section}>
+                                <div className={styles.viaSectionHeader}>
+                                    <h3 className={styles.sectionTitle}>Via Stop {viaStops.length > 1 ? i + 1 : ''}</h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => removeViaStop(i)}
+                                        className={styles.removeStopButton}
+                                    >
+                                        Remove
+                                    </button>
+                                </div>
+                                <div className={styles.inputGroup}>
+                                    <label className={styles.label}>
+                                        Station Name
+                                        <select
+                                            value={via.station}
+                                            onChange={(e) => updateViaStop(i, 'station', (e.target as HTMLSelectElement).value)}
+                                            className={styles.select}
+                                        >
+                                            <option value="">Select a station...</option>
+                                            {stations.map((station) => (
+                                                <option key={station.name} value={station.name}>
+                                                    {station.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                    <label className={styles.label}>
+                                        Track
+                                        <select
+                                            value={via.track}
+                                            onChange={(e) => updateViaStop(i, 'track', (e.target as HTMLSelectElement).value)}
+                                            className={styles.select}
+                                            disabled={!via.station || viaTracks.length === 0}
+                                        >
+                                            <option value="">Select a track...</option>
+                                            {viaTracks.map((track) => (
+                                                <option key={track} value={track}>
+                                                    {track}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                </div>
+                            </div>
+                        );
+                    })}
+
+                    <button
+                        type="button"
+                        onClick={addViaStop}
+                        className={styles.addStopButton}
+                    >
+                        + Add via stop
+                    </button>
+
                     <div className={styles.section}>
                         <h3 className={styles.sectionTitle}>To Station</h3>
                         <div className={styles.inputGroup}>
@@ -242,7 +417,7 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
                                     value={toStation}
                                     onChange={(e) => {
                                         setToStation((e.target as HTMLSelectElement).value);
-                                        setToTrack(''); // Reset track when station changes
+                                        setToTrack('');
                                     }}
                                     className={styles.select}
                                     required

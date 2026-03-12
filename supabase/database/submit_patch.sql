@@ -5,7 +5,8 @@ CREATE OR REPLACE FUNCTION submit_patch(
   p_from_track text DEFAULT NULL,
   p_to_station text DEFAULT NULL,
   p_to_track text DEFAULT NULL,
-  p_description text DEFAULT NULL
+  p_description text DEFAULT NULL,
+  p_via_stops jsonb DEFAULT NULL
 )
 RETURNS json
 LANGUAGE plpgsql
@@ -25,6 +26,7 @@ BEGIN
       from_track = COALESCE(p_from_track, from_track),
       to_station = COALESCE(p_to_station, to_station),
       to_track = COALESCE(p_to_track, to_track),
+      via_stops = p_via_stops,
       description = COALESCE(p_description, description)
     WHERE id = patch_id_to_update
     RETURNING id INTO new_patch_id;
@@ -44,6 +46,7 @@ BEGIN
       from_track,
       to_station,
       to_track,
+      via_stops,
       description
     )
     VALUES (
@@ -52,6 +55,7 @@ BEGIN
       p_from_track,
       p_to_station,
       p_to_track,
+      p_via_stops,
       p_description
     )
     RETURNING id INTO new_patch_id;

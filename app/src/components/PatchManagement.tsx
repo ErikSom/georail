@@ -55,33 +55,26 @@ function PatchManagement({ onClose, onStartEditing, activePatchId }: PatchManage
         setShowCreator(false);
     };
 
+    const buildRouteInfo = (patch: Patch): RouteInfo => ({
+        fromStation: patch.from_station || '',
+        fromStationCode: getStationCode(patch.from_station || ''),
+        fromTrack: patch.from_track || '',
+        toStation: patch.to_station || '',
+        toStationCode: getStationCode(patch.to_station || ''),
+        toTrack: patch.to_track || '',
+        viaStops: patch.via_stops,
+        description: patch.description,
+    });
+
     const handleEditPatch = (patchId: number, patch: Patch) => {
         if (onStartEditing) {
-            const routeInfo: RouteInfo = {
-                fromStation: patch.from_station || '',
-                fromStationCode: getStationCode(patch.from_station || ''),
-                fromTrack: patch.from_track || '',
-                toStation: patch.to_station || '',
-                toStationCode: getStationCode(patch.to_station || ''),
-                toTrack: patch.to_track || '',
-                description: patch.description,
-            };
-            onStartEditing(patchId, routeInfo, false);
+            onStartEditing(patchId, buildRouteInfo(patch), false);
         }
     };
 
     const handleReviewPatch = (patchId: number, patch: Patch) => {
         if (onStartEditing) {
-            const routeInfo: RouteInfo = {
-                fromStation: patch.from_station || '',
-                fromStationCode: getStationCode(patch.from_station || ''),
-                fromTrack: patch.from_track || '',
-                toStation: patch.to_station || '',
-                toStationCode: getStationCode(patch.to_station || ''),
-                toTrack: patch.to_track || '',
-                description: patch.description,
-            };
-            onStartEditing(patchId, routeInfo, true, patch.decline_reason);
+            onStartEditing(patchId, buildRouteInfo(patch), true, patch.decline_reason);
         }
     };
 

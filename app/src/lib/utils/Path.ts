@@ -1,4 +1,4 @@
-import { Scene, Vector3, MathUtils } from "three";
+import { Scene, Vector3, Matrix4, MathUtils } from "three";
 import { NodeIndicator } from "../editor/NodeIndicator";
 import { dummy } from "./Helper";
 
@@ -439,6 +439,57 @@ export default class Path {
             }
         }
         return this.totalLength;
+    }
+
+    /**
+     * Apply a rigid body transform to all geometry in-place.
+     * Preserves distances, segment structure, and arc-length LUTs.
+     * Used after reorientation to update world positions cheaply.
+     */
+    public applyTransform(matrix: Matrix4): void {
+        // Transform all points
+        for (let i = 0; i < this.points.length; i++) {
+            this.points[i].applyMatrix4(matrix);
+        }
+
+        // Transform curve control points (flat Float32Array, xyz triples)
+        const cp = this.curveControlPoints;
+        const tv = new Vector3();
+        for (let i = 0; i < cp.length; i += 3) {
+            tv.set(cp[i], cp[i + 1], cp[i + 2]).applyMatrix4(matrix);
+            cp[i] = tv.x;
+            cp[i + 1] = tv.y;
+            cp[i + 2] = tv.z;
+        }
+
+        // Recompute start/end directions from transformed geometry
+        this.recomputeDirections();
+    }
+
+    private recomputeDirections(): void {
+        if (this.logicalCount === 0) return;
+
+        // Start direction
+        const firstIdx = this.segPointIndices[0];
+        if (this.segTypes[0] === SEG_CURVE) {
+            const cp = this.curveControlPoints;
+            const p0 = this.points[firstIdx];
+            this.startDir.set(cp[0] - p0.x, cp[1] - p0.y, cp[2] - p0.z).normalize();
+        } else {
+            this.startDir.subVectors(this.points[firstIdx + 1], this.points[firstIdx]).normalize();
+        }
+
+        // End direction
+        const lastLogIdx = this.logicalCount - 1;
+        const pIdx = this.segPointIndices[lastLogIdx];
+        if (this.segTypes[lastLogIdx] === SEG_CURVE) {
+            const cIdx = lastLogIdx * 3;
+            const cp = this.curveControlPoints;
+            const pEnd = this.points[pIdx + 2];
+            this.endDir.set(pEnd.x - cp[cIdx], pEnd.y - cp[cIdx + 1], pEnd.z - cp[cIdx + 2]).normalize();
+        } else {
+            this.endDir.subVectors(this.points[pIdx + 1], this.points[pIdx]).normalize();
+        }
     }
 
     public getTotalLength(): number { return this.totalLength; }

@@ -4,6 +4,7 @@ import {
     PerspectiveCamera,
     Clock,
     Vector3,
+    Matrix4,
     MathUtils,
     SRGBColorSpace,
     ACESFilmicToneMapping,
@@ -244,6 +245,14 @@ export class World {
 
             const path = new Path(pathPoints);
             this.train.setPath(path);
+
+            // Position train at first station, not at path start
+            // The path may have extra nodes before the first station as padding
+            const stopIndices = routeData.geometry.stop_indices;
+            if (stopIndices && stopIndices.length > 0 && stopIndices[0] > 0) {
+                this.train.distanceTraveled = path.getDistanceAtPointIndex(stopIndices[0]);
+            }
+
             this.train.positionOnPath();
 
             // Store path so journey store can reactively compute stop distances
@@ -265,8 +274,44 @@ export class World {
             this.scene.add(this.stationIndicator.group);
 
             this.gameCamera.snapTo(this.train.group.position);
+
+            // Register for automatic reorientation
+            this.mapViewer.onReorient = (delta) => this.handleReorient(delta);
         } catch (error) {
             console.error('Failed to start path following:', error);
+        }
+    }
+
+    private handleReorient(deltaMatrix: Matrix4): void {
+        const path = this.train.getPath();
+        if (!path) return;
+
+        // Transform path points in-place (preserves distances — rigid transform)
+        path.applyTransform(deltaMatrix);
+
+        // Transform camera and its internal state so it follows smoothly
+        this.gameCamera.applyTransform(deltaMatrix);
+
+        // Rebuild boundary walls (cheap — just 2 meshes from path endpoints)
+        if (this.boundaryWall) {
+            this.boundaryWall.group.parent?.remove(this.boundaryWall.group);
+            this.boundaryWall = new BoundaryWall(
+                path.getStartPoint(),
+                path.getEndPoint(),
+                path.getStartDirection(),
+                path.getEndDirection(),
+                path.getTotalLength(),
+                this.train.getTotalLength(),
+            );
+            this.scene.add(this.boundaryWall.group);
+        }
+
+        // Rebuild station indicator for current stop
+        if (this.stationIndicator) {
+            this.stationIndicator.group.parent?.remove(this.stationIndicator.group);
+            this.stationIndicator = new StationIndicator();
+            this.stationIndicator.createIndicators(path);
+            this.scene.add(this.stationIndicator.group);
         }
     }
 

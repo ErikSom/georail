@@ -14,8 +14,8 @@ AS $$
     ST_X(s.geom)::float AS lon,
     ST_Y(s.geom)::float AS lat
   FROM generate_subscripts(codes, 1) AS idx
-  JOIN stations s ON s.code = codes[idx]
+  JOIN stations s ON lower(s.code) = lower(codes[idx])
     AND (p_country IS NULL OR s.country = p_country)
-    AND (tracks IS NULL OR tracks[idx] IS NULL OR s.ref = tracks[idx])
+    AND (tracks IS NULL OR tracks[idx] IS NULL OR s.ref = tracks[idx] OR s.ref ILIKE tracks[idx] || '%')
   ORDER BY idx;
 $$;

@@ -89,7 +89,7 @@ export const getAllPatches = async (req, res) => {
 
 // POST /patches/submit
 export const submitPatch = async (req, res) => {
-    const { data: patch_data, patchId, fromStation, fromTrack, toStation, toTrack, description } = req.body;
+    const { data: patch_data, patchId, fromStation, fromTrack, toStation, toTrack, viaStops, description } = req.body;
     const supabaseUser = getSupabaseForToken(req.authToken);
 
     const { data, error } = await supabaseUser.rpc('submit_patch', {
@@ -99,6 +99,7 @@ export const submitPatch = async (req, res) => {
         p_from_track: fromTrack || null,
         p_to_station: toStation || null,
         p_to_track: toTrack || null,
+        p_via_stops: viaStops || null,
         p_description: description || null
     });
 

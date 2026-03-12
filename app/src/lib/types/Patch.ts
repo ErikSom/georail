@@ -13,6 +13,7 @@ export interface Patch {
     from_track?: string;
     to_station?: string;
     to_track?: string;
+    via_stops?: ViaStop[];
     description?: string;
 }
 
@@ -44,7 +45,14 @@ export interface SubmitPatchInput {
     fromTrack?: string;
     toStation?: string;
     toTrack?: string;
+    viaStops?: ViaStop[];
     description?: string;
+}
+
+export interface ViaStop {
+    station: string;
+    stationCode: string;
+    track: string;
 }
 
 export interface RouteInfo {
@@ -54,6 +62,7 @@ export interface RouteInfo {
     toStation: string;
     toStationCode: string;
     toTrack: string;
+    viaStops?: ViaStop[];
     description?: string;
 }
 

@@ -233,6 +233,13 @@ export class GameCamera {
         this.controls.target.copy(this.currentTarget);
     }
 
+    public applyTransform(matrix: import('three').Matrix4): void {
+        this.camera.position.applyMatrix4(matrix);
+        this.controls.target.applyMatrix4(matrix);
+        this.currentTarget.applyMatrix4(matrix);
+        this.controls.update();
+    }
+
     public cleanup(): void {
         this.domElement.removeEventListener('wheel', this.boundOnWheel);
         this.controls.dispose();

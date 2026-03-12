@@ -207,6 +207,71 @@
     color: #666;
 }
 
+.shortcodeRow {
+    display: flex;
+    gap: 8px;
+}
+
+.shortcodeRow .input {
+    flex: 1;
+}
+
+.applyButton {
+    padding: 10px 14px;
+    background-color: #2a2a2a;
+    color: #cccccc;
+    border: 1px solid #3a3a3a;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+}
+
+.applyButton:hover {
+    border-color: #3b82f6;
+    color: #ffffff;
+}
+
+.viaSectionHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.removeStopButton {
+    padding: 4px 10px;
+    background: none;
+    border: 1px solid #555;
+    border-radius: 4px;
+    color: #888;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.removeStopButton:hover {
+    border-color: #ef4444;
+    color: #ef4444;
+}
+
+.addStopButton {
+    padding: 8px 14px;
+    background-color: #2a2a2a;
+    color: #888;
+    border: 1px dashed #3a3a3a;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+}
+
+.addStopButton:hover {
+    border-color: #3b82f6;
+    color: #ffffff;
+}
+
 .footer {
     display: flex;
     justify-content: flex-end;

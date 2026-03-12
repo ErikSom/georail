@@ -80,14 +80,10 @@ export function routePointToWorldPosition(
 ): Vector3 | null {
     const { lon, lat, worldOffset } = parseRoutePoint(routePoint);
 
-    // Get base position at altitude 0
-    const basePosition = mapViewer.latLonHeightToWorldPosition(lat, lon, 0);
-    if (!basePosition) return null;
-
-    // Get geographic coordinates of base position
-    const baseGeoCoords = mapViewer.getLatLonHeightFromWorldPosition(basePosition);
-    if (!baseGeoCoords) return null;
+    // Use the original lat/lon directly as the ENU reference point
+    // (avoids precision loss from round-tripping through world space)
+    const geoCoords: GeoCoords = { lat, lon, height: 0 };
 
     // Apply ENU offset to get final position
-    return applyENUOffset(baseGeoCoords, worldOffset, mapViewer);
+    return applyENUOffset(geoCoords, worldOffset, mapViewer);
 }

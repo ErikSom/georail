@@ -39,7 +39,18 @@ export class MapViewer {
     private groundPlane: Mesh | null = null;
     public initialized: boolean = false;
 
+    // Reorientation origin tracking
+    private originLat = 0;
+    private originLon = 0;
+    private static readonly REORIENT_THRESHOLD_M = 50_000; // 50km
+
+    /** Called after automatic reorientation with the delta transform matrix. */
+    public onReorient: ((deltaMatrix: Matrix4) => void) | null = null;
+    private reorientCheckCounter = 0;
+    private static readonly REORIENT_CHECK_INTERVAL = 30;
+
     private tempMatrix = new Matrix4();
+    private deltaMatrix = new Matrix4();
     private tempVec = new Vector3();
     private tempCartographic = { lat: 0, lon: 0, height: 0 };
     private _coordResult = { lat: 0, lon: 0, height: 0 };
@@ -222,13 +233,25 @@ export class MapViewer {
             console.error("ReorientationPlugin not initialized.");
             return;
         }
-        console.log(`Reorienting map to Lat: ${lat}, Lon: ${lon}, Height: ${height}`);
         this.reorientationPlugin.transformLatLonHeightToOrigin(
             lat * MathUtils.DEG2RAD,
             lon * MathUtils.DEG2RAD,
             height
         );
         this.tiles?.group.updateMatrixWorld(true);
+        this.originLat = lat;
+        this.originLon = lon;
+    }
+
+    /**
+     * Check if a position is far enough from the current origin to warrant reorientation.
+     * If so, reorient and return true so callers can recalculate positions.
+     */
+    private needsReorientation(lat: number, lon: number): boolean {
+        const dlat = (lat - this.originLat) * 111319.49;
+        const dlon = (lon - this.originLon) * 111319.49 * Math.cos(this.originLat * MathUtils.DEG2RAD);
+        const distSq = dlat * dlat + dlon * dlon;
+        return distSq > MapViewer.REORIENT_THRESHOLD_M * MapViewer.REORIENT_THRESHOLD_M;
     }
 
     public getLatLonHeightFromWorldPosition(worldPosition: Vector3): { lat: number, lon: number, height: number } | null {
@@ -268,6 +291,26 @@ export class MapViewer {
         if (!this.tiles || !this.camera || !this.renderer) {
             return;
         }
+
+        // Auto-reorient when camera moves far from origin (throttled)
+        if (this.onReorient && ++this.reorientCheckCounter >= MapViewer.REORIENT_CHECK_INTERVAL) {
+            this.reorientCheckCounter = 0;
+
+            this.tempMatrix.copy(this.tiles.group.matrixWorld).invert();
+            this.tempVec.copy(this.camera.position).applyMatrix4(this.tempMatrix);
+            WGS84_ELLIPSOID.getPositionToCartographic(this.tempVec, this.tempCartographic);
+            const camLat = MathUtils.radToDeg(this.tempCartographic.lat);
+            const camLon = MathUtils.radToDeg(this.tempCartographic.lon);
+
+            if (this.needsReorientation(camLat, camLon)) {
+                // Capture old matrix, reorient, compute delta
+                const oldMatrixInv = this.tiles.group.matrixWorld.clone().invert();
+                this.reorient(camLat, camLon, 0);
+                this.deltaMatrix.copy(this.tiles.group.matrixWorld).multiply(oldMatrixInv);
+                this.onReorient(this.deltaMatrix);
+            }
+        }
+
         this.tiles.setResolutionFromRenderer(this.camera, this.renderer);
         this.tiles.update();
     }

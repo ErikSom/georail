@@ -139,7 +139,10 @@ export class Editor {
             // Build stops array for journey API using station codes
             const stops: JourneyStopInput[] = [
                 routeInfo.fromTrack ? { code: routeInfo.fromStationCode, track: routeInfo.fromTrack } : { code: routeInfo.fromStationCode },
-                routeInfo.toTrack ? { code: routeInfo.toStationCode, track: routeInfo.toTrack } : { code: routeInfo.toStationCode }
+                ...(routeInfo.viaStops || []).map(v =>
+                    v.track ? { code: v.stationCode, track: v.track } : { code: v.stationCode }
+                ),
+                routeInfo.toTrack ? { code: routeInfo.toStationCode, track: routeInfo.toTrack } : { code: routeInfo.toStationCode },
             ];
 
             // Fetch route data with editor=true to get all points
@@ -150,8 +153,9 @@ export class Editor {
                 geometry: journeyData.geometry,
                 properties: {
                     stops: [
-                        { station: routeInfo.fromStation, code: '', track: routeInfo.fromTrack || null, arrivalTime: 0, departureTime: 0 },
-                        { station: routeInfo.toStation, code: '', track: routeInfo.toTrack || null, arrivalTime: 0, departureTime: 0 }
+                        { station: routeInfo.fromStation, code: routeInfo.fromStationCode, track: routeInfo.fromTrack || null, arrivalTime: 0, departureTime: 0 },
+                        ...(routeInfo.viaStops || []).map(v => ({ station: v.station, code: v.stationCode, track: v.track || null, arrivalTime: 0, departureTime: 0 })),
+                        { station: routeInfo.toStation, code: routeInfo.toStationCode, track: routeInfo.toTrack || null, arrivalTime: 0, departureTime: 0 },
                     ]
                 }
             };
@@ -170,10 +174,10 @@ export class Editor {
                 this.mapViewer.init(this.scene, this.camera, this.renderer, lat, lon, 0);
             }
 
-            // Relocate camera to the start of the route before loading nodes
+            // Relocate camera to the first station node (not route[0] which may be padding)
             if (routeData.geometry.route && routeData.geometry.route.length > 0) {
-                // Route format: [lon, lat, world_offset_x, world_offset_y, world_offset_z]
-                const [lon, lat, , world_offset_y] = routeData.geometry.route[0];
+                const firstStopIdx = journeyData.geometry.stop_indices?.[0] ?? 0;
+                const [lon, lat, , world_offset_y] = routeData.geometry.route[firstStopIdx];
                 const altitude = world_offset_y || 200;
                 this.relocateToPosition(lat, lon, altitude + 100); // 100m above the start point
             }
