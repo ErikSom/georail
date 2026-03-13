@@ -225,6 +225,10 @@
 }
 
 .mobileOverlay .trackPicker {
+    position: static;
+    box-shadow: none;
+    border-radius: 0;
+    margin-top: 0;
     padding: 8px 20px 16px;
 }
 

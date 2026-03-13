@@ -505,21 +505,19 @@ export default function TravelPicker() {
                         /* Regular Tab Content */
                         <>
                             {/* From Station */}
-                            <div className={styles.field}>
-                                <label className={styles.label}>Departure Station</label>
-                                <select
-                                    className={styles.select}
-                                    value={fromStation}
-                                    onChange={(e) => handleRegularStationSelect((e.target as HTMLSelectElement).value)}
-                                    disabled={loadingDepartures}
-                                >
-                                    <option value="">Select station</option>
-                                    {stations.map((station) => (
-                                        <option key={station.name} value={station.name}>
-                                            {station.name}
-                                        </option>
-                                    ))}
-                                </select>
+                            <div className={styles.stopsList}>
+                                <div className={styles.stopField}>
+                                    <div className={styles.stopLabel}>From</div>
+                                    <StationPicker
+                                        stations={stations}
+                                        selectedStation={fromStation}
+                                        selectedTrack={stops[0]?.track || ''}
+                                        availableTracks={stops[0]?.availableTracks || []}
+                                        onSelectStation={(name) => handleRegularStationSelect(name)}
+                                        onSelectTrack={(track) => updateStop(0, 'track', track)}
+                                        disabled={loadingDepartures}
+                                    />
+                                </div>
                             </div>
 
                             {/* Error message */}
