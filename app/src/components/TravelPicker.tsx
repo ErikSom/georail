@@ -115,8 +115,10 @@ export default function TravelPicker() {
         }
     }, [stops, returnToStart, stations]);
 
-    // Auto-fetch route preview for minimap when all stops are filled
+    // Auto-fetch route preview for minimap when all stops are filled (custom tab)
     useEffect(() => {
+        if (activeTab !== 'custom') return;
+
         const allFilled = stops.every(s => s.station && (s.availableTracks.length === 0 || s.track));
         if (!allFilled || stops.length < 2 || stations.length === 0) {
             setMinimapReady(false);
@@ -133,24 +135,23 @@ export default function TravelPicker() {
         if (journeyStops.length < 2) return;
 
         let cancelled = false;
+        setMinimapReady(false);
         fetchJourneyRoute(journeyStops)
             .then(data => {
                 if (!cancelled) {
-                    setMinimapReady(false);
                     setPreviewRoute(data.geometry.route);
                     setPreviewStopIndices(data.geometry.stop_indices);
                 }
             })
             .catch(() => {
                 if (!cancelled) {
-                    setMinimapReady(false);
                     setPreviewRoute(null);
                     setPreviewStopIndices([]);
                 }
             });
 
         return () => { cancelled = true; };
-    }, [stops, stations]);
+    }, [stops, stations, activeTab]);
 
     // Fetch departures when switching to Regular tab with a station already selected
     useEffect(() => {
@@ -521,13 +522,13 @@ export default function TravelPicker() {
                 <div className={styles.tabs}>
                     <button
                         className={`${styles.tab} ${activeTab === 'regular' ? styles.activeTab : ''}`}
-                        onClick={() => { setActiveTab('regular'); setMinimapReady(false); setPreviewRoute(null); setPreviewStopIndices([]); setSelectedDeparture(null); setExpandedDeparture(null); setExpandedJourney(null); }}
+                        onClick={() => { setActiveTab('regular'); setMinimapReady(false); setPreviewRoute(null); setPreviewStopIndices([]); setSelectedDeparture(null); setExpandedDeparture(null); setExpandedJourney(null); setLoadingJourney(false); }}
                     >
                         Regular
                     </button>
                     <button
                         className={`${styles.tab} ${activeTab === 'custom' ? styles.activeTab : ''}`}
-                        onClick={() => { setActiveTab('custom'); setMinimapReady(false); setPreviewRoute(null); setPreviewStopIndices([]); }}
+                        onClick={() => { setActiveTab('custom'); setMinimapReady(false); }}
                     >
                         Custom
                     </button>
@@ -553,25 +554,8 @@ export default function TravelPicker() {
                         selectedDeparture ? (
                             /* Detail view for selected departure */
                             <>
-                                <button className={styles.backButton} onClick={handleBackToDepartures}>
-                                    ← Back
-                                </button>
-
                                 <div className={`${styles.customRow} ${minimapReady ? styles.customRowWithMap : ''}`}>
                                     <div className={styles.stopsList}>
-                                        <div className={styles.departureDetailHeader}>
-                                            <span className={styles.departureDetailTime}>
-                                                {formatTime(selectedDeparture.plannedDateTime)}
-                                            </span>
-                                            <span className={styles.departureDetailDestination}>
-                                                {selectedDeparture.direction || selectedDeparture.routeStations[selectedDeparture.routeStations.length - 1]?.mediumName || 'Unknown'}
-                                            </span>
-                                            {(selectedDeparture.actualTrack || selectedDeparture.plannedTrack) && (
-                                                <span className={styles.trackBadge}>
-                                                    {selectedDeparture.actualTrack || selectedDeparture.plannedTrack}
-                                                </span>
-                                            )}
-                                        </div>
                                         <div className={styles.trainInfo}>
                                             {selectedDeparture.product.longCategoryName} {selectedDeparture.product.number}
                                         </div>
@@ -594,17 +578,25 @@ export default function TravelPicker() {
                                                         const isFirst = idx === 0;
                                                         const isLast = idx === relevantStops.length - 1;
                                                         const time = stop.departures?.[0]?.plannedTime || stop.arrivals?.[0]?.plannedTime;
+                                                        const track = stop.departures?.[0]?.plannedTrack || stop.arrivals?.[0]?.plannedTrack;
 
                                                         return (
                                                             <div key={stop.id} className={`${styles.timelineStop} ${isFirst ? styles.origin : ''} ${isLast ? styles.destination : ''}`}>
-                                                                <div className={styles.timelineTime}>
-                                                                    {time ? formatTime(time) : ''}
-                                                                </div>
                                                                 <div className={styles.timelineTrack}>
                                                                     <div className={`${styles.timelineDot} ${isFirst ? styles.origin : ''} ${isLast ? styles.destination : ''}`} />
                                                                 </div>
-                                                                <div className={styles.timelineStation}>
-                                                                    {stop.stop.name}
+                                                                <div className={styles.timelineInfo}>
+                                                                    <div className={styles.timelineTime}>
+                                                                        {time ? formatTime(time) : ''}
+                                                                    </div>
+                                                                    <div className={styles.timelineStationRow}>
+                                                                        <span className={styles.timelineStation}>
+                                                                            {stop.stop.name}
+                                                                        </span>
+                                                                        {track && (
+                                                                            <span className={styles.timelineTrackBadge}>{track}</span>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         );
@@ -630,13 +622,21 @@ export default function TravelPicker() {
 
                                 {error && <div className={styles.error}>{error}</div>}
 
-                                <button
-                                    className={styles.goButton}
-                                    onClick={() => handleDepartureGo()}
-                                    disabled={fetchingRoute || loadingJourney || !expandedJourney}
-                                >
-                                    {fetchingRoute ? 'Loading route...' : 'Go'}
-                                </button>
+                                <div className={styles.actionRow}>
+                                    <button
+                                        className={styles.backButtonSmall}
+                                        onClick={handleBackToDepartures}
+                                    >
+                                        ←
+                                    </button>
+                                    <button
+                                        className={styles.goButton}
+                                        onClick={() => handleDepartureGo()}
+                                        disabled={fetchingRoute || loadingJourney || !expandedJourney}
+                                    >
+                                        {fetchingRoute ? 'Loading route...' : 'Go'}
+                                    </button>
+                                </div>
                             </>
                         ) : (
                             /* Departures list view */
@@ -666,25 +666,25 @@ export default function TravelPicker() {
                                     <div className={styles.departuresList}>
                                         {departures.map((departure) => {
                                             const destination = departure.direction || departure.routeStations[departure.routeStations.length - 1]?.mediumName || 'Unknown';
+                                            const track = departure.actualTrack || departure.plannedTrack;
                                             return (
-                                                <div
+                                                <button
                                                     key={departure.product.number + departure.plannedDateTime}
                                                     className={`${styles.departureItem} ${departure.cancelled ? styles.cancelled : ''}`}
                                                     onClick={() => !departure.cancelled && handleSelectDeparture(departure)}
+                                                    disabled={departure.cancelled}
                                                 >
-                                                    <div className={styles.departureHeader}>
+                                                    <div className={styles.departureContent}>
                                                         <span className={styles.departureTime}>
                                                             {formatTime(departure.plannedDateTime)}
                                                         </span>
                                                         <span className={styles.departureDestination}>
                                                             {destination}
+                                                            {track && <span className={styles.departureTrackBadge}>{track}</span>}
                                                         </span>
-                                                        <span className={styles.departureTrack}>
-                                                            {departure.actualTrack || departure.plannedTrack || '-'}
-                                                        </span>
-                                                        <span className={styles.expandIcon}>▶</span>
                                                     </div>
-                                                </div>
+                                                    <span className={styles.departureArrow}>›</span>
+                                                </button>
                                             );
                                         })}
                                     </div>

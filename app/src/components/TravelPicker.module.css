@@ -91,7 +91,7 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 20px 16px 28px;
+    padding: 8px 16px 28px;
 }
 
 /* ─── Form Fields ──────────────────────────────────────────── */
@@ -188,6 +188,30 @@
     font-weight: 500;
 }
 
+/* ─── Action Row ──────────────────────────────────────────── */
+
+.actionRow {
+    display: flex;
+    gap: 8px;
+}
+
+.backButtonSmall {
+    padding: 14px 16px;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--menu-dark);
+    background: var(--menu-dim-02, rgba(0, 0, 0, 0.06));
+    border: none;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.backButtonSmall:hover {
+    background: var(--menu-dark-06);
+}
+
 /* ─── Go Button ────────────────────────────────────────────── */
 
 .goButton {
@@ -252,7 +276,16 @@
 .departureDetailHeader {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+    min-width: 0;
+}
+
+.departureDetailMain {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
 }
 
 .departureDetailTime {
@@ -260,13 +293,17 @@
     font-weight: 700;
     color: var(--menu-dark);
     font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
 }
 
 .departureDetailDestination {
-    flex: 1;
     font-size: 16px;
     font-weight: 600;
     color: var(--menu-dark);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
 }
 
 .trackBadge {
@@ -287,19 +324,49 @@
 /* ─── Departures List ──────────────────────────────────────── */
 
 .departuresList {
-    max-height: 400px;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
     overscroll-behavior: contain;
-    border-radius: 32px;
-    background: var(--menu-light);
+    padding: 0 8px;
+    border-radius: 16px;
 }
 
 .departureItem {
-    border-bottom: 1px solid var(--menu-dim-02, rgba(0, 0, 0, 0.06));
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: var(--menu-light);
+    border: none;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: background 0.15s;
+    text-align: left;
+    width: 100%;
 }
 
-.departureItem:last-child {
-    border-bottom: none;
+.departureContent {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.departureArrow {
+    font-size: 20px;
+    color: var(--menu-dim);
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.departureItem:hover {
+    background: var(--menu-dark-06);
+}
+
+.departureItem:disabled {
+    cursor: not-allowed;
 }
 
 .departureItem.cancelled {
@@ -310,59 +377,36 @@
     text-decoration: line-through;
 }
 
-.departureHeader {
-    display: flex;
-    align-items: center;
-    padding: 14px 24px;
-    cursor: pointer;
-    transition: background 0.15s;
-    gap: 12px;
-}
-
-.departureHeader:hover {
-    background: var(--menu-dark-06);
-}
-
 .departureTime {
-    font-weight: 700;
-    color: var(--menu-dark);
-    min-width: 50px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--menu-dim);
     font-variant-numeric: tabular-nums;
 }
 
 .departureDestination {
-    flex: 1;
-    color: var(--menu-dark);
-    font-weight: 500;
-}
-
-.departureTrack {
-    background: var(--menu-panel);
-    padding: 3px 10px;
-    border-radius: 10px;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 600;
     color: var(--menu-dark);
-    min-width: 30px;
-    text-align: center;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
-.expandIcon {
-    color: var(--menu-dim);
-    font-size: 11px;
-    transition: transform 0.2s;
-}
-
-.departureItem.expanded .expandIcon {
-    transform: rotate(0deg);
-}
-
-.departureDetails {
-    padding: 0 24px 16px;
-    border-top: 1px solid var(--menu-dim-02, rgba(0, 0, 0, 0.06));
+.departureTrackBadge {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--menu-dark);
+    background: var(--menu-accent);
+    padding: 1px 5px;
+    border-radius: 8px;
+    line-height: 1.4;
 }
 
 .trainInfo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-size: 13px;
     color: var(--menu-dim);
     font-weight: 500;
@@ -376,71 +420,47 @@
 }
 
 /* ─── Timeline ─────────────────────────────────────────────── */
-
-.timeline {
-    margin: 16px 0;
-    max-height: 300px;
-    overflow-y: auto;
-}
-
 .timelineStop {
     display: flex;
     align-items: flex-start;
-    min-height: 32px;
+    min-height: 36px;
     position: relative;
+    gap: 10px;
 }
 
 .timelineStop.origin,
 .timelineStop.destination {
-    min-height: 40px;
-}
-
-.timelineTime {
-    width: 50px;
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--menu-dim);
-    padding-top: 2px;
-    flex-shrink: 0;
-    font-variant-numeric: tabular-nums;
-}
-
-.timelineStop.origin .timelineTime,
-.timelineStop.destination .timelineTime {
-    font-size: 13px;
-    font-weight: 600;
+    min-height: 44px;
 }
 
 .timelineTrack {
     display: flex;
     flex-direction: column;
     align-items: center;
-    width: 24px;
+    width: 14px;
     flex-shrink: 0;
     position: relative;
     z-index: 1;
+    padding-top: 1px;
 }
 
-/* Continuous vertical line — lives on the row so it spans full row height */
+/* Continuous vertical line */
 .timelineStop::before {
     content: '';
     position: absolute;
     top: 0;
     bottom: 0;
-    /* 50px (time) + 12px (half of 24px track column) = 62px from left */
-    left: 62px;
+    left: 7px;
     width: 2px;
-    transform: translateX(-50%);
+    transform: translateX(-50%) translateY(0px);
     background: var(--menu-dim);
     opacity: 0.3;
 }
 
-/* First stop: line starts below the origin dot center */
 .timelineStop.origin::before {
     top: 8px;
 }
 
-/* Last stop: line ends at the destination dot center */
 .timelineStop.destination::before {
     bottom: calc(100% - 8px);
 }
@@ -454,6 +474,7 @@
     z-index: 1;
     flex-shrink: 0;
     position: relative;
+    transform: translateY(0px);
 }
 
 .timelineDot.origin {
@@ -469,18 +490,58 @@
     background: var(--menu-accent);
 }
 
-.timelineStation {
+.timelineInfo {
     flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.timelineTime {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--menu-dim);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+
+.timelineStop.origin .timelineTime,
+.timelineStop.destination .timelineTime {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.timelineStationRow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.timelineStation {
     font-size: 13px;
     color: var(--menu-dark);
-    padding: 0 0 0 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .timelineStop.origin .timelineStation,
 .timelineStop.destination .timelineStation {
     font-size: 14px;
     font-weight: 600;
-    padding-top: 1px;
+}
+
+.timelineTrackBadge {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--menu-dark);
+    background: var(--menu-accent);
+    padding: 1px 5px;
+    border-radius: 8px;
+    flex-shrink: 0;
+    line-height: 1.4;
 }
 
 .departureDetails .goButton {
@@ -506,7 +567,7 @@
 }
 
 .customRowWithMap {
-    gap: 16px;
+    gap: 8px;
 }
 
 .minimapContainer {
@@ -538,6 +599,8 @@
     border-radius: 32px;
     padding: 16px 24px;
     transition: flex 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    max-height: 40vh;
+    overflow: auto;
 }
 
 .stopRow {
@@ -565,7 +628,7 @@
 .stopField {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 4px;
     width: 100%;
 }
 
@@ -581,7 +644,7 @@
     background: none;
     border: none;
     top: 50%;
-    right: 0;
+    right: 6px;
     width: 32px;
     height: 32px;
     font-size: 18px;
