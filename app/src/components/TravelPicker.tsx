@@ -97,6 +97,9 @@ export default function TravelPicker() {
     const [expandedJourney, setExpandedJourney] = useState<Journey | null>(null);
     const [loadingJourney, setLoadingJourney] = useState(false);
 
+    const canSubmit = stops.every(s => s.station) && !fetchingRoute;
+    const fromStation = stops[0]?.station || '';
+
     useEffect(() => {
         loadStations();
     }, []);
@@ -311,6 +314,8 @@ export default function TravelPicker() {
         updateStop(0, 'station', stationName);
         setDepartures([]);
         setExpandedDeparture(null);
+        setSelectedDeparture(null);
+        setExpandedJourney(null);
         setError(null);
 
         if (!stationName) return;
@@ -324,25 +329,22 @@ export default function TravelPicker() {
         fetchDepartures(station.code);
     };
 
-    // Handle expanding a departure - fetch journey details
-    const handleExpandDeparture = async (departure: Departure) => {
-        const departureKey = departure.product.number + departure.plannedDateTime;
+    // Regular mode: selected departure for detail view
+    const [selectedDeparture, setSelectedDeparture] = useState<Departure | null>(null);
 
-        // If already expanded, collapse it
-        if (expandedDeparture === departureKey) {
-            setExpandedDeparture(null);
-            setExpandedJourney(null);
-            return;
-        }
-
-        setExpandedDeparture(departureKey);
+    // Handle selecting a departure - fetch journey details and show detail view
+    const handleSelectDeparture = async (departure: Departure) => {
+        setSelectedDeparture(departure);
+        setExpandedDeparture(departure.product.number + departure.plannedDateTime);
         setExpandedJourney(null);
         setLoadingJourney(true);
         setError(null);
+        setMinimapReady(false);
+        setPreviewRoute(null);
+        setPreviewStopIndices([]);
 
         try {
             const journey = await fetchJourney(departure.product.number, departure.plannedDateTime);
-            console.log('Journey response:', journey);
             if (journey) {
                 setExpandedJourney(journey);
             }
@@ -352,6 +354,56 @@ export default function TravelPicker() {
             setLoadingJourney(false);
         }
     };
+
+    const handleBackToDepartures = () => {
+        setSelectedDeparture(null);
+        setExpandedDeparture(null);
+        setExpandedJourney(null);
+        setMinimapReady(false);
+        setPreviewRoute(null);
+        setPreviewStopIndices([]);
+    };
+
+    // Fetch route preview for minimap when journey details are loaded (regular mode)
+    useEffect(() => {
+        if (!expandedJourney || !selectedDeparture || stations.length === 0) return;
+
+        const startIdx = expandedJourney.stops.findIndex(
+            stop => stop.stop.name === fromStation
+        );
+        const relevantStops = expandedJourney.stops
+            .slice(startIdx >= 0 ? startIdx : 0)
+            .filter(stop => stop.status !== 'PASSING');
+
+        const journeyStops: JourneyStopInput[] = [];
+        for (const stop of relevantStops) {
+            const stationData = stations.find(s => s.name === stop.stop.name);
+            if (stationData?.code) {
+                const track = stop.departures[0]?.plannedTrack || stop.arrivals[0]?.plannedTrack;
+                journeyStops.push(track ? { code: stationData.code, track } : { code: stationData.code });
+            }
+        }
+
+        if (journeyStops.length < 2) return;
+
+        let cancelled = false;
+        setMinimapReady(false);
+        fetchJourneyRoute(journeyStops)
+            .then(data => {
+                if (!cancelled) {
+                    setPreviewRoute(data.geometry.route);
+                    setPreviewStopIndices(data.geometry.stop_indices);
+                }
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setPreviewRoute(null);
+                    setPreviewStopIndices([]);
+                }
+            });
+
+        return () => { cancelled = true; };
+    }, [expandedJourney, selectedDeparture, stations, fromStation]);
 
     // Handle clicking GO on a departure
     const handleDepartureGo = async () => {
@@ -461,11 +513,6 @@ export default function TravelPicker() {
         return date.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
     };
 
-    // Get label for a stop
-
-    const canSubmit = stops.every(s => s.station) && !fetchingRoute;
-    const fromStation = stops[0]?.station || '';
-
     return (
         <div className={styles.container}>
                 <h1 className={styles.title}>Plan Journey</h1>
@@ -474,20 +521,20 @@ export default function TravelPicker() {
                 <div className={styles.tabs}>
                     <button
                         className={`${styles.tab} ${activeTab === 'regular' ? styles.activeTab : ''}`}
-                        onClick={() => setActiveTab('regular')}
+                        onClick={() => { setActiveTab('regular'); setMinimapReady(false); setPreviewRoute(null); setPreviewStopIndices([]); setSelectedDeparture(null); setExpandedDeparture(null); setExpandedJourney(null); }}
                     >
                         Regular
                     </button>
                     <button
                         className={`${styles.tab} ${activeTab === 'custom' ? styles.activeTab : ''}`}
-                        onClick={() => setActiveTab('custom')}
+                        onClick={() => { setActiveTab('custom'); setMinimapReady(false); setPreviewRoute(null); setPreviewStopIndices([]); }}
                     >
                         Custom
                     </button>
 
                     <button
                         className={`${styles.tab} ${activeTab === 'archive' ? styles.activeTab : ''}`}
-                        onClick={() => setActiveTab('archive')}
+                        onClick={() => { setActiveTab('archive'); setMinimapReady(false); setPreviewRoute(null); setPreviewStopIndices([]); }}
                     >
                         Archive
                     </button>
@@ -503,127 +550,151 @@ export default function TravelPicker() {
                         <div className={styles.loading}>Loading stations...</div>
                     ) : activeTab === 'regular' ? (
                         /* Regular Tab Content */
-                        <>
-                            {/* From Station */}
-                            <div className={styles.stopsList}>
-                                <div className={styles.stopField}>
-                                    <div className={styles.stopLabel}>From</div>
-                                    <StationPicker
-                                        stations={stations}
-                                        selectedStation={fromStation}
-                                        selectedTrack={stops[0]?.track || ''}
-                                        availableTracks={stops[0]?.availableTracks || []}
-                                        onSelectStation={(name) => handleRegularStationSelect(name)}
-                                        onSelectTrack={(track) => updateStop(0, 'track', track)}
-                                        disabled={loadingDepartures}
-                                    />
-                                </div>
-                            </div>
+                        selectedDeparture ? (
+                            /* Detail view for selected departure */
+                            <>
+                                <button className={styles.backButton} onClick={handleBackToDepartures}>
+                                    ← Back
+                                </button>
 
-                            {/* Error message */}
-                            {error && <div className={styles.error}>{error}</div>}
+                                <div className={`${styles.customRow} ${minimapReady ? styles.customRowWithMap : ''}`}>
+                                    <div className={styles.stopsList}>
+                                        <div className={styles.departureDetailHeader}>
+                                            <span className={styles.departureDetailTime}>
+                                                {formatTime(selectedDeparture.plannedDateTime)}
+                                            </span>
+                                            <span className={styles.departureDetailDestination}>
+                                                {selectedDeparture.direction || selectedDeparture.routeStations[selectedDeparture.routeStations.length - 1]?.mediumName || 'Unknown'}
+                                            </span>
+                                            {(selectedDeparture.actualTrack || selectedDeparture.plannedTrack) && (
+                                                <span className={styles.trackBadge}>
+                                                    {selectedDeparture.actualTrack || selectedDeparture.plannedTrack}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className={styles.trainInfo}>
+                                            {selectedDeparture.product.longCategoryName} {selectedDeparture.product.number}
+                                        </div>
 
-                            {/* Loading departures */}
-                            {loadingDepartures && (
-                                <div className={styles.loading}>Loading departures...</div>
-                            )}
+                                        {loadingJourney && (
+                                            <div className={styles.loadingStops}>Loading stops...</div>
+                                        )}
 
-                            {/* Departures list */}
-                            {!loadingDepartures && departures.length > 0 && (
-                                <div className={styles.departuresList}>
-                                    {departures.map((departure) => {
-                                        const isExpanded = expandedDeparture === departure.product.number + departure.plannedDateTime;
-                                        const destination = departure.direction || departure.routeStations[departure.routeStations.length - 1]?.mediumName || 'Unknown';
+                                        {!loadingJourney && expandedJourney && (() => {
+                                            const startIdx = expandedJourney.stops.findIndex(
+                                                stop => stop.stop.name === fromStation
+                                            );
+                                            const relevantStops = expandedJourney.stops
+                                                .slice(startIdx >= 0 ? startIdx : 0)
+                                                .filter(stop => stop.status !== 'PASSING');
 
-                                        return (
-                                            <div
-                                                key={departure.product.number + departure.plannedDateTime}
-                                                className={`${styles.departureItem} ${isExpanded ? styles.expanded : ''} ${departure.cancelled ? styles.cancelled : ''}`}
-                                            >
-                                                <div
-                                                    className={styles.departureHeader}
-                                                    onClick={() => handleExpandDeparture(departure)}
-                                                >
-                                                    <span className={styles.departureTime}>
-                                                        {formatTime(departure.plannedDateTime)}
-                                                    </span>
-                                                    <span className={styles.departureDestination}>
-                                                        {destination}
-                                                    </span>
-                                                    <span className={styles.departureTrack}>
-                                                        {departure.actualTrack || departure.plannedTrack || '-'}
-                                                    </span>
-                                                    <span className={styles.expandIcon}>
-                                                        {isExpanded ? '▼' : '▶'}
-                                                    </span>
-                                                </div>
+                                            return (
+                                                <div className={styles.timeline}>
+                                                    {relevantStops.map((stop, idx) => {
+                                                        const isFirst = idx === 0;
+                                                        const isLast = idx === relevantStops.length - 1;
+                                                        const time = stop.departures?.[0]?.plannedTime || stop.arrivals?.[0]?.plannedTime;
 
-                                                {isExpanded && (
-                                                    <div className={styles.departureDetails}>
-                                                        <div className={styles.trainInfo}>
-                                                            {departure.product.longCategoryName} {departure.product.number}
-                                                        </div>
-
-                                                        {loadingJourney && (
-                                                            <div className={styles.loadingStops}>Loading stops...</div>
-                                                        )}
-
-                                                        {!loadingJourney && expandedJourney && (() => {
-                                                            // Find the index of our departure station
-                                                            const startIdx = expandedJourney.stops.findIndex(
-                                                                stop => stop.stop.name === fromStation
-                                                            );
-                                                            // Get stops from our station onwards, excluding PASSING stops
-                                                            const relevantStops = expandedJourney.stops
-                                                                .slice(startIdx >= 0 ? startIdx : 0)
-                                                                .filter(stop => stop.status !== 'PASSING');
-
-                                                            return (
-                                                                <div className={styles.timeline}>
-                                                                    {relevantStops.map((stop, idx) => {
-                                                                        const isFirst = idx === 0;
-                                                                        const isLast = idx === relevantStops.length - 1;
-                                                                        const time = stop.departures?.[0]?.plannedTime || stop.arrivals?.[0]?.plannedTime;
-
-                                                                        return (
-                                                                            <div key={stop.id} className={styles.timelineStop}>
-                                                                                <div className={styles.timelineTime}>
-                                                                                    {time ? formatTime(time) : ''}
-                                                                                </div>
-                                                                                <div className={styles.timelineTrack}>
-                                                                                    <div className={`${styles.timelineDot} ${isFirst ? styles.origin : ''} ${isLast ? styles.destination : ''}`} />
-                                                                                    {!isLast && <div className={styles.timelineLine} />}
-                                                                                </div>
-                                                                                <div className={styles.timelineStation}>
-                                                                                    {stop.stop.name}
-                                                                                </div>
-                                                                            </div>
-                                                                        );
-                                                                    })}
+                                                        return (
+                                                            <div key={stop.id} className={`${styles.timelineStop} ${isFirst ? styles.origin : ''} ${isLast ? styles.destination : ''}`}>
+                                                                <div className={styles.timelineTime}>
+                                                                    {time ? formatTime(time) : ''}
                                                                 </div>
-                                                            );
-                                                        })()}
+                                                                <div className={styles.timelineTrack}>
+                                                                    <div className={`${styles.timelineDot} ${isFirst ? styles.origin : ''} ${isLast ? styles.destination : ''}`} />
+                                                                </div>
+                                                                <div className={styles.timelineStation}>
+                                                                    {stop.stop.name}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
 
-                                                        <button
-                                                            className={styles.goButton}
-                                                            onClick={() => handleDepartureGo()}
-                                                            disabled={loadingJourney || !expandedJourney}
-                                                        >
-                                                            {loadingJourney ? 'Loading...' : 'Go'}
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
+                                    {/* Route Minimap */}
+                                    <div className={`${styles.minimapContainer} ${minimapReady ? styles.minimapVisible : ''}`}>
+                                        <div className={styles.minimapInner}>
+                                            {previewRoute && (
+                                                <RouteMinimap
+                                                    route={previewRoute}
+                                                    stopIndices={previewStopIndices}
+                                                    onReady={() => setMinimapReady(true)}
+                                                />
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
-                            )}
 
-                            {/* No departures message */}
-                            {!loadingDepartures && fromStation && departures.length === 0 && !error && (
-                                <div className={styles.noDepartures}>No departures found</div>
-                            )}
-                        </>
+                                {error && <div className={styles.error}>{error}</div>}
+
+                                <button
+                                    className={styles.goButton}
+                                    onClick={() => handleDepartureGo()}
+                                    disabled={fetchingRoute || loadingJourney || !expandedJourney}
+                                >
+                                    {fetchingRoute ? 'Loading route...' : 'Go'}
+                                </button>
+                            </>
+                        ) : (
+                            /* Departures list view */
+                            <>
+                                <div className={styles.stopsList}>
+                                    <div className={styles.stopField}>
+                                        <div className={styles.stopLabel}>From</div>
+                                        <StationPicker
+                                            stations={stations}
+                                            selectedStation={fromStation}
+                                            selectedTrack={stops[0]?.track || ''}
+                                            availableTracks={stops[0]?.availableTracks || []}
+                                            onSelectStation={(name) => handleRegularStationSelect(name)}
+                                            onSelectTrack={(track) => updateStop(0, 'track', track)}
+                                            disabled={loadingDepartures}
+                                        />
+                                    </div>
+                                </div>
+
+                                {error && <div className={styles.error}>{error}</div>}
+
+                                {loadingDepartures && (
+                                    <div className={styles.loading}>Loading departures...</div>
+                                )}
+
+                                {!loadingDepartures && departures.length > 0 && (
+                                    <div className={styles.departuresList}>
+                                        {departures.map((departure) => {
+                                            const destination = departure.direction || departure.routeStations[departure.routeStations.length - 1]?.mediumName || 'Unknown';
+                                            return (
+                                                <div
+                                                    key={departure.product.number + departure.plannedDateTime}
+                                                    className={`${styles.departureItem} ${departure.cancelled ? styles.cancelled : ''}`}
+                                                    onClick={() => !departure.cancelled && handleSelectDeparture(departure)}
+                                                >
+                                                    <div className={styles.departureHeader}>
+                                                        <span className={styles.departureTime}>
+                                                            {formatTime(departure.plannedDateTime)}
+                                                        </span>
+                                                        <span className={styles.departureDestination}>
+                                                            {destination}
+                                                        </span>
+                                                        <span className={styles.departureTrack}>
+                                                            {departure.actualTrack || departure.plannedTrack || '-'}
+                                                        </span>
+                                                        <span className={styles.expandIcon}>▶</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+
+                                {!loadingDepartures && fromStation && departures.length === 0 && !error && (
+                                    <div className={styles.noDepartures}>No departures found</div>
+                                )}
+                            </>
+                        )
                     ) : (
                         /* Custom Tab Content */
                         <>

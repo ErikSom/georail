@@ -17,18 +17,30 @@
     inset: 0;
     pointer-events: none;
     z-index: 1;
+    filter: drop-shadow(1px 2px 2px #00000060);
 }
 
 .routeLine {
     fill: none;
     stroke: var(--menu-accent);
-    stroke-width: 3;
+    stroke-width: 2;
+    opacity: 1;
     stroke-linecap: round;
     stroke-linejoin: round;
 }
 
 .stationDot {
     fill: var(--menu-accent);
-    stroke: var(--menu-dark);
-    stroke-width: 1.5;
+    stroke: none;
+}
+
+.stationDot.origin {
+    fill: var(--menu-light, #fff);
+    stroke: var(--menu-accent);
+    stroke-width: 2.5;
+}
+
+.stationDot.destination {
+    fill: var(--menu-accent);
+    stroke: none;
 }

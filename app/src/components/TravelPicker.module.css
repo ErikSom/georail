@@ -223,8 +223,65 @@
 .loading {
     text-align: center;
     padding: 40px;
-    color: var(--p-text-muted);
+    color: var(--menu-dim);
     font-size: 15px;
+}
+
+/* ─── Back Button ─────────────────────────────────────────── */
+
+.backButton {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--menu-dim);
+    cursor: pointer;
+    padding: 0 4px;
+    transition: color 0.15s;
+}
+
+.backButton:hover {
+    color: var(--menu-dark);
+}
+
+/* ─── Departure Detail Header ─────────────────────────────── */
+
+.departureDetailHeader {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.departureDetailTime {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--menu-dark);
+    font-variant-numeric: tabular-nums;
+}
+
+.departureDetailDestination {
+    flex: 1;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--menu-dark);
+}
+
+.trackBadge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--menu-accent);
+    color: var(--menu-dark);
+    font-size: 12px;
+    font-weight: 700;
+    min-width: 22px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 11px;
+    flex-shrink: 0;
 }
 
 /* ─── Departures List ──────────────────────────────────────── */
@@ -232,16 +289,13 @@
 .departuresList {
     max-height: 400px;
     overflow-y: auto;
-    border: 1px solid var(--p-glass-border);
-    border-radius: 14px;
-    background: var(--p-glass);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    margin-bottom: 20px;
+    overscroll-behavior: contain;
+    border-radius: 32px;
+    background: var(--menu-light);
 }
 
 .departureItem {
-    border-bottom: 1px solid var(--p-glass-border);
+    border-bottom: 1px solid var(--menu-dim-02, rgba(0, 0, 0, 0.06));
 }
 
 .departureItem:last-child {
@@ -259,42 +313,42 @@
 .departureHeader {
     display: flex;
     align-items: center;
-    padding: 14px 16px;
+    padding: 14px 24px;
     cursor: pointer;
     transition: background 0.15s;
     gap: 12px;
 }
 
 .departureHeader:hover {
-    background: var(--p-glass-hover);
+    background: var(--menu-dark-06);
 }
 
 .departureTime {
     font-weight: 700;
-    color: var(--p-accent);
+    color: var(--menu-dark);
     min-width: 50px;
     font-variant-numeric: tabular-nums;
 }
 
 .departureDestination {
     flex: 1;
-    color: var(--p-text);
+    color: var(--menu-dark);
     font-weight: 500;
 }
 
 .departureTrack {
-    background: var(--p-mid-dim);
+    background: var(--menu-panel);
     padding: 3px 10px;
-    border-radius: 8px;
+    border-radius: 10px;
     font-size: 13px;
     font-weight: 600;
-    color: var(--p-text-secondary);
+    color: var(--menu-dark);
     min-width: 30px;
     text-align: center;
 }
 
 .expandIcon {
-    color: var(--p-text-muted);
+    color: var(--menu-dim);
     font-size: 11px;
     transition: transform 0.2s;
 }
@@ -304,23 +358,20 @@
 }
 
 .departureDetails {
-    padding: 0 16px 16px;
-    background: oklch(100% 0 0 / 0.05);
-    border-top: 1px solid var(--p-glass-border);
+    padding: 0 24px 16px;
+    border-top: 1px solid var(--menu-dim-02, rgba(0, 0, 0, 0.06));
 }
 
 .trainInfo {
     font-size: 13px;
-    color: var(--p-text-muted);
-    margin-bottom: 8px;
-    padding-top: 14px;
+    color: var(--menu-dim);
     font-weight: 500;
 }
 
 .loadingStops {
     text-align: center;
     padding: 20px;
-    color: var(--p-text-muted);
+    color: var(--menu-dim);
     font-size: 14px;
 }
 
@@ -335,17 +386,29 @@
 .timelineStop {
     display: flex;
     align-items: flex-start;
+    min-height: 32px;
+    position: relative;
+}
+
+.timelineStop.origin,
+.timelineStop.destination {
     min-height: 40px;
 }
 
 .timelineTime {
     width: 50px;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--p-text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--menu-dim);
     padding-top: 2px;
     flex-shrink: 0;
     font-variant-numeric: tabular-nums;
+}
+
+.timelineStop.origin .timelineTime,
+.timelineStop.destination .timelineTime {
+    font-size: 13px;
+    font-weight: 600;
 }
 
 .timelineTrack {
@@ -355,43 +418,69 @@
     width: 24px;
     flex-shrink: 0;
     position: relative;
+    z-index: 1;
+}
+
+/* Continuous vertical line — lives on the row so it spans full row height */
+.timelineStop::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    /* 50px (time) + 12px (half of 24px track column) = 62px from left */
+    left: 62px;
+    width: 2px;
+    transform: translateX(-50%);
+    background: var(--menu-dim);
+    opacity: 0.3;
+}
+
+/* First stop: line starts below the origin dot center */
+.timelineStop.origin::before {
+    top: 8px;
+}
+
+/* Last stop: line ends at the destination dot center */
+.timelineStop.destination::before {
+    bottom: calc(100% - 8px);
 }
 
 .timelineDot {
-    width: 12px;
-    height: 12px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    background: var(--p-accent);
-    border: 2px solid var(--p-accent);
+    background: var(--menu-accent);
+    border: none;
     z-index: 1;
     flex-shrink: 0;
+    position: relative;
 }
 
 .timelineDot.origin {
-    background: var(--p-surface);
-    border: 3px solid var(--p-accent);
+    background: var(--menu-light);
+    border: 2.5px solid var(--menu-accent);
     width: 14px;
     height: 14px;
 }
 
 .timelineDot.destination {
-    background: var(--p-accent);
-    box-shadow: 0 0 8px oklch(88% 0.25 145 / 0.5);
-}
-
-.timelineLine {
-    width: 2px;
-    flex: 1;
-    background: var(--p-mid);
-    min-height: 28px;
-    margin-top: -1px;
+    width: 14px;
+    height: 14px;
+    background: var(--menu-accent);
 }
 
 .timelineStation {
     flex: 1;
+    font-size: 13px;
+    color: var(--menu-dark);
+    padding: 0 0 0 10px;
+}
+
+.timelineStop.origin .timelineStation,
+.timelineStop.destination .timelineStation {
     font-size: 14px;
-    color: var(--p-text);
-    padding: 2px 0 0 12px;
+    font-weight: 600;
+    padding-top: 1px;
 }
 
 .departureDetails .goButton {
@@ -403,7 +492,7 @@
 .noDepartures {
     text-align: center;
     padding: 40px;
-    color: var(--p-text-muted);
+    color: var(--menu-dim);
     font-size: 14px;
 }
 
@@ -447,7 +536,7 @@
     gap: 12px;
     background: var(--menu-light);
     border-radius: 32px;
-    padding: 24px;
+    padding: 16px 24px;
     transition: flex 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 

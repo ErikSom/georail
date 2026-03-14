@@ -90,15 +90,19 @@ export default function RouteMinimap({ route, stopIndices, onReady }: Routeminim
                     viewBox={`0 0 ${svgSize.width} ${svgSize.height}`}
                 >
                     <path className={styles.routeLine} d={svgPath} />
-                    {stationPoints.map((pt, i) => (
-                        <circle
-                            key={i}
-                            className={styles.stationDot}
-                            cx={pt.x}
-                            cy={pt.y}
-                            r={i === 0 || i === stationPoints.length - 1 ? 5 : 3.5}
-                        />
-                    ))}
+                    {stationPoints.map((pt, i) => {
+                        const isFirst = i === 0;
+                        const isLast = i === stationPoints.length - 1;
+                        return (
+                            <circle
+                                key={i}
+                                className={`${styles.stationDot} ${isFirst ? styles.origin : ''} ${isLast ? styles.destination : ''}`}
+                                cx={pt.x}
+                                cy={pt.y}
+                                r={isFirst ? 6 : isLast ? 6.5 : 4}
+                            />
+                        );
+                    })}
                 </svg>
             )}
         </div>
