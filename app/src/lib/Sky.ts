@@ -16,7 +16,8 @@ import {
     LinearFilter,
     BackSide,
     MathUtils,
-    Object3D
+    Object3D,
+    FogExp2
 } from 'three';
 import { Lensflare } from './train/Lensflare';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
@@ -415,6 +416,14 @@ export class Sky {
     private _tmpColor = new Color();
     private _tmpColorB = new Color();
 
+    // Scene fog
+    public sceneFogDensity: number = 0;
+
+    // Lightning
+    private _lightningIntensity: number = 0;
+    private _nextLightningTime: number = 0;
+    private _lightningTimer: number = 0;
+
     public rain: Rain;
 
     constructor(scene: Scene, lutPath: string = '/textures/scatteringLUT.HDR') {
@@ -532,6 +541,40 @@ export class Sky {
 
         this.skyMaterial.uniforms.time.value = this.timeOfDay * this.timeConversionFactor;
 
+        // Scene fog — apply exponential fog matching horizon color
+        if (this.sceneFogDensity > 0) {
+            if (!this.scene.fog) {
+                this.scene.fog = new FogExp2(0x000000, this.sceneFogDensity);
+            }
+            (this.scene.fog as FogExp2).density = this.sceneFogDensity;
+            (this.scene.fog as FogExp2).color.copy(this.skyMaterial.uniforms.horizonFogColor.value);
+        } else if (this.scene.fog) {
+            this.scene.fog = null;
+        }
+
+        // Lightning flashes during heavy rain
+        if (this.rain.intensity > 0.8) {
+            this._lightningTimer += deltaTime;
+            if (this._lightningTimer >= this._nextLightningTime) {
+                // Trigger a flash
+                this._lightningIntensity = 2.0 + Math.random() * 3.0;
+                // Next lightning in 3-12 seconds (more frequent at higher intensity)
+                const maxInterval = MathUtils.lerp(12, 3, (this.rain.intensity - 0.5) * 2);
+                this._nextLightningTime = this._lightningTimer + 1.5 + Math.random() * maxInterval;
+            }
+
+            if (this._lightningIntensity > 0) {
+                // Apply flash boost to ambient and hemisphere lights
+                this.ambientLight.intensity += this._lightningIntensity;
+                this.hemisphereLight.intensity += this._lightningIntensity * 0.5;
+                // Rapid decay
+                this._lightningIntensity *= Math.exp(-deltaTime * 12);
+                if (this._lightningIntensity < 0.05) this._lightningIntensity = 0;
+            }
+        } else {
+            this._lightningIntensity = 0;
+        }
+
         this.rain.update(deltaTime, camera, this.skyMaterial.uniforms.horizonFogColor.value);
     }
 
@@ -635,6 +678,7 @@ export class Sky {
         this.skyMaterial.uniforms.weatherMap.value.dispose();
 
         this.rain.cleanup();
+        this.scene.fog = null;
 
         if (this.pane) {
             this.pane.dispose();

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'preact/hooks';
 import { fetchAllStations, fetchStationDepartures, fetchJourney, type StationTrackInfo, type Departure, type Journey } from '../lib/api/station';
 import { fetchJourneyRoute, calculateStopTimes, type RouteData, type RouteStop, type JourneyStopInput } from '../lib/api/navigation';
-import { configs, country } from '../store/globals';
+import { configs, country, gameConditions, setGameCondition, type GameConditions } from '../store/globals';
 import { appScreen } from '../store/app';
 import { startJourney } from '../store/journey';
 import StationPicker from './StationPicker';
 import RouteMinimap from './RouteMinimap';
+import TimePicker from './TimePicker';
 import styles from './TravelPicker.module.css';
 
 type TabType = 'regular' | 'custom' | 'archive';
@@ -96,6 +97,10 @@ export default function TravelPicker() {
     const [expandedDeparture, setExpandedDeparture] = useState<string | null>(null);
     const [expandedJourney, setExpandedJourney] = useState<Journey | null>(null);
     const [loadingJourney, setLoadingJourney] = useState(false);
+
+    // Conditions panel
+    const [showConditions, setShowConditions] = useState(false);
+    const conditions = gameConditions.value;
 
     const canSubmit = stops.every(s => s.station) && !fetchingRoute;
     const fromStation = stops[0]?.station || '';
@@ -740,17 +745,87 @@ export default function TravelPicker() {
                                 </button>
                             )}
 
-                            {/* Round trip toggle */}
-                            <div
-                                className={styles.returnToggle}
-                                onClick={() => !fetchingRoute && setReturnToStart(prev => !prev)}
-                            >
-                                <div className={styles.returnToggleText}>
-                                    <span className={styles.returnToggleLabel}>Round trip</span>
-                                    <span className={styles.returnToggleHint}>Include the journey back</span>
+                            {/* Options row */}
+                            <div className={styles.optionsRow}>
+                                <div
+                                    className={styles.optionCard}
+                                    onClick={() => !fetchingRoute && setReturnToStart(prev => !prev)}
+                                >
+                                    <span className={styles.optionLabel}>Round trip</span>
+                                    <div className={`${styles.returnToggleSwitch} ${returnToStart ? styles.returnToggleSwitchOn : ''}`} />
                                 </div>
-                                <div className={`${styles.returnToggleSwitch} ${returnToStart ? styles.returnToggleSwitchOn : ''}`} />
+                                <div
+                                    className={`${styles.optionCard} ${showConditions ? styles.optionCardActive : ''}`}
+                                    onClick={() => setShowConditions(prev => !prev)}
+                                >
+                                    <span className={styles.optionLabel}>Conditions</span>
+                                    <span className={styles.optionArrow}>{showConditions ? '▾' : '▸'}</span>
+                                </div>
                             </div>
+
+                            {/* Conditions panel */}
+                            {showConditions && (
+                                <div className={styles.conditionsPanel}>
+                                    <div className={styles.conditionSection}>
+                                        <div className={styles.conditionHeader}>
+                                            <span className={styles.conditionLabel}>Time of day</span>
+                                            <button
+                                                className={`${styles.conditionPill} ${conditions.timeOfDay < 0 ? styles.conditionPillActive : ''}`}
+                                                onClick={() => setGameCondition('timeOfDay', -1)}
+                                            >
+                                                Auto
+                                            </button>
+                                        </div>
+                                        {conditions.timeOfDay >= 0 ? (
+                                            <TimePicker
+                                                hour={Math.floor(conditions.timeOfDay / 100)}
+                                                minute={conditions.timeOfDay % 100}
+                                                onChange={(h, m) => setGameCondition('timeOfDay', h * 100 + m)}
+                                            />
+                                        ) : (
+                                            <div className={styles.timePresets}>
+                                                {([
+                                                    ['Dawn', 600],
+                                                    ['Morning', 900],
+                                                    ['Noon', 1200],
+                                                    ['Afternoon', 1500],
+                                                    ['Sunset', 1900],
+                                                    ['Night', 2200],
+                                                ] as const).map(([label, value]) => (
+                                                    <button
+                                                        key={label}
+                                                        className={styles.timePresetButton}
+                                                        onClick={() => setGameCondition('timeOfDay', value)}
+                                                    >
+                                                        {label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className={styles.conditionSection}>
+                                        <span className={styles.conditionLabel}>Weather</span>
+                                        <div className={styles.weatherOptions}>
+                                            {([
+                                                ['clear', 'Clear'],
+                                                ['cloudy', 'Cloudy'],
+                                                ['overcast', 'Overcast'],
+                                                ['rain', 'Rain'],
+                                                ['heavy-rain', 'Storm'],
+                                            ] as [GameConditions['weather'], string][]).map(([value, label]) => (
+                                                <button
+                                                    key={value}
+                                                    className={`${styles.weatherButton} ${conditions.weather === value ? styles.weatherButtonActive : ''}`}
+                                                    onClick={() => setGameCondition('weather', value)}
+                                                >
+                                                    {label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Error message */}
                             {error && <div className={styles.error}>{error}</div>}

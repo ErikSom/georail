@@ -35,7 +35,7 @@ import { trainInstance, updateTrainState, trainDebugMode, trainLatE7, trainLonE7
 import { getPerformanceConfig, type PerformanceConfig } from './utils/PerformanceConfig';
 import type { Tiles3DAttributionCredits } from '../components/HUD/Tiles3DAttribution';
 import { Pane } from 'tweakpane';
-import { audioListener, timeScale, scaledDeltaTime } from '../store/globals';
+import { audioListener, timeScale, scaledDeltaTime, gameConditions } from '../store/globals';
 import { trainPath } from '../store/journey';
 
 export class World {
@@ -106,6 +106,33 @@ export class World {
         this.mapViewer = new MapViewer();
 
         this.sky = new Sky(this.scene);
+
+        // Apply game conditions from TravelPicker
+        const conditions = gameConditions.value;
+        if (conditions.timeOfDay >= 0) {
+            this.sky.timeOfDay = conditions.timeOfDay;
+            this.sky.simulateTime = false;
+        }
+        switch (conditions.weather) {
+            case 'cloudy':
+                this.sky.cloudCoverage = 0.7;
+                break;
+            case 'overcast':
+                this.sky.cloudCoverage = 0.9;
+                break;
+            case 'rain':
+                this.sky.cloudCoverage = 0.85;
+                this.sky.rain.intensity = 0.6;
+                this.sky.rain.fogDensity = 0.015;
+                this.sky.sceneFogDensity = 0.00025;
+                break;
+            case 'heavy-rain':
+                this.sky.cloudCoverage = 0.95;
+                this.sky.rain.intensity = 0.9;
+                this.sky.rain.fogDensity = 0.035;
+                this.sky.sceneFogDensity = 0.0007;
+                break;
+        }
 
         const trainConfig = getTrainConfiguration(nssgmTrainType);
         this.train = new Train(trainConfig, trainDebugMode.value);

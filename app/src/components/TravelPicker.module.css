@@ -683,36 +683,143 @@
     cursor: not-allowed;
 }
 
-.returnToggle {
+/* ─── Options Row ─────────────────────────────────────────── */
+
+.optionsRow {
+    display: flex;
+    gap: 8px;
+}
+
+.optionCard {
+    flex: 1;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 16px;
+    padding: 12px 14px;
     background: var(--menu-light);
     border-radius: 16px;
     cursor: pointer;
     transition: background 0.15s;
 }
 
-.returnToggle:hover {
-    background: var(--menu-panel);
+.optionCard:hover {
+    background: var(--menu-dark-06);
 }
 
-.returnToggleText {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+.optionCardActive {
+    background: var(--menu-dark-06);
 }
 
-.returnToggleLabel {
-    font-size: 14px;
+.optionLabel {
+    font-size: 13px;
     font-weight: 600;
     color: var(--menu-dark);
 }
 
-.returnToggleHint {
-    font-size: 12px;
+.optionArrow {
+    font-size: 10px;
     color: var(--menu-dim);
+}
+
+/* ─── Conditions Panel ────────────────────────────────────── */
+
+.conditionsPanel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+    background: var(--menu-light);
+    border-radius: 20px;
+}
+
+.conditionSection {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.conditionHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.conditionLabel {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--menu-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.conditionPill {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--menu-dim);
+    background: var(--menu-panel);
+    border: none;
+    border-radius: 10px;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.conditionPill:hover {
+    color: var(--menu-dark);
+}
+
+.conditionPillActive {
+    background: var(--menu-accent);
+    color: var(--menu-dark);
+}
+
+.timePresets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.timePresetButton {
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--menu-dark);
+    background: var(--menu-panel);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.timePresetButton:hover {
+    background: var(--menu-accent);
+}
+
+.weatherOptions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.weatherButton {
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--menu-dark);
+    background: var(--menu-panel);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.weatherButton:hover {
+    background: var(--menu-dark-06);
+}
+
+.weatherButtonActive {
+    background: var(--menu-accent);
+    color: var(--menu-dark);
 }
 
 .returnToggleSwitch {

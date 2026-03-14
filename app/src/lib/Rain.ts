@@ -22,12 +22,15 @@ const rainVertexShader = `
     uniform float uRainHeight;
     uniform float uRainRadius;
     uniform float uDropLength;
+    uniform float uIntensity;
 
     varying float vDepth;
     varying float vSpeed;
 
     void main() {
-        float fallSpeed = 40.0 * aSpeed;
+        // Scale fall speed with intensity: light rain is slower, heavy rain is faster
+        float speedMult = 0.5 + uIntensity;
+        float fallSpeed = 40.0 * aSpeed * speedMult;
 
         vec3 worldPos = aOffset;
 
@@ -41,8 +44,8 @@ const rainVertexShader = `
         worldPos.z = mod(worldPos.z - uCameraPos.z + uRainRadius, uRainRadius * 2.0)
                      - uRainRadius + uCameraPos.z;
 
-        // Stretch geometry based on speed
-        float dropScale = uDropLength * (0.5 + aSpeed * 0.5);
+        // Stretch geometry based on speed — longer drops at higher intensity
+        float dropScale = uDropLength * (0.5 + aSpeed * 0.5) * (0.7 + uIntensity * 0.6);
         vec3 finalPos = worldPos + position * vec3(1.0, dropScale, 1.0);
 
         vSpeed = aSpeed;
@@ -63,6 +66,10 @@ const rainFragmentShader = `
     varying float vSpeed;
 
     void main() {
+        // Cull drops based on intensity — fewer visible drops at low intensity
+        float dropRandom = (vSpeed - 0.5) / 1.5; // normalize aSpeed (0.5-2.0) to 0-1
+        if (dropRandom > uIntensity * 1.3) discard;
+
         float fog = exp(-vDepth * uFogDensity);
         float alpha = 0.5 * vSpeed * fog * uIntensity;
         gl_FragColor = vec4(uColor, alpha);
@@ -115,7 +122,7 @@ export class Rain {
                 uDropLength: { value: this.dropLength },
                 uColor: { value: new Color() },
                 uIntensity: { value: this.intensity },
-                uFogDensity: { value: this.fogDensity }
+                uFogDensity: { value: this.fogDensity },
             },
             vertexShader: rainVertexShader,
             fragmentShader: rainFragmentShader,

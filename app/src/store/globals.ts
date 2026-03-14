@@ -61,3 +61,24 @@ export const configs = signal<Configs>({
     stationStopLeniencyM: 15,
 });
 
+// Game conditions — set in TravelPicker, consumed by World/Sky/Rain on journey start
+export interface GameConditions {
+    timeOfDay: number;        // 0-2400 (military time mapped to sky)
+    weather: 'clear' | 'cloudy' | 'overcast' | 'rain' | 'heavy-rain';
+}
+
+const GAME_CONDITIONS_DEFAULTS: GameConditions = {
+    timeOfDay: -1,  // -1 = use real time
+    weather: 'clear',
+};
+
+export const gameConditions = signal<GameConditions>(
+    loadData('gameConditions', GAME_CONDITIONS_DEFAULTS)
+);
+
+export function setGameCondition<K extends keyof GameConditions>(key: K, value: GameConditions[K]) {
+    const next = { ...gameConditions.value, [key]: value };
+    gameConditions.value = next;
+    saveData('gameConditions', next);
+}
+

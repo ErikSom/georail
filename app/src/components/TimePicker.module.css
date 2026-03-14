@@ -1,0 +1,66 @@
+.picker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    user-select: none;
+}
+
+.separator {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--menu-dark);
+    padding-bottom: 2px;
+}
+
+.wheelContainer {
+    position: relative;
+    height: 120px;
+    width: 52px;
+    overflow: hidden;
+    border-radius: 12px;
+}
+
+.wheelHighlight {
+    position: absolute;
+    top: 40px;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: var(--menu-accent);
+    border-radius: 10px;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.wheelScroll {
+    height: 100%;
+    overflow-y: scroll;
+    scroll-snap-type: y mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    position: relative;
+    z-index: 2;
+}
+
+.wheelScroll::-webkit-scrollbar {
+    display: none;
+}
+
+.wheelItem {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--menu-dim);
+    scroll-snap-align: start;
+    cursor: pointer;
+    transition: color 0.15s;
+    font-variant-numeric: tabular-nums;
+}
+
+.wheelItemActive {
+    color: var(--menu-dark);
+    font-weight: 700;
+}
