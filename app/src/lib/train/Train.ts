@@ -8,7 +8,7 @@ import * as EssentialsPlugin from '@tweakpane/plugin-essentials';
 import { TrainPhysics, type IPhysicsTarget } from './TrainPhysics';
 import { getFolderKey } from './TrainUiUtils';
 import { TrainAudio } from './TrainAudio';
-import { trainPower } from '../../store/train';
+import { trainPower, type ConsistCar } from '../../store/train';
 
 export class Train implements IPhysicsTarget {
     public group: Group;
@@ -679,6 +679,20 @@ export class Train implements IPhysicsTarget {
         }
 
         return length;
+    }
+
+    /**
+     * Get the consist layout for 2D map rendering.
+     */
+    public getConsistLayout(): ConsistCar[] {
+        const cars: ConsistCar[] = [{ type: 'cab', length: this.config.cab.length }];
+        for (const w of this.config.wagons) {
+            cars.push({ type: 'wagon', length: w.length });
+        }
+        if (this.config.rearCab) {
+            cars.push({ type: 'rearCab', length: this.config.rearCab.length });
+        }
+        return cars;
     }
 
     public update(delta: number): void {

@@ -19,17 +19,33 @@
     pointer-events: auto;
 }
 
-.indicator {
+.carIcon {
     position: absolute;
     left: 50%;
     top: 50%;
-    width: 24px;
-    height: 24px;
-    -webkit-mask: url('icons/train-marker.svg') no-repeat center / contain;
-    mask: url('icons/train-marker.svg') no-repeat center / contain;
+    width: var(--train-icon-size);
+    height: var(--train-icon-size);
     transform: translate(-50%, -50%);
     background-color: #007aff;
     pointer-events: none;
+}
+
+.cabIcon {
+    composes: carIcon;
+    -webkit-mask: url('/icons/train-marker.svg') no-repeat center / contain;
+    mask: url('/icons/train-marker.svg') no-repeat center / contain;
+}
+
+.wagonIcon {
+    composes: carIcon;
+    -webkit-mask: url('/icons/train-wagon-marker.svg') no-repeat center / contain;
+    mask: url('/icons/train-wagon-marker.svg') no-repeat center / contain;
+}
+
+.rearCabIcon {
+    composes: carIcon;
+    -webkit-mask: url('/icons/train-marker.svg') no-repeat center / contain;
+    mask: url('/icons/train-marker.svg') no-repeat center / contain;
 }
 
 .compass {

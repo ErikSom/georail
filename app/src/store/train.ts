@@ -48,6 +48,13 @@ export const trainDistanceTraveled = signal(0); // Distance traveled along the p
 export const trainPathTotalLength = signal(0);  // Total path length in meters
 export const trainLength = signal(0);           // Total train length in meters
 
+// Train consist layout for 2D map rendering
+export interface ConsistCar {
+    type: 'cab' | 'wagon' | 'rearCab';
+    length: number; // meters
+}
+export const trainConsist = signal<ConsistCar[]>([]);
+
 // Computed values
 export const trainPowerPercent = computed(() => trainPower.value * 100);
 
@@ -86,6 +93,11 @@ export function updateTrainState() {
         trainDistanceTraveled.value = train.distanceTraveled;
         trainPathTotalLength.value = train.getPath()?.getTotalLength() ?? 0;
         trainLength.value = train.getTotalLength();
+
+        // Populate consist layout once
+        if (trainConsist.value.length === 0) {
+            trainConsist.value = train.getConsistLayout();
+        }
     }
 
     // Calculate delta time
@@ -106,6 +118,7 @@ export function resetTrain() {
     trainPathTotalLength.value = 0;
     trainLength.value = 0;
     trainTractiveEffort.value = 0;
+    trainConsist.value = [];
     const train = trainInstance.value;
     if (train) {
         train.setPower(0);
