@@ -1,5 +1,4 @@
 import { useRef, useEffect, useState } from 'preact/hooks';
-import type { CSSProperties } from 'preact';
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
@@ -113,7 +112,6 @@ function interpolateAtDistance(lookup: RouteLookupEntry[], distance: number, out
 // Pre-allocated reusable objects for per-frame calculations
 const _front = { lat: 0, lon: 0 };
 const _back = { lat: 0, lon: 0 };
-const _lngLat: [number, number] = [0, 0];
 
 interface CarRenderData {
     type: 'cab' | 'wagon' | 'rearCab';
@@ -127,10 +125,15 @@ function Maps2D() {
     const mapContainerRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<maplibregl.Map | null>(null);
 
-    const [trainBearing, setTrainBearing] = useState(0);
-    const [cameraYaw, setCameraYaw] = useState(0);
     const [mapLoaded, setMapLoaded] = useState(false);
-    const [carRenders, setCarRenders] = useState<CarRenderData[]>([]);
+
+    // Use refs instead of state for per-frame values to avoid 60fps re-renders
+    const trainBearingRef = useRef(0);
+    const cameraYawRef = useRef(0);
+    const carRendersRef = useRef<CarRenderData[]>([]);
+    const carDivsRef = useRef<HTMLDivElement | null>(null);
+    const compassRef = useRef<HTMLDivElement | null>(null);
+    const fallbackIconRef = useRef<HTMLDivElement | null>(null);
 
     // Route lookup table — rebuilt when route/path changes
     const routeLookupRef = useRef<RouteLookupEntry[]>([]);
@@ -209,18 +212,21 @@ function Maps2D() {
 
         let initialCenterSet = false;
 
+        const applyMapPosition = (map: maplibregl.Map, lat: number, lon: number) => {
+            const yaw = cameraYawRelativeToTrain.value;
+            const bearing = calculateBearing(
+                trainBackLat.value, trainBackLon.value,
+                trainFrontLat.value, trainFrontLon.value
+            );
+            trainBearingRef.current = bearing;
+            cameraYawRef.current = yaw;
+            // Single jumpTo call avoids per-call transition listeners
+            map.jumpTo({ center: [lon, lat], bearing: -yaw });
+        };
+
         const unsubLatE7 = trainLatE7.subscribe((latE7) => {
             if (!initialCenterSet && latE7 !== 0 && mapRef.current) {
-                const lat = trainLat.value;
-                const lon = trainLon.value;
-                mapRef.current.setCenter([lon, lat]);
-                const newBearing = calculateBearing(
-                    trainBackLat.value, trainBackLon.value,
-                    trainFrontLat.value, trainFrontLon.value
-                );
-                setTrainBearing(newBearing);
-                setCameraYaw(cameraYawRelativeToTrain.value);
-                mapRef.current.setBearing(-cameraYawRelativeToTrain.value);
+                applyMapPosition(mapRef.current, trainLat.value, trainLon.value);
                 initialCenterSet = true;
             }
         });
@@ -228,18 +234,11 @@ function Maps2D() {
         const initialLat = trainLat.value;
         const initialLon = trainLon.value;
         if ((initialLat !== 0 || initialLon !== 0) && mapRef.current) {
-            mapRef.current.setCenter([initialLon, initialLat]);
-            const newBearing = calculateBearing(
-                trainBackLat.value, trainBackLon.value,
-                trainFrontLat.value, trainFrontLon.value
-            );
-            setTrainBearing(newBearing);
-            setCameraYaw(cameraYawRelativeToTrain.value);
-            mapRef.current.setBearing(-cameraYawRelativeToTrain.value);
+            applyMapPosition(mapRef.current, initialLat, initialLon);
             initialCenterSet = true;
         }
 
-        // Update on each tick
+        // Update on each tick — direct DOM manipulation, no setState
         const unsubTick = updateTick.subscribe(() => {
             const lat = trainLat.value;
             const lon = trainLon.value;
@@ -247,81 +246,95 @@ function Maps2D() {
 
             if (!map) return;
 
-            if (lat !== 0 || lon !== 0) {
-                _lngLat[0] = lon;
-                _lngLat[1] = lat;
-                map.setCenter(_lngLat);
-            }
-
-            // Update bearing & camera yaw
-            const newBearing = calculateBearing(
+            // Update map position + bearing in one call
+            const yaw = cameraYawRelativeToTrain.value;
+            const bearing = calculateBearing(
                 trainBackLat.value, trainBackLon.value,
                 trainFrontLat.value, trainFrontLon.value
             );
-            setTrainBearing(newBearing);
-            setCameraYaw(cameraYawRelativeToTrain.value);
-            map.setBearing(-cameraYawRelativeToTrain.value);
+            trainBearingRef.current = bearing;
+            cameraYawRef.current = yaw;
+
+            if (lat !== 0 || lon !== 0) {
+                map.jumpTo({ center: [lon, lat], bearing: -yaw });
+            }
+
+            // Update compass via direct DOM
+            if (compassRef.current) {
+                compassRef.current.style.setProperty('--rotation', `${-yaw}deg`);
+            }
 
             // Compute car positions
             const lookup = routeLookupRef.current;
             const consist = trainConsist.value;
+            const container = carDivsRef.current;
+            if (!container) return;
+
             if (lookup.length === 0 || consist.length === 0) {
-                setCarRenders([]);
+                // Show fallback icon
+                container.style.display = 'none';
+                if (fallbackIconRef.current) {
+                    fallbackIconRef.current.style.display = '';
+                    fallbackIconRef.current.style.transform = `translate(-50%, -50%) rotate(${bearing + yaw}deg)`;
+                }
                 return;
             }
+
+            // Hide fallback, show car container
+            if (fallbackIconRef.current) fallbackIconRef.current.style.display = 'none';
+            container.style.display = '';
 
             const distanceTraveled = trainDistanceTraveled.value;
 
             // Compute total real length of consist in meters
-            const totalRealMeters = consist.reduce((sum, c) => sum + c.length, 0);
+            let totalRealMeters = 0;
+            for (let i = 0; i < consist.length; i++) totalRealMeters += consist[i].length;
 
             // Center the consist around the train center (distanceTraveled)
             const clusterFront = distanceTraveled + totalRealMeters / 2;
 
-            // Walk backward from cluster front placing each car using real lengths
-            const cars: CarRenderData[] = [];
+            // Ensure we have the right number of child divs
+            while (container.children.length < consist.length) {
+                container.appendChild(document.createElement('div'));
+            }
+            while (container.children.length > consist.length) {
+                container.removeChild(container.lastChild!);
+            }
+
             let cursor = clusterFront;
 
             for (let i = 0; i < consist.length; i++) {
                 const car = consist[i];
-                const carLengthMeters = car.length;
-
-                // Car front = cursor, car back = cursor - real car length
                 const carFrontDist = cursor;
-                const carBackDist = cursor - carLengthMeters;
-                // Project front and back path points to screen space
+                const carBackDist = cursor - car.length;
+
                 interpolateAtDistance(lookup, carFrontDist, _front);
                 interpolateAtDistance(lookup, carBackDist, _back);
                 const frontPx = map.project([_front.lon, _front.lat]);
                 const backPx = map.project([_back.lon, _back.lat]);
 
-                // Position at screen-space midpoint of front/back (not path midpoint)
-                // so edges align with projected path positions in curves
                 const cx = (frontPx.x + backPx.x) / 2;
                 const cy = (frontPx.y + backPx.y) / 2;
-
-                // Rotation from screen-space back→front angle
                 const dx = frontPx.x - backPx.x;
                 const dy = frontPx.y - backPx.y;
-                const bearing = Math.atan2(dx, -dy) * (180 / Math.PI) + 90;
-
-                // Icon pixel size from screen-space distance between front and back
+                const carBearing = Math.atan2(dx, -dy) * (180 / Math.PI) + 90;
                 const screenDist = Math.sqrt(dx * dx + dy * dy);
                 const sizePx = Math.max(MIN_CAR_ICON_PX, Math.min(MAX_CAR_ICON_PX, screenDist));
 
-                cars.push({
-                    type: car.type,
-                    cx,
-                    cy,
-                    bearing,
-                    sizePx,
-                });
+                const rotation = car.type === 'rearCab' ? carBearing + 180 : carBearing;
 
-                // Next car starts immediately after (real positions, no gap)
+                const div = container.children[i] as HTMLDivElement;
+                div.className = car.type === 'cab' ? styles.cabIcon
+                    : car.type === 'rearCab' ? styles.rearCabIcon
+                        : styles.wagonIcon;
+                div.style.left = `${cx}px`;
+                div.style.top = `${cy}px`;
+                div.style.width = `${sizePx}px`;
+                div.style.height = `${sizePx}px`;
+                div.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+
                 cursor = carBackDist;
             }
-
-            setCarRenders(cars);
         });
 
         return () => {
@@ -493,40 +506,13 @@ function Maps2D() {
                 }}
             />
 
-            {/* Train consist icons */}
-            {carRenders.length > 0 ? (
-                carRenders.map((car, i) => {
-                    const cls = car.type === 'cab' ? styles.cabIcon
-                        : car.type === 'rearCab' ? styles.rearCabIcon
-                            : styles.wagonIcon;
-                    // Flip rear cab 180 degrees so it faces the other way
-                    const rotation = car.type === 'rearCab'
-                        ? car.bearing + 180
-                        : car.bearing;
-                    return (
-                        <div
-                            key={i}
-                            className={cls}
-                            style={{
-                                left: `${car.cx}px`,
-                                top: `${car.cy}px`,
-                                width: `${car.sizePx}px`,
-                                height: `${car.sizePx}px`,
-                                transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
-                            }}
-                        />
-                    );
-                })
-            ) : (
-                <div
-                    className={styles.cabIcon}
-                    style={{ transform: `translate(-50%, -50%) rotate(${trainBearing + cameraYaw}deg)` }}
-                />
-            )}
+            {/* Car divs managed via direct DOM manipulation in tick handler */}
+            <div ref={carDivsRef} />
+            <div ref={fallbackIconRef} className={styles.cabIcon}
+                style={{ transform: 'translate(-50%, -50%)' }}
+            />
 
-            <div className={styles.compass}
-                style={{ '--rotation': `${-cameraYaw}deg` } as CSSProperties}
-            >
+            <div ref={compassRef} className={styles.compass}>
                 <div className={styles.compassNeedle}></div>
             </div>
 

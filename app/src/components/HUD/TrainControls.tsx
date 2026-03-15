@@ -90,7 +90,7 @@ function TrainControls() {
         return () => unsubscribe();
     }, []);
 
-    const handleDialChange = (value: number) => {
+    const handleDialChange = useCallback((value: number) => {
         if (trainDoorsOpen.value) {
             trainPower.value = 0;
             flashDialError();
@@ -99,7 +99,7 @@ function TrainControls() {
 
         trainPower.value = value / 100;
         holdTimeRef.current = 0;
-    };
+    }, [flashDialError]);
 
     const handleDoorToggle = () => {
         if (!trainDoorsOpen.value && Math.abs(trainVelocityKmh.value) > 3) {

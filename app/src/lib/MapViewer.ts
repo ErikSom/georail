@@ -5,6 +5,7 @@ import {
     GLTFExtensionsPlugin,
     GoogleCloudAuthPlugin,
     ReorientationPlugin,
+    BatchedTilesPlugin,
     DebugTilesPlugin
 } from '3d-tiles-renderer/plugins';
 import {
@@ -109,6 +110,14 @@ export class MapViewer {
         this.tiles.registerPlugin(new GLTFExtensionsPlugin({
             dracoLoader: new DRACOLoader().setDecoderPath(getDracoDecoderPath())
         }));
+        this.tiles.registerPlugin(new BatchedTilesPlugin({
+            renderer: this.renderer,
+            material: new MeshStandardMaterial({
+                metalness: 0.0,
+                roughness: 1.0,
+                flatShading: true,
+            }),
+        }));
 
         let finalLat = lat;
         let finalLon = lon;
@@ -130,34 +139,20 @@ export class MapViewer {
             this.tiles.maxDepth = this.perfConfig.tilesMaxDepth;
         }
 
-        // Replace unlit MeshBasicMaterial with MeshStandardMaterial for lighting
+        // Prepare tile meshes: reset color to white (color is baked in textures)
+        // and compute normals for lighting
         this.tiles.addEventListener('load-model', ({ scene }) => {
             scene.traverse((child: any) => {
                 if (child.isMesh) {
                     child.castShadow = false;
                     child.receiveShadow = false;
 
+                    if (child.material?.color) {
+                        child.material.color.setHex(0xffffff);
+                    }
+
                     if (child.geometry && !child.geometry.attributes.normal) {
                         child.geometry.computeVertexNormals();
-                    }
-                    if (child.material) {
-                        const oldMaterial = child.material;
-                        if (oldMaterial.isMeshBasicMaterial) {
-                            const newMaterial = new MeshStandardMaterial({
-                                map: oldMaterial.map,
-                                color: oldMaterial.color,
-                                opacity: oldMaterial.opacity,
-                                transparent: oldMaterial.transparent,
-                                side: oldMaterial.side,
-                                metalness: 0.0,
-                                roughness: 1.0,
-                                flatShading: true,
-                            });
-
-                            newMaterial.needsUpdate = true;
-                            child.material = newMaterial;
-                            oldMaterial.dispose();
-                        }
                     }
                 }
             });
