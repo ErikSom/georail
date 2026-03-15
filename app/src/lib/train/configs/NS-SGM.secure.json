@@ -403,6 +403,18 @@
             {
                 "name": "NS SGM motornoise version 2.wav",
                 "url": "train/NS-SGM/NS SGM motornoise version 2.wav"
+            },
+            {
+                "name": "horn.wav",
+                "url": "train/NS-SGM/horn.wav"
+            },
+            {
+                "name": "door_open.wav",
+                "url": "train/NS-SGM/door_open.wav"
+            },
+            {
+                "name": "door_close.wav",
+                "url": "train/NS-SGM/door_close.wav"
             }
         ],
         "compositions": [
@@ -594,6 +606,11 @@
                     }
                 ]
             }
-        ]
+        ],
+        "sounds": {
+            "horn": "horn.wav",
+            "door_open": "door_open.wav",
+            "door_close": "door_close.wav"
+        }
     }
 }

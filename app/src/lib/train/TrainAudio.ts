@@ -46,6 +46,7 @@ export class TrainAudio {
     private _trainState: TrainState = { throttlePower: 0, velocityKmh: 0, brakePower: 0, tractiveEffort: 0 };
     private _volumeValues: number[] = [];
     private _pitchValues: number[] = [];
+    private oneShotBuffers: Map<string, AudioBuffer> = new Map();
 
     constructor() {
         this.audioLoader = new AudioLoader();
@@ -67,6 +68,7 @@ export class TrainAudio {
         // Local state for UI management
         let audioFiles = audioConfig.files;
         let audioCompositions = audioConfig.compositions;
+        let audioSounds: Record<string, string> = { ...audioConfig.sounds };
         let audioFileNames: string[] = audioFiles.map(f => f.name);
         const audioKey = getFolderKey([...rootPath, 'Audio']);
         const audioFolder = pane.addFolder({
@@ -132,7 +134,7 @@ export class TrainAudio {
             audioFiles = audioFilesBlade.files.map(f => ({ name: f.name, url: f.url }));
             updateAudioFileNames(audioFilesBlade.files);
             refreshSoundOptions();
-            onAudioChange({ files: audioFiles, compositions: audioCompositions });
+            onAudioChange({ files: audioFiles, compositions: audioCompositions, sounds: audioSounds });
         });
         updateAudioFileNames(audioFilesBlade.files);
 
@@ -149,7 +151,7 @@ export class TrainAudio {
                 return;
             }
             audioCompositions.push({ title, sounds: [] });
-            onAudioChange({ files: audioFiles, compositions: audioCompositions });
+            onAudioChange({ files: audioFiles, compositions: audioCompositions, sounds: audioSounds });
             pane.refresh();
             renderCompositions();
         });
@@ -178,7 +180,7 @@ export class TrainAudio {
                 compFolder.addButton({ title: 'Add Sound' }).on('click', () => {
                     const defaultFile = audioFileNames[0] ?? '';
                     composition.sounds.push({ file: defaultFile, curves: [] });
-                    onAudioChange({ files: audioFiles, compositions: audioCompositions });
+                    onAudioChange({ files: audioFiles, compositions: audioCompositions, sounds: audioSounds });
                     renderCompositions();
                 });
 
@@ -206,14 +208,14 @@ export class TrainAudio {
                     soundBinding.on('change', (ev) => {
                         sound.file = ev.value;
                         soundFolder.title = ev.value || `Sound ${soundIndex + 1}`;
-                        onAudioChange({ files: audioFiles, compositions: audioCompositions });
+                        onAudioChange({ files: audioFiles, compositions: audioCompositions, sounds: audioSounds });
                     });
 
                     soundBindings.push({ binding: soundBinding, sound });
 
                     soundFolder.addButton({ title: 'Add Curve' }).on('click', () => {
                         sound.curves.push(defaultCurve());
-                        onAudioChange({ files: audioFiles, compositions: audioCompositions });
+                        onAudioChange({ files: audioFiles, compositions: audioCompositions, sounds: audioSounds });
                         renderCompositions();
                     });
 
@@ -250,13 +252,13 @@ export class TrainAudio {
                         curveBlade.on('change', (ev) => {
                             sound.curves[curveIndex].points = ev.value;
                             sound.curves[curveIndex].axis = curveBlade.axis;
-                            onAudioChange({ files: audioFiles, compositions: audioCompositions });
+                            onAudioChange({ files: audioFiles, compositions: audioCompositions, sounds: audioSounds });
                         });
 
                         curveBlade.on('axischange', () => {
                             curveFolder.title = getCurveTitle(curveBlade);
                             sound.curves[curveIndex].axis = curveBlade.axis;
-                            onAudioChange({ files: audioFiles, compositions: audioCompositions });
+                            onAudioChange({ files: audioFiles, compositions: audioCompositions, sounds: audioSounds });
                         });
 
                         curveFolder.addButton({ title: 'Remove Curve' }).on('click', () => {
@@ -265,7 +267,7 @@ export class TrainAudio {
                                 return;
                             }
                             sound.curves.splice(curveIndex, 1);
-                            onAudioChange({ files: audioFiles, compositions: audioCompositions });
+                            onAudioChange({ files: audioFiles, compositions: audioCompositions, sounds: audioSounds });
                             renderCompositions();
                         });
                     });
@@ -276,7 +278,7 @@ export class TrainAudio {
                             return;
                         }
                         composition.sounds.splice(soundIndex, 1);
-                        onAudioChange({ files: audioFiles, compositions: audioCompositions });
+                        onAudioChange({ files: audioFiles, compositions: audioCompositions, sounds: audioSounds });
                         renderCompositions();
                     });
                 });
@@ -286,7 +288,7 @@ export class TrainAudio {
                         return;
                     }
                     audioCompositions.splice(compositionIndex, 1);
-                    onAudioChange({ files: audioFiles, compositions: audioCompositions });
+                    onAudioChange({ files: audioFiles, compositions: audioCompositions, sounds: audioSounds });
                     renderCompositions();
                 });
             });
@@ -295,6 +297,58 @@ export class TrainAudio {
         };
 
         renderCompositions();
+
+        // One-shot sounds UI (horn, door_open, door_close, etc.)
+        const soundsKey = getFolderKey([...rootPath, 'Audio', 'Sounds']);
+        const soundsFolder = audioFolder.addFolder({
+            title: 'Sounds',
+            expanded: getFolderExpanded(soundsKey, false)
+        });
+        registerFolder(soundsFolder, soundsKey);
+
+        const SOUND_ROLES = ['horn', 'door_open', 'door_close'] as const;
+        const oneShotBindings: ListInputBindingApi<string>[] = [];
+
+        const buildOneShotOptions = (current: string) => {
+            const options = [{ text: '(none)', value: '' }, ...audioFileNames.map(name => ({ text: name, value: name }))];
+            if (current && !audioFileNames.includes(current)) {
+                options.unshift({ text: `${current} (missing)`, value: current });
+            }
+            return options;
+        };
+
+        for (const role of SOUND_ROLES) {
+            const params = { file: audioSounds[role] || '' };
+            const binding = soundsFolder.addBinding(params, 'file', {
+                label: role,
+                options: buildOneShotOptions(params.file),
+            }) as ListInputBindingApi<string>;
+
+            binding.on('change', (ev) => {
+                if (ev.value) {
+                    audioSounds[role] = ev.value;
+                } else {
+                    delete audioSounds[role];
+                }
+                onAudioChange({ files: audioFiles, compositions: audioCompositions, sounds: audioSounds });
+            });
+
+            oneShotBindings.push(binding);
+        }
+
+        // Refresh one-shot options when files change
+        const origRefresh = refreshSoundOptions;
+        const refreshAll = () => {
+            origRefresh();
+            oneShotBindings.forEach((binding, i) => {
+                const role = SOUND_ROLES[i];
+                binding.options = buildOneShotOptions(audioSounds[role] || '');
+            });
+        };
+        // Patch the file upload handler to also refresh one-shot bindings
+        audioFilesBlade.on('change', () => {
+            refreshAll();
+        });
     }
 
     public setTrainGroup(trainGroup: Group): void {
@@ -357,8 +411,21 @@ export class TrainAudio {
             }
         }
 
+        // Load one-shot sounds (horn, door_open, door_close, etc.)
+        if (config.sounds) {
+            for (const [role, fileName] of Object.entries(config.sounds)) {
+                if (!fileName) continue;
+                const buffer = audioBuffers.get(fileName);
+                if (buffer) {
+                    this.oneShotBuffers.set(role, buffer);
+                } else {
+                    console.warn(`TrainAudio: No buffer found for one-shot sound "${role}" -> "${fileName}"`);
+                }
+            }
+        }
+
         this.isEnabled = true;
-        console.log(`TrainAudio: Initialized ${this.audioInstances.length} audio instances`);
+        console.log(`TrainAudio: Initialized ${this.audioInstances.length} audio instances, ${this.oneShotBuffers.size} one-shot sounds`);
         this.play();
     }
 
@@ -563,6 +630,36 @@ export class TrainAudio {
         return leftPoint.y + t * (rightPoint.y - leftPoint.y);
     }
 
+    public playSound(role: string): void {
+        if (!this.isEnabled || !this.trainGroup) return;
+
+        const buffer = this.oneShotBuffers.get(role);
+        if (!buffer) return;
+
+        const listener = audioListener.value;
+        if (!listener) return;
+
+        const audio = new PositionalAudio(listener);
+        audio.setBuffer(buffer);
+        audio.setLoop(false);
+        audio.setRefDistance(5);
+        audio.setRolloffFactor(1);
+        audio.setVolume(1.0);
+
+        this.trainGroup.add(audio);
+        audio.play();
+
+        // Remove from scene when finished
+        audio.onEnded = () => {
+            audio.disconnect();
+            this.trainGroup?.remove(audio);
+        };
+    }
+
+    public getOneShotRoles(): string[] {
+        return Array.from(this.oneShotBuffers.keys());
+    }
+
     public setEnabled(enabled: boolean): void {
         this.isEnabled = enabled;
         if (!enabled) {
@@ -586,6 +683,7 @@ export class TrainAudio {
         }
 
         this.audioInstances = [];
+        this.oneShotBuffers.clear();
         this.isEnabled = false;
 
         if (instanceCount > 0) {

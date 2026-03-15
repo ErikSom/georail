@@ -723,6 +723,10 @@ export class Train implements IPhysicsTarget {
         this.audio.update();
     }
 
+    public playSound(role: string): void {
+        this.audio.playSound(role);
+    }
+
     public cleanup(): void {
         this.cab.cleanup();
         this.wagons.forEach(wagon => wagon.cleanup());

@@ -3,7 +3,7 @@ import styles from './TrainControls.module.css';
 import BipolarDial from './BipolarDial';
 import IconButton from './IconButton';
 import { Input } from '../../lib/utils/Input';
-import { trainPower, trainPowerPercent, trainVelocityKmh, trainDoorsOpen, trainHeadlightsOn, updateTick, deltaTimeMs } from '../../store/train';
+import { trainPower, trainPowerPercent, trainVelocityKmh, trainDoorsOpen, trainHeadlightsOn, trainInstance, updateTick, deltaTimeMs } from '../../store/train';
 import GUIControls from './GUIControls';
 
 function TrainControls() {
@@ -106,7 +106,9 @@ function TrainControls() {
             flashDoorError();
             return;
         }
-        trainDoorsOpen.value = !trainDoorsOpen.value;
+        const wasOpen = trainDoorsOpen.value;
+        trainDoorsOpen.value = !wasOpen;
+        trainInstance.value?.playSound(wasOpen ? 'door_close' : 'door_open');
     };
 
     const handleStop = () => {
@@ -115,7 +117,7 @@ function TrainControls() {
     };
 
     const handleHorn = () => {
-        // play horn sound here
+        trainInstance.value?.playSound('horn');
     }
 
     const handleHeadlights = () => {

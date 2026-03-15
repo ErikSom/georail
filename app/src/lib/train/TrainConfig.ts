@@ -51,6 +51,7 @@ export interface AudioFile {
 export interface AudioConfig {
     files: AudioFile[];
     compositions: AudioComposition[];
+    sounds?: Record<string, string>; // Role -> file name mapping for one-shot sounds (e.g. "horn", "door_open", "door_close")
 }
 
 export interface RollingStockConfig {

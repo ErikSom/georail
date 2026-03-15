@@ -69,7 +69,7 @@ export const loadEncryptedAsset = async (mangledUrl: string, originalPath: strin
     return buffer; // Return the raw, decrypted ArrayBuffer
 };
 
-const protectedAssetLookup = JSON.parse("{\"train/NS-SGM/NS SGM motornoise version 2.wav\":\"56ae16c0c529.ewv\",\"train/NS-SGM/NS SGM high speed motor throb.wav\":\"8c03ea5a39be.ewv\",\"train/NS-SGM/NS SGM electrical current.wav\":\"968ef8348f96.ewv\",\"train/NS-SGM/ns-sgmm3-bk2.glb\":\"39b0d1cdd747.clt\",\"train/NS-SGM/ns-sgmm3-bk1.glb\":\"0c60cdca95c9.clt\",\"train/NS-SGM/ns-sgmm3-ab.glb\":\"b1a564823b8b.clt\",\"train/APT/apt-wip.glb\":\"1a446d6f930f.clt\",\"train/APT/apt-std-carriage.glb\":\"419d3af46833.clt\"}");
+const protectedAssetLookup = JSON.parse("{\"train/NS-SGM/horn.wav\":\"f2328bd7f455.ewv\",\"train/NS-SGM/door_open.wav\":\"fc6442651508.ewv\",\"train/NS-SGM/door_close.wav\":\"39cf8a468865.ewv\",\"train/NS-SGM/NS SGM motornoise version 2.wav\":\"56ae16c0c529.ewv\",\"train/NS-SGM/NS SGM high speed motor throb.wav\":\"8c03ea5a39be.ewv\",\"train/NS-SGM/NS SGM electrical current.wav\":\"968ef8348f96.ewv\",\"train/NS-SGM/ns-sgmm3-bk2.glb\":\"39b0d1cdd747.clt\",\"train/NS-SGM/ns-sgmm3-bk1.glb\":\"0c60cdca95c9.clt\",\"train/NS-SGM/ns-sgmm3-ab.glb\":\"b1a564823b8b.clt\",\"train/APT/apt-wip.glb\":\"1a446d6f930f.clt\",\"train/APT/apt-std-carriage.glb\":\"419d3af46833.clt\"}");
 
 export function getProtectedAssetPath(modelFileName: string) {
     return protectedAssetLookup[modelFileName] || modelFileName;
