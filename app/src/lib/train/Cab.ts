@@ -443,7 +443,7 @@ export class Cab extends RollingStock {
                 const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
                 for (const mat of mats) {
                     const std = mat as MeshStandardMaterial;
-                    const diffuse = std.map?.image;
+                    const diffuse = std.map?.image as CanvasImageSource | undefined;
                     const canvas = diffuse
                         ? compositeEmissiveWithDiffuse(mask, diffuse)
                         : mask;
@@ -477,7 +477,7 @@ export class Cab extends RollingStock {
             console.log(`[Cab]   material "${std.name}", has map: ${!!std.map}, map.image: ${!!std.map?.image}, image type: ${std.map?.image?.constructor?.name}`);
             if (!std.map?.image) continue;
 
-            const image = std.map.image;
+            const image = std.map.image as HTMLImageElement | ImageBitmap;
             console.log(`[Cab]   image size: ${image.width}x${image.height}`);
             const canvas = document.createElement('canvas');
             canvas.width = image.width || 256;

@@ -20,7 +20,7 @@ import {
     FogExp2
 } from 'three';
 import { Lensflare } from './train/Lensflare';
-import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import * as Tweakpane from 'tweakpane';
 import { Rain } from './Rain';
 
@@ -440,7 +440,7 @@ export class Sky {
         weatherMapTex.minFilter = LinearMipMapLinearFilter;
         weatherMapTex.magFilter = LinearFilter;
 
-        const rgbeLoader = new HDRLoader();
+        const rgbeLoader = new RGBELoader();
         rgbeLoader.load(lutPath, (texture) => {
             texture.minFilter = LinearFilter;
             texture.magFilter = LinearFilter;

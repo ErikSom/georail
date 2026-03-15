@@ -275,14 +275,14 @@ class Lensflare extends Mesh {
                 let uniforms = material1a.uniforms;
                 uniforms['scale'].value = scale;
                 uniforms['screenPosition'].value = positionScreen;
-                renderer.renderBufferDirect(camera, null as unknown as Scene, geometry, material1a, mesh1, null);
+                renderer.renderBufferDirect(camera, null as unknown as Scene, geometry, material1a, mesh1, null as any);
 
                 renderer.copyFramebufferToTexture(occlusionMap, screenPositionPixels);
 
                 uniforms = material1b.uniforms;
                 uniforms['scale'].value = scale;
                 uniforms['screenPosition'].value = positionScreen;
-                renderer.renderBufferDirect(camera, null as unknown as Scene, geometry, material1b, mesh1, null);
+                renderer.renderBufferDirect(camera, null as unknown as Scene, geometry, material1b, mesh1, null as any);
 
                 const vecX = -positionScreen.x * 2;
                 const vecY = -positionScreen.y * 2;
@@ -302,7 +302,7 @@ class Lensflare extends Mesh {
                     uniforms['scale'].value.set(size * invAspect, size);
 
                     material2.uniformsNeedUpdate = true;
-                    renderer.renderBufferDirect(camera, null as unknown as Scene, geometry, material2, mesh2, null);
+                    renderer.renderBufferDirect(camera, null as unknown as Scene, geometry, material2, mesh2, null as any);
                 }
             }
         };

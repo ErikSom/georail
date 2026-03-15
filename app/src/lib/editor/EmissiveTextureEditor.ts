@@ -501,7 +501,7 @@ export class EmissiveTextureEditor {
             for (const mat of mats) {
                 const std = mat as MeshStandardMaterial;
                 // Multiply mask with diffuse texture to preserve detail in glowing areas
-                const diffuse = std.map?.image;
+                const diffuse = std.map?.image as CanvasImageSource | undefined;
                 const canvas = diffuse
                     ? compositeEmissiveWithDiffuse(mask, diffuse)
                     : mask;

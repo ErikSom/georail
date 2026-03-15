@@ -117,7 +117,7 @@ export class MapViewer {
                 roughness: 1.0,
                 flatShading: true,
             }),
-        }));
+        } as any));
 
         let finalLat = lat;
         let finalLon = lon;
