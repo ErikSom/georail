@@ -190,7 +190,7 @@ export default function StationPicker({
 
     // Desktop mode: dropdown
     return (
-        <div ref={containerRef} className={styles.container}>
+        <div ref={containerRef} className={styles.container} data-picker-open>
             {pickingTrack ? (
                 <>
                     <div className={styles.display}>

@@ -600,7 +600,13 @@
     padding: 16px 24px;
     transition: flex 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     max-height: 40vh;
-    overflow: auto;
+    overflow: visible;
+}
+
+.stopsList:has(.stopRow:last-child [data-picker-open]),
+.stopsList:has(> .stopField [data-picker-open]) {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
 }
 
 .stopRow {
