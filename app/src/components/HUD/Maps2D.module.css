@@ -4,6 +4,7 @@
     border-radius: var(--ui-radius);
     cursor: grab;
     touch-action: none;
+    overflow: hidden;
 }
 
 .container:active {

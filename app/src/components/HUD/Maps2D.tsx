@@ -13,8 +13,9 @@ const DEFAULT_CENTER: [number, number] = [0, 0];
 const MIN_SIZE = 100;
 const BASE_MAP_SIZE = 200;
 
-// Fixed pixel size for each car icon on the map
-const CAR_ICON_SIZE = 18;
+// Min/max pixel size for each car icon on the map
+const MIN_CAR_ICON_PX = 6;
+const MAX_CAR_ICON_PX = 200;
 
 /**
  * Calculate bearing (in degrees) from point 1 to point 2 using lat/lon coordinates.
@@ -36,12 +37,6 @@ function calculateBearing(lat1: number, lon1: number, lat2: number, lon2: number
     return bearing;
 }
 
-/**
- * Meters per pixel at a given latitude and zoom level (Web Mercator).
- */
-function metersPerPixel(lat: number, zoom: number): number {
-    return (156543.03392 * Math.cos(lat * Math.PI / 180)) / Math.pow(2, zoom);
-}
 
 /**
  * Route distance lookup: maps 3D path distance → lat/lon via route geometry point indices.
@@ -125,6 +120,7 @@ interface CarRenderData {
     cx: number; // screen x
     cy: number; // screen y
     bearing: number; // degrees
+    sizePx: number; // pixel size scaled to zoom
 }
 
 function Maps2D() {
@@ -274,31 +270,25 @@ function Maps2D() {
                 return;
             }
 
-            const zoom = map.getZoom();
-            const mpp = metersPerPixel(lat, zoom);
             const distanceTraveled = trainDistanceTraveled.value;
 
-            // Convert icon pixel size to meters at current zoom (halved for tighter spacing)
-            const iconMeters = CAR_ICON_SIZE * mpp * 0.5;
-            const gapMeters = 0.0 * mpp; // 2px gap between cars
+            // Compute total real length of consist in meters
+            const totalRealMeters = consist.reduce((sum, c) => sum + c.length, 0);
 
-            // Compute total visual length of all car icons + gaps in meters
-            const numCars = consist.length;
-            const totalVisualMeters = numCars * iconMeters + (numCars - 1) * gapMeters;
+            // Center the consist around the train center (distanceTraveled)
+            const clusterFront = distanceTraveled + totalRealMeters / 2;
 
-            // Center the icon cluster around the train center (distanceTraveled)
-            const clusterFront = distanceTraveled + totalVisualMeters / 2;
-
-            // Walk backward from cluster front placing each car
+            // Walk backward from cluster front placing each car using real lengths
             const cars: CarRenderData[] = [];
             let cursor = clusterFront;
 
             for (let i = 0; i < consist.length; i++) {
                 const car = consist[i];
+                const carLengthMeters = car.length;
 
-                // Car front = cursor, car back = cursor - iconMeters
+                // Car front = cursor, car back = cursor - real car length
                 const carFrontDist = cursor;
-                const carBackDist = cursor - iconMeters;
+                const carBackDist = cursor - carLengthMeters;
                 // Project front and back path points to screen space
                 interpolateAtDistance(lookup, carFrontDist, _front);
                 interpolateAtDistance(lookup, carBackDist, _back);
@@ -315,15 +305,20 @@ function Maps2D() {
                 const dy = frontPx.y - backPx.y;
                 const bearing = Math.atan2(dx, -dy) * (180 / Math.PI) + 90;
 
+                // Icon pixel size from screen-space distance between front and back
+                const screenDist = Math.sqrt(dx * dx + dy * dy);
+                const sizePx = Math.max(MIN_CAR_ICON_PX, Math.min(MAX_CAR_ICON_PX, screenDist));
+
                 cars.push({
                     type: car.type,
                     cx,
                     cy,
                     bearing,
+                    sizePx,
                 });
 
-                // Next car starts after a small gap
-                cursor = carBackDist - gapMeters;
+                // Next car starts immediately after (real positions, no gap)
+                cursor = carBackDist;
             }
 
             setCarRenders(cars);
@@ -344,7 +339,7 @@ function Maps2D() {
             style: "https://tiles.openfreemap.org/styles/liberty",
             container: mapContainerRef.current,
             center: DEFAULT_CENTER,
-            zoom: 16,
+            zoom: 15,
             minZoom: 10,
             maxZoom: 18,
             pitch: 0,
@@ -485,7 +480,7 @@ function Maps2D() {
                 width: `${currentWidth}px`,
                 height: `${currentHeight}px`,
                 visibility: ready ? 'visible' : 'hidden',
-                '--train-icon-size': `${CAR_ICON_SIZE}px`,
+                '--train-icon-size': `18px`,
             }}
             onPointerDown={handleContainerPointerDown}
         >
@@ -515,6 +510,8 @@ function Maps2D() {
                             style={{
                                 left: `${car.cx}px`,
                                 top: `${car.cy}px`,
+                                width: `${car.sizePx}px`,
+                                height: `${car.sizePx}px`,
                                 transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
                             }}
                         />
