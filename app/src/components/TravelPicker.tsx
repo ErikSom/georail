@@ -77,14 +77,18 @@ export default function TravelPicker() {
 
     console.log("**** Staitions in TravelPicker:", stations);
 
-    // Form state - multi-stop support
-    const [stops, setStops] = useState<Stop[]>([
+    // Custom tab state - multi-stop support
+    const [customStops, setCustomStops] = useState<Stop[]>([
         { station: '', track: '', availableTracks: [] },
         { station: '', track: '', availableTracks: [] }
     ]);
     const [returnToStart, setReturnToStart] = useState(false);
     const MAX_STOPS = 10;
-    const STORAGE_KEY = 'travelPickerStops';
+    const CUSTOM_STORAGE_KEY = 'travelPickerStopsCustom';
+
+    // Regular tab state - single from station
+    const [regularFrom, setRegularFrom] = useState<Stop>({ station: '', track: '', availableTracks: [] });
+    const REGULAR_STORAGE_KEY = 'travelPickerStopsRegular';
 
     // Route preview for minimap
     const [previewRoute, setPreviewRoute] = useState<number[][] | null>(null);
@@ -102,37 +106,44 @@ export default function TravelPicker() {
     const [showConditions, setShowConditions] = useState(false);
     const conditions = gameConditions.value;
 
-    const canSubmit = stops.every(s => s.station) && !fetchingRoute;
-    const fromStation = stops[0]?.station || '';
+    const canSubmit = customStops.every(s => s.station) && !fetchingRoute;
+    const fromStation = regularFrom.station || '';
 
     useEffect(() => {
         loadStations();
     }, []);
 
-    // Save stops to localStorage when they change (only if stations are loaded)
+    // Save custom stops to localStorage when they change
     useEffect(() => {
         if (stations.length === 0) return;
-        // Only save if at least one stop has a station selected
-        const hasSelection = stops.some(s => s.station);
+        const hasSelection = customStops.some(s => s.station);
         if (hasSelection) {
-            const toSave = stops.map(s => ({ station: s.station, track: s.track }));
-            localStorage.setItem(STORAGE_KEY, JSON.stringify({ stops: toSave, returnToStart }));
+            const toSave = customStops.map(s => ({ station: s.station, track: s.track }));
+            localStorage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify({ stops: toSave, returnToStart }));
         }
-    }, [stops, returnToStart, stations]);
+    }, [customStops, returnToStart, stations]);
+
+    // Save regular from station to localStorage when it changes
+    useEffect(() => {
+        if (stations.length === 0) return;
+        if (regularFrom.station) {
+            localStorage.setItem(REGULAR_STORAGE_KEY, JSON.stringify({ station: regularFrom.station, track: regularFrom.track }));
+        }
+    }, [regularFrom, stations]);
 
     // Auto-fetch route preview for minimap when all stops are filled (custom tab)
     useEffect(() => {
         if (activeTab !== 'custom') return;
 
-        const allFilled = stops.every(s => s.station && (s.availableTracks.length === 0 || s.track));
-        if (!allFilled || stops.length < 2 || stations.length === 0) {
+        const allFilled = customStops.every(s => s.station && (s.availableTracks.length === 0 || s.track));
+        if (!allFilled || customStops.length < 2 || stations.length === 0) {
             setMinimapReady(false);
             setPreviewRoute(null);
             setPreviewStopIndices([]);
             return;
         }
 
-        const journeyStops: JourneyStopInput[] = stops.map(stop => {
+        const journeyStops: JourneyStopInput[] = customStops.map(stop => {
             const stationData = stations.find(s => s.name === stop.station);
             return { code: stationData?.code || '', track: stop.track || undefined };
         }).filter(s => s.code);
@@ -156,22 +167,21 @@ export default function TravelPicker() {
             });
 
         return () => { cancelled = true; };
-    }, [stops, stations, activeTab]);
+    }, [customStops, stations, activeTab]);
 
     // Fetch departures when switching to Regular tab with a station already selected
     useEffect(() => {
-        const fromStation = stops[0]?.station;
-        if (activeTab === 'regular' && fromStation && stations.length > 0 && departures.length === 0) {
-            const station = stations.find(s => s.name === fromStation);
+        if (activeTab === 'regular' && regularFrom.station && stations.length > 0 && departures.length === 0) {
+            const station = stations.find(s => s.name === regularFrom.station);
             if (station?.code) {
                 fetchDepartures(station.code);
             }
         }
-    }, [activeTab, stops[0]?.station, stations]);
+    }, [activeTab, regularFrom.station, stations]);
 
-    // Stop management functions
-    const updateStop = (index: number, field: 'station' | 'track', value: string) => {
-        setStops(prev => {
+    // Custom stop management functions
+    const updateCustomStop = (index: number, field: 'station' | 'track', value: string) => {
+        setCustomStops(prev => {
             const newStops = [...prev];
             if (field === 'station') {
                 const stationData = stations.find(s => s.name === value);
@@ -188,8 +198,8 @@ export default function TravelPicker() {
     };
 
     const addStop = () => {
-        if (stops.length >= MAX_STOPS) return;
-        setStops(prev => {
+        if (customStops.length >= MAX_STOPS) return;
+        setCustomStops(prev => {
             const newStops = [...prev];
             // Insert before the last stop
             newStops.splice(prev.length - 1, 0, { station: '', track: '', availableTracks: [] });
@@ -198,9 +208,9 @@ export default function TravelPicker() {
     };
 
     const removeStop = (index: number) => {
-        if (stops.length <= 2) return;
-        if (index === 0 || index === stops.length - 1) return; // Can't remove first or last
-        setStops(prev => prev.filter((_, i) => i !== index));
+        if (customStops.length <= 2) return;
+        if (index === 0 || index === customStops.length - 1) return; // Can't remove first or last
+        setCustomStops(prev => prev.filter((_, i) => i !== index));
     };
 
     const fetchDepartures = async (stationCode: string) => {
@@ -229,11 +239,11 @@ export default function TravelPicker() {
             setStations(data);
             setError(null);
 
-            // Load saved stops from localStorage
-            const saved = localStorage.getItem(STORAGE_KEY);
-            if (saved) {
+            // Load saved custom stops from localStorage
+            const savedCustom = localStorage.getItem(CUSTOM_STORAGE_KEY);
+            if (savedCustom) {
                 try {
-                    const { stops: savedStops, returnToStart: savedReturn } = JSON.parse(saved);
+                    const { stops: savedStops, returnToStart: savedReturn } = JSON.parse(savedCustom);
                     if (Array.isArray(savedStops) && savedStops.length >= 2) {
                         const restoredStops = savedStops.map((s: { station: string; track: string }) => {
                             const stationData = data.find(st => st.name === s.station);
@@ -243,13 +253,31 @@ export default function TravelPicker() {
                                 availableTracks: stationData?.tracks || []
                             };
                         });
-                        setStops(restoredStops);
+                        setCustomStops(restoredStops);
                         if (typeof savedReturn === 'boolean') {
                             setReturnToStart(savedReturn);
                         }
                     }
                 } catch (e) {
-                    console.error('Failed to parse saved stops:', e);
+                    console.error('Failed to parse saved custom stops:', e);
+                }
+            }
+
+            // Load saved regular from station from localStorage
+            const savedRegular = localStorage.getItem(REGULAR_STORAGE_KEY);
+            if (savedRegular) {
+                try {
+                    const { station, track } = JSON.parse(savedRegular);
+                    if (station) {
+                        const stationData = data.find(st => st.name === station);
+                        setRegularFrom({
+                            station: station || '',
+                            track: track || '',
+                            availableTracks: stationData?.tracks || []
+                        });
+                    }
+                } catch (e) {
+                    console.error('Failed to parse saved regular station:', e);
                 }
             }
         } catch (err) {
@@ -262,14 +290,14 @@ export default function TravelPicker() {
 
     const handleGo = async () => {
         // Validate all stops have stations
-        const emptyStops = stops.filter(s => !s.station);
+        const emptyStops = customStops.filter(s => !s.station);
         if (emptyStops.length > 0) {
             setError('Please select all stations');
             return;
         }
 
         // Build stops array for journey API
-        const journeyStops: JourneyStopInput[] = stops.map(stop => {
+        const journeyStops: JourneyStopInput[] = customStops.map(stop => {
             const stationData = stations.find(s => s.name === stop.station);
             return {
                 code: stationData?.code || '',
@@ -290,9 +318,9 @@ export default function TravelPicker() {
 
             // Calculate arrival/departure times from route metadata
             const routeStops = calculateStopTimes(
-                stops.map(s => s.station),
+                customStops.map(s => s.station),
                 journeyStops.map(s => s.code),
-                stops.map(s => s.track || null),
+                customStops.map(s => s.track || null),
                 journeyData.geometry
             );
 
@@ -317,7 +345,12 @@ export default function TravelPicker() {
 
     // Fetch departures when station is selected in Regular mode
     const handleRegularStationSelect = async (stationName: string) => {
-        updateStop(0, 'station', stationName);
+        const stationData = stations.find(s => s.name === stationName);
+        setRegularFrom({
+            station: stationName,
+            track: '',
+            availableTracks: stationData?.tracks || []
+        });
         setDepartures([]);
         setExpandedDeparture(null);
         setSelectedDeparture(null);
@@ -326,13 +359,16 @@ export default function TravelPicker() {
 
         if (!stationName) return;
 
-        const station = stations.find(s => s.name === stationName);
-        if (!station?.code) {
+        if (!stationData?.code) {
             setError('Station code not found');
             return;
         }
 
-        fetchDepartures(station.code);
+        fetchDepartures(stationData.code);
+    };
+
+    const updateRegularTrack = (track: string) => {
+        setRegularFrom(prev => ({ ...prev, track }));
     };
 
     // Regular mode: selected departure for detail view
@@ -652,10 +688,10 @@ export default function TravelPicker() {
                                         <StationPicker
                                             stations={stations}
                                             selectedStation={fromStation}
-                                            selectedTrack={stops[0]?.track || ''}
-                                            availableTracks={stops[0]?.availableTracks || []}
+                                            selectedTrack={regularFrom.track}
+                                            availableTracks={regularFrom.availableTracks}
                                             onSelectStation={(name) => handleRegularStationSelect(name)}
-                                            onSelectTrack={(track) => updateStop(0, 'track', track)}
+                                            onSelectTrack={(track) => updateRegularTrack(track)}
                                             disabled={loadingDepartures}
                                         />
                                     </div>
@@ -706,15 +742,15 @@ export default function TravelPicker() {
                             <div className={`${styles.customRow} ${minimapReady ? styles.customRowWithMap : ''}`}>
                                 {/* Stops List */}
                                 <div className={styles.stopsList}>
-                                    {stops.map((stop, index) => (
+                                    {customStops.map((stop, index) => (
                                         <StopRow
                                             key={index}
                                             index={index}
-                                            stops={stops}
+                                            stops={customStops}
                                             stations={stations}
-                                            onUpdate={updateStop}
+                                            onUpdate={updateCustomStop}
                                             onRemove={removeStop}
-                                            canRemove={stops.length > 2 && index !== 0 && index !== stops.length - 1}
+                                            canRemove={customStops.length > 2 && index !== 0 && index !== customStops.length - 1}
                                             disabled={fetchingRoute}
                                         />
                                     ))}
@@ -735,7 +771,7 @@ export default function TravelPicker() {
                             </div>
 
                             {/* Add Stop Button */}
-                            {stops.length < MAX_STOPS && (
+                            {customStops.length < MAX_STOPS && (
                                 <button
                                     className={styles.addStopButton}
                                     onClick={addStop}
