@@ -9,3 +9,27 @@
     --menu-accent: #98f99e;
     --menu-dim: #858984;
 }
+
+/* Thin overlay scrollbar — macOS style */
+.thinScroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+    scrollbar-gutter: stable;
+}
+
+.thinScroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.thinScroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.thinScroll::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 100px;
+}
+
+.thinScroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.35);
+}

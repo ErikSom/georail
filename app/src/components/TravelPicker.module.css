@@ -420,6 +420,13 @@
 }
 
 /* ─── Timeline ─────────────────────────────────────────────── */
+.timeline {
+    overflow-y: auto;
+    max-height: 30vh;
+    margin: 0 -10px;
+    -webkit-overflow-scrolling: touch;
+}
+
 .timelineStop {
     display: flex;
     align-items: flex-start;

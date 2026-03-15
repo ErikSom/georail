@@ -614,7 +614,7 @@ export default function TravelPicker() {
                                                 .filter(stop => stop.status !== 'PASSING');
 
                                             return (
-                                                <div className={styles.timeline}>
+                                                <div className={`${styles.timeline} thinScroll`}>
                                                     {relevantStops.map((stop, idx) => {
                                                         const isFirst = idx === 0;
                                                         const isLast = idx === relevantStops.length - 1;

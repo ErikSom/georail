@@ -147,7 +147,7 @@ export default function StationPicker({
                 onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
                 placeholder="Search stations..."
             />
-            <div key={searchQuery} className={mobileMode ? styles.mobileResultsList : styles.resultsList}>
+            <div key={searchQuery} className={`${mobileMode ? styles.mobileResultsList : styles.resultsList} thinScroll`}>
                 {filteredStations.map(station => {
                     console.log("**** Rendering station:", station.name, station.code);
                     return (
