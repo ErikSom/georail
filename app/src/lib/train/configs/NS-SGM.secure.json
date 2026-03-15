@@ -405,16 +405,20 @@
                 "url": "train/NS-SGM/NS SGM motornoise version 2.wav"
             },
             {
-                "name": "horn.wav",
-                "url": "train/NS-SGM/horn.wav"
+                "name": "NS SGM Tyfoon low.wav",
+                "url": "train/NS-SGM/NS SGM Tyfoon low.wav"
             },
             {
-                "name": "door_open.wav",
-                "url": "train/NS-SGM/door_open.wav"
+                "name": "NS SGM Tyfoon.wav",
+                "url": "train/NS-SGM/NS SGM Tyfoon.wav"
             },
             {
-                "name": "door_close.wav",
-                "url": "train/NS-SGM/door_close.wav"
+                "name": "NS SGM door open.wav",
+                "url": "train/NS-SGM/NS SGM door open.wav"
+            },
+            {
+                "name": "NS SGM door close.wav",
+                "url": "train/NS-SGM/NS SGM door close.wav"
             }
         ],
         "compositions": [
@@ -608,9 +612,10 @@
             }
         ],
         "sounds": {
-            "horn": "horn.wav",
-            "door_open": "door_open.wav",
-            "door_close": "door_close.wav"
+            "horn_low": "NS SGM Tyfoon low.wav",
+            "horn_high": "NS SGM Tyfoon.wav",
+            "door_open": "NS SGM door open.wav",
+            "door_close": "NS SGM door close.wav"
         }
     }
 }

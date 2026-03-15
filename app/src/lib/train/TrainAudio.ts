@@ -306,7 +306,7 @@ export class TrainAudio {
         });
         registerFolder(soundsFolder, soundsKey);
 
-        const SOUND_ROLES = ['horn', 'door_open', 'door_close'] as const;
+        const SOUND_ROLES = ['horn_low', 'horn_high', 'door_open', 'door_close'] as const;
         const oneShotBindings: ListInputBindingApi<string>[] = [];
 
         const buildOneShotOptions = (current: string) => {
