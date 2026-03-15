@@ -4,24 +4,18 @@
     right: 24px;
 }
 
-.settingsIcon {
-    position: absolute;
-    bottom: 76px;
-    right: 6px;
-}
-
 .controlPanel {
     position: fixed;
     bottom: 0;
     left: 50%;
-    height: 224px;
+    height: 208px;
     background: var(--panel-bg);
     z-index: 999;
     transform: translate(-50%, calc(100% + 56px));
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: var(--panel-shadow);
     border-radius: var(--panel-radius);
-    margin: 20px 0;
+    margin: 38px 0;
     max-width: 335px;
 }
 
@@ -29,22 +23,40 @@
     transform: translate(-50%, 0);
 }
 
+.stopIcon {
+    position: absolute;
+    bottom: 135px;
+    left: 10px;
+}
+
 .lightIcon {
     position: absolute;
-    bottom: 76px;
-    left: 6px;
+    bottom: 82px;
+    left: 10px;
 }
 
 .doorIcon {
     position: absolute;
-    bottom: 16px;
-    left: 16px;
+    bottom: 29px;
+    left: 10px;
+}
+
+.hornIcon {
+    position: absolute;
+    bottom: 135px;
+    right: 10px;
+}
+
+.settingsIcon {
+    position: absolute;
+    bottom: 82px;
+    right: 10px;
 }
 
 .closeControls {
     position: absolute;
-    bottom: 16px;
-    right: 16px;
+    bottom: 29px;
+    right: 10px;
 }
 
 .dialContainer {
@@ -72,6 +84,13 @@
 }
 
 @keyframes errorPulse {
-    0%, 100% { box-shadow: var(--btn-shadow); }
-    50% { box-shadow: 0 0 12px var(--led-error), 0 0 4px var(--led-error) inset; }
+
+    0%,
+    100% {
+        box-shadow: var(--btn-shadow);
+    }
+
+    50% {
+        box-shadow: 0 0 12px var(--led-error), 0 0 4px var(--led-error) inset;
+    }
 }

@@ -109,6 +109,15 @@ function TrainControls() {
         trainDoorsOpen.value = !trainDoorsOpen.value;
     };
 
+    const handleStop = () => {
+        trainPower.value = 0;
+        holdTimeRef.current = 0;
+    };
+
+    const handleHorn = () => {
+        // play horn sound here
+    }
+
     const handleHeadlights = () => {
         trainHeadlightsOn.value = !trainHeadlightsOn.value;
     };
@@ -136,6 +145,8 @@ function TrainControls() {
                     />
                     <IconButton toggle on={trainHeadlightsOn.value} icon="/icons/lightbulb.svg" className={styles.lightIcon} onClick={handleHeadlights} ariaLabel="Toggle headlights" />
                     <IconButton toggle on={trainDoorsOpen.value} icon={trainDoorsOpen.value ? "/icons/doors-open.svg" : "/icons/doors-close.svg"} className={`${styles.doorIcon} ${doorError ? styles.doorError : ''}`} onClick={handleDoorToggle} ariaLabel="Toggle doors" />
+                    <IconButton icon="/icons/stop.svg" className={styles.stopIcon} onClick={handleStop} ariaLabel="Emergency stop" />
+                    <IconButton icon="/icons/horn.svg" className={styles.hornIcon} onClick={handleHorn} ariaLabel="Sound horn" />
                     <GUIControls className={styles.settingsIcon} />
                     <IconButton icon="/icons/controls-off.svg" className={styles.closeControls} onClick={() => setIsOpen(false)} ariaLabel="Close train controls" />
                 </div>

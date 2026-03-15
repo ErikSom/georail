@@ -9,7 +9,6 @@
     cursor: grab;
     user-select: none;
     -webkit-user-select: none;
-    margin-bottom: 6px;
 }
 
 .knobWrapper:active {

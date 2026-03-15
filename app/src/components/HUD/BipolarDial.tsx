@@ -15,7 +15,7 @@ interface BipolarDialProps {
 const MAX_ANGLE = 150;
 const TOTAL_RANGE = MAX_ANGLE * 2;
 const STICK_THRESHOLD = 20;
-const TICK_DISTANCE = 24;
+const TICK_DISTANCE = 28;
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
