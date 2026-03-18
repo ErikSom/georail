@@ -42,7 +42,7 @@ function Speedometer() {
     useEffect(() => {
         const unsubTick = updateTick.subscribe(() => {
             setSpeed(trainVelocityKmh.value);
-            setMaxSpeed(trainMaxSpeedKmh.value);
+            setMaxSpeed(trainMaxSpeedKmh.value + 20);
         });
 
         return () => {

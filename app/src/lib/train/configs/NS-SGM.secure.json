@@ -43,7 +43,7 @@
         "couplerLengthFront": 0,
         "couplerLengthRear": 0.25,
         "engine": true,
-        "enginePower": 1320,
+        "enginePower": 1600,
         "brakingPower": 88,
         "animationGroups": [
             {
@@ -617,5 +617,8 @@
             "door_open": "NS SGM door open.wav",
             "door_close": "NS SGM door close.wav"
         }
+    },
+    "general": {
+        "maxSpeed": 140
     }
 }

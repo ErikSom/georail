@@ -24,7 +24,7 @@ export class TrainPhysics {
     private readonly FRONTAL_AREA = 10; // m^2
     private readonly AIR_DENSITY = 1.225; // kg/m^3
     private readonly GRAVITY = 9.81; // m/s^2
-    private readonly ENGINE_EFFICIENCY = 0.85;
+    private readonly ENGINE_EFFICIENCY = 1.0;
     private readonly MIN_SPEED_FOR_POWER = 0.5; // m/s
     private readonly BRAKE_THRESHOLD = 0.1;
     private readonly COAST_BRAKE_APPLICATION = 0.05;
