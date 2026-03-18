@@ -109,15 +109,15 @@ export class MapViewer {
         // this.tiles.registerPlugin(new DebugTilesPlugin({ displayBoxBounds: true }));
         this.tiles.registerPlugin(new GLTFExtensionsPlugin({
             dracoLoader: new DRACOLoader().setDecoderPath(getDracoDecoderPath())
-        }));
-        // this.tiles.registerPlugin(new BatchedTilesPlugin({
-        //     renderer: this.renderer,
-        //     material: new MeshStandardMaterial({
-        //         metalness: 0.0,
-        //         roughness: 1.0,
-        //         flatShading: true,
-        //     }),
-        // } as any));
+        } as any));
+        this.tiles.registerPlugin(new BatchedTilesPlugin({
+            renderer: this.renderer,
+            material: new MeshStandardMaterial({
+                metalness: 0.0,
+                roughness: 1.0,
+                flatShading: true,
+            }),
+        } as any));
 
         let finalLat = lat;
         let finalLon = lon;

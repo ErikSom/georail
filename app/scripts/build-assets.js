@@ -250,29 +250,28 @@ const processAudioFiles = async (srcDir, publicDir) => {
 
 // --- EXISTING GLB PROCESSOR ---
 
-const fixUnknownTextures = async (document) => {
+const compressTextures = async (document) => {
   const textures = document.getRoot().listTextures();
   for (const texture of textures) {
     const mime = texture.getMimeType();
-    const name = texture.getName() || '';
-    if (name.toLowerCase().endsWith('.tif')) {
-      const imageBuffer = texture.getImage();
-      if (imageBuffer) {
-        try {
-          const newBuffer = await sharp(imageBuffer, { failOn: 'none' })
-            .resize({
-              width: CONFIG.textureOptions.size[0],
-              height: CONFIG.textureOptions.size[1],
-              fit: 'inside',
-              withoutEnlargement: true
-            })
-            .webp({ quality: CONFIG.textureOptions.quality })
-            .toBuffer();
-          texture.setImage(newBuffer);
-          texture.setMimeType('image/webp');
-        } catch (e) {
-          console.warn(`      ⚠️ Could not convert texture ${name}: ${e.message}`);
-        }
+    if (mime === 'image/webp') continue;
+    const imageBuffer = texture.getImage();
+    if (imageBuffer) {
+      const name = texture.getName() || 'unnamed';
+      try {
+        const newBuffer = await sharp(imageBuffer, { failOn: 'none' })
+          .resize({
+            width: CONFIG.textureOptions.size[0],
+            height: CONFIG.textureOptions.size[1],
+            fit: 'inside',
+            withoutEnlargement: true
+          })
+          .webp({ quality: CONFIG.textureOptions.quality })
+          .toBuffer();
+        texture.setImage(newBuffer);
+        texture.setMimeType('image/webp');
+      } catch (e) {
+        console.warn(`      ⚠️ Could not convert texture ${name}: ${e.message}`);
       }
     }
   }
@@ -310,7 +309,7 @@ const processGlb = async (filePath) => {
     }
 
     const preStats = getTextureStats(document);
-    await fixUnknownTextures(document);
+    await compressTextures(document);
 
     await document.transform(
       dedup(),
