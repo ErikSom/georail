@@ -4,6 +4,7 @@ import { trainVelocityKmh, trainMaxSpeedKmh, updateTick } from "../../store/trai
 import { configs } from "../../store/globals";
 import { formatSpeed, getSpeedUnit } from "../../lib/utils/Units";
 
+import { isSmallScreen } from '../../store/globals';
 import { useTransformable } from '../../hooks/useTransformable';
 import SpeedometerAnalog from './SpeedometerAnalog';
 
@@ -19,7 +20,8 @@ function Speedometer() {
     const [unitSystem] = useState(configs.value.unitSystem);
     const [mode, setMode] = useState<SpeedometerMode>(() => {
         const stored = localStorage.getItem(STORAGE_KEY_MODE);
-        return (stored === 'analog' || stored === 'digital') ? stored : 'digital';
+        if (stored === 'analog' || stored === 'digital') return stored;
+        return isSmallScreen ? 'digital' : 'analog';
     });
     const [showSelector, setShowSelector] = useState(false);
 
@@ -30,7 +32,9 @@ function Speedometer() {
         setPosition,
         handleContainerPointerDown,
     } = useTransformable({
-        initialPosition: { x: 100, y: 100 },
+        initialPosition: isSmallScreen
+            ? { x: window.innerWidth - 75, y: 120 }
+            : { x: window.innerWidth - 186, y: 230 },
         storageKey: 'georail_speedometer_state',
     });
 

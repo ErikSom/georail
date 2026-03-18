@@ -4,6 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 import { useTransformable } from '../../hooks/useTransformable';
 import { trainLat, trainLon, trainFrontLat, trainFrontLon, trainBackLat, trainBackLon, updateTick, trainLatE7, cameraYawRelativeToTrain, trainDistanceTraveled, trainConsist } from '../../store/train';
+import { isSmallScreen } from '../../store/globals';
 import { routeData } from '../../store/journey';
 import { trainPath } from '../../store/journey';
 import styles from './Maps2D.module.css';
@@ -146,8 +147,12 @@ function Maps2D() {
         handleContainerPointerDown,
         renderResizeHandles,
     } = useTransformable({
-        initialPosition: { x: 100, y: 100 },
-        initialSize: { width: 200, height: 200 },
+        initialPosition: isSmallScreen
+            ? { x: window.innerWidth - 10, y: 10 }
+            : { x: window.innerWidth - 10, y: 10 },
+        initialSize: isSmallScreen
+            ? { width: 100, height: 100 }
+            : { width: 200, height: 200 },
         minSize: { width: MIN_SIZE, height: MIN_SIZE },
         keepAspectRatio: false,
         storageKey: 'georail_map2d_state',
@@ -497,23 +502,21 @@ function Maps2D() {
             }}
             onPointerDown={handleContainerPointerDown}
         >
-            <div
-                ref={mapContainerRef}
-                className={styles.mapContainer}
-                style={{
-                    width: `${currentWidth}px`,
-                    height: `${currentHeight}px`,
-                }}
-            />
+            <div className={styles.mapContainer} style={{ width: `${currentWidth}px`, height: `${currentHeight}px` }}>
+                <div
+                    ref={mapContainerRef}
+                    style={{ width: '100%', height: '100%' }}
+                />
 
-            {/* Car divs managed via direct DOM manipulation in tick handler */}
-            <div ref={carDivsRef} />
-            <div ref={fallbackIconRef} className={styles.cabIcon}
-                style={{ transform: 'translate(-50%, -50%)' }}
-            />
+                {/* Car divs managed via direct DOM manipulation in tick handler */}
+                <div ref={carDivsRef} />
+                <div ref={fallbackIconRef} className={styles.cabIcon}
+                    style={{ transform: 'translate(-50%, -50%)' }}
+                />
 
-            <div ref={compassRef} className={styles.compass}>
-                <div className={styles.compassNeedle}></div>
+                <div ref={compassRef} className={styles.compass}>
+                    <div className={styles.compassNeedle}></div>
+                </div>
             </div>
 
             {renderResizeHandles()}

@@ -18,6 +18,7 @@ import {
     type StopStatus,
 } from '../../store/journey';
 import { updateTick, trainDistanceTraveled } from '../../store/train';
+import { isSmallScreen } from '../../store/globals';
 import styles from './Transit.module.css';
 import InlineSVG from '../InlineSVG';
 
@@ -58,8 +59,10 @@ function Transit() {
         handleContainerPointerDown,
         renderResizeHandles,
     } = useTransformable({
-        initialPosition: { x: 20, y: 200 },
-        initialSize: { width: INITIAL_WIDTH, height: INITIAL_HEIGHT },
+        initialPosition: { x: 10, y: 10 },
+        initialSize: isSmallScreen
+            ? { width: 136, height: 160 }
+            : { width: INITIAL_WIDTH, height: INITIAL_HEIGHT },
         minSize: { width: MIN_SIZE, height: MIN_SIZE },
         keepAspectRatio: false,
         storageKey: 'georail_transit_state',

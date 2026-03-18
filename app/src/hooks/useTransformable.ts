@@ -176,8 +176,9 @@ export function useTransformable(options: UseTransformableOptions): UseTransform
         let clampedX = clamp(x, padding, Math.max(padding, maxX));
         let clampedY = clamp(y, padding, Math.max(padding, maxY));
         if (snap) {
-            clampedX = snapToGrid(clampedX);
-            clampedY = snapToGrid(clampedY);
+            // Snap then re-clamp so grid rounding doesn't push past edges
+            clampedX = clamp(snapToGrid(clampedX), padding, Math.max(padding, maxX));
+            clampedY = clamp(snapToGrid(clampedY), padding, Math.max(padding, maxY));
         }
         return { x: clampedX, y: clampedY };
     }, [padding, snapToGrid]);

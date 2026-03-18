@@ -6,7 +6,6 @@ import {
     GoogleCloudAuthPlugin,
     ReorientationPlugin,
     BatchedTilesPlugin,
-    DebugTilesPlugin
 } from '3d-tiles-renderer/plugins';
 import {
     Scene,

@@ -8,6 +8,9 @@ import { loadData, saveData } from "../lib/utils/LocalStorage";
 
 const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
 
+// Screen-size helper (evaluated once at load time)
+export const isSmallScreen = typeof window !== 'undefined' && window.innerWidth <= 768;
+
 // Audio listener for positional audio (typically attached to the camera)
 export const audioListener = signal<AudioListener | null>(null);
 
