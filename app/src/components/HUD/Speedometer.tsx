@@ -4,7 +4,7 @@ import { trainVelocityKmh, trainMaxSpeedKmh, updateTick } from "../../store/trai
 import { configs } from "../../store/globals";
 import { formatSpeed, getSpeedUnit } from "../../lib/utils/Units";
 
-import { isSmallScreen } from '../../store/globals';
+import { isSmallScreen, screenWidth } from '../../store/globals';
 import { useTransformable } from '../../hooks/useTransformable';
 import SpeedometerAnalog from './SpeedometerAnalog';
 
@@ -33,8 +33,8 @@ function Speedometer() {
         handleContainerPointerDown,
     } = useTransformable({
         initialPosition: isSmallScreen
-            ? { x: window.innerWidth - 75, y: 120 }
-            : { x: window.innerWidth - 186, y: 230 },
+            ? { x: screenWidth() - 75, y: 120 }
+            : { x: screenWidth() - 186, y: 230 },
         storageKey: 'georail_speedometer_state',
     });
 

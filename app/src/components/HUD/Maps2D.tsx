@@ -4,7 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 import { useTransformable } from '../../hooks/useTransformable';
 import { trainLat, trainLon, trainFrontLat, trainFrontLon, trainBackLat, trainBackLon, updateTick, trainLatE7, cameraYawRelativeToTrain, trainDistanceTraveled, trainConsist } from '../../store/train';
-import { isSmallScreen } from '../../store/globals';
+import { isSmallScreen, screenWidth } from '../../store/globals';
 import { routeData } from '../../store/journey';
 import { trainPath } from '../../store/journey';
 import styles from './Maps2D.module.css';
@@ -148,8 +148,8 @@ function Maps2D() {
         renderResizeHandles,
     } = useTransformable({
         initialPosition: isSmallScreen
-            ? { x: window.innerWidth - 10, y: 10 }
-            : { x: window.innerWidth - 10, y: 10 },
+            ? { x: screenWidth() - 10, y: 10 }
+            : { x: screenWidth() - 10, y: 10 },
         initialSize: isSmallScreen
             ? { width: 100, height: 100 }
             : { width: 200, height: 200 },

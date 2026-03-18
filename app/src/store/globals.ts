@@ -10,6 +10,9 @@ const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.
 
 // Screen-size helper (evaluated once at load time)
 export const isSmallScreen = typeof window !== 'undefined' && window.innerWidth <= 768;
+export function screenWidth(): number {
+    return typeof window !== 'undefined' ? window.innerWidth : 1024;
+}
 
 // Audio listener for positional audio (typically attached to the camera)
 export const audioListener = signal<AudioListener | null>(null);
