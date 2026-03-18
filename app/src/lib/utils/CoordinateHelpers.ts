@@ -44,7 +44,7 @@ export function applyENUOffset(
 
     const newLat = origGeoCoords.lat + (offset.z / METERS_PER_DEGREE_LAT);
     const newLon = origGeoCoords.lon + (offset.x / metersPerDegreeLon);
-    const newHeight = origGeoCoords.height + offset.y;
+    const newHeight = origGeoCoords.height + (offset.y || 42);
 
     return mapViewer.latLonHeightToWorldPosition(newLat, newLon, newHeight);
 }

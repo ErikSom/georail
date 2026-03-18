@@ -18,7 +18,10 @@ import {
     Mesh,
     PlaneGeometry,
     MeshBasicMaterial,
-    Quaternion
+    Quaternion,
+    AlwaysStencilFunc,
+    ReplaceStencilOp,
+    KeepStencilOp,
 } from 'three';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { type PerformanceConfig } from './utils/PerformanceConfig';
@@ -57,6 +60,15 @@ export class MapViewer {
     private _creditsResult: Tiles3DAttributionCredits = { latLonStr: '', source: '' };
 
     constructor() { }
+
+    private applySceneStencil(mat: any): void {
+        mat.stencilWrite = true;
+        mat.stencilFunc = AlwaysStencilFunc;
+        mat.stencilRef = 128;
+        mat.stencilZPass = ReplaceStencilOp;
+        mat.stencilZFail = KeepStencilOp;
+        mat.stencilFail = KeepStencilOp;
+    }
 
     public init(
         scene: Scene,
@@ -109,13 +121,16 @@ export class MapViewer {
         this.tiles.registerPlugin(new GLTFExtensionsPlugin({
             dracoLoader: new DRACOLoader().setDecoderPath(getDracoDecoderPath())
         } as any));
+        const sceneMat = new MeshStandardMaterial({
+            metalness: 0.0,
+            roughness: 1.0,
+            flatShading: true,
+        });
+        this.applySceneStencil(sceneMat);
+
         this.tiles.registerPlugin(new BatchedTilesPlugin({
             renderer: this.renderer,
-            material: new MeshStandardMaterial({
-                metalness: 0.0,
-                roughness: 1.0,
-                flatShading: true,
-            }),
+            material: sceneMat,
         } as any));
 
         let finalLat = lat;
@@ -148,6 +163,10 @@ export class MapViewer {
 
                     if (child.material?.color) {
                         child.material.color.setHex(0xffffff);
+                    }
+
+                    if (child.material) {
+                        this.applySceneStencil(child.material);
                     }
 
                     if (child.geometry && !child.geometry.attributes.normal) {

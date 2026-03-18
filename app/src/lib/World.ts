@@ -37,6 +37,7 @@ import type { Tiles3DAttributionCredits } from '../components/HUD/Tiles3DAttribu
 import { Pane } from 'tweakpane';
 import { audioListener, timeScale, scaledDeltaTime, gameConditions } from '../store/globals';
 import { trainPath } from '../store/journey';
+import { DitherOverlay } from './train/DitherOverlay';
 
 export class World {
     private scene!: Scene;
@@ -82,7 +83,8 @@ export class World {
 
         this.renderer = new WebGLRenderer({
             antialias: this.perfConfig.antialias,
-            powerPreference: 'high-performance'
+            powerPreference: 'high-performance',
+            stencil: true,
         });
         this.renderer.outputColorSpace = SRGBColorSpace;
         this.renderer.toneMapping = NeutralToneMapping;
@@ -137,6 +139,8 @@ export class World {
         const trainConfig = getTrainConfiguration(nssgmTrainType);
         this.train = new Train(trainConfig, trainDebugMode.value);
         this.scene.add(this.train.group);
+
+        this.scene.add(new DitherOverlay().mesh);
 
         if (trainDebugMode.value) {
             this.scene.add(this.train.globalDebugGroup);

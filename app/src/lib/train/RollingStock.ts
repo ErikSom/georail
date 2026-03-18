@@ -1,4 +1,4 @@
-import { Group, Mesh, Object3D, SphereGeometry, BoxGeometry, MeshBasicMaterial, Vector3, MeshStandardMaterial, CylinderGeometry, Quaternion, Color } from 'three';
+import { Group, Mesh, Object3D, SphereGeometry, BoxGeometry, MeshBasicMaterial, Vector3, MeshStandardMaterial, CylinderGeometry, Quaternion, Color, AlwaysStencilFunc, ZeroStencilOp, IncrementStencilOp, KeepStencilOp } from 'three';
 import type { BogieConfig, RollingStockConfig, TrainConfig, WheelConfig } from './TrainConfig';
 import { getGLTFLoader } from '../utils/ModelLoader';
 import type Path from '../utils/Path';
@@ -181,6 +181,20 @@ export class RollingStock {
                     child.receiveShadow = false;
 
                 });
+
+                child.renderOrder = 1;
+
+                // Stencil: visible train zeros scene's mark, occluded train increments it
+                const activeMat = child.material;
+                const matArr = Array.isArray(activeMat) ? activeMat : [activeMat];
+                for (const m of matArr) {
+                    m.stencilWrite = true;
+                    m.stencilFunc = AlwaysStencilFunc;
+                    m.stencilRef = 0;
+                    m.stencilZPass = ZeroStencilOp;
+                    m.stencilZFail = IncrementStencilOp;
+                    m.stencilFail = KeepStencilOp;
+                }
             }
         });
     };
