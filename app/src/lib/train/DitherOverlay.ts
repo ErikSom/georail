@@ -86,7 +86,7 @@ export class DitherOverlay {
             uniforms: {
                 color: { value: [0.55, 0.75, 1.0] },
                 opacity: { value: 0.25 },
-                dpr: { value: typeof window !== 'undefined' ? window.devicePixelRatio : 1 },
+                dpr: { value: 1 },
             },
             depthTest: false,
             depthWrite: false,
@@ -106,6 +106,10 @@ export class DitherOverlay {
         this.mesh.name = 'DitherOverlay';
         this.mesh.frustumCulled = false;
         this.mesh.renderOrder = 9999;
+    }
+
+    setPixelRatio(dpr: number): void {
+        (this.mesh.material as ShaderMaterial).uniforms.dpr.value = dpr;
     }
 
     dispose(): void {

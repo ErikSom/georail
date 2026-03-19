@@ -140,7 +140,9 @@ export class World {
         this.train = new Train(trainConfig, trainDebugMode.value);
         this.scene.add(this.train.group);
 
-        this.scene.add(new DitherOverlay().mesh);
+        const ditherOverlay = new DitherOverlay();
+        ditherOverlay.setPixelRatio(this.renderer.getPixelRatio());
+        this.scene.add(ditherOverlay.mesh);
 
         if (trainDebugMode.value) {
             this.scene.add(this.train.globalDebugGroup);
