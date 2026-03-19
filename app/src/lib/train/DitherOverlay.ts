@@ -21,12 +21,13 @@ void main() {
 const fragmentShader = /* glsl */ `
 uniform vec3 color;
 uniform float opacity;
+uniform float dpr;
 
 void main() {
-    // 8x8 Bayer matrix for fine-grained dither
-    // Divide by 2 to double the pattern size (chunkier pixels)
-    int x = (int(gl_FragCoord.x) / 2) & 7;
-    int y = (int(gl_FragCoord.y) / 2) & 7;
+    // Scale pattern by DPR so it looks the same logical size on all displays
+    int scale = max(int(dpr), 1);
+    int x = (int(gl_FragCoord.x) / scale) & 7;
+    int y = (int(gl_FragCoord.y) / scale) & 7;
     int index = x + y * 8;
 
     // Bayer 8x8 (values 0..63 normalized to 0..1)
@@ -85,6 +86,7 @@ export class DitherOverlay {
             uniforms: {
                 color: { value: [0.55, 0.75, 1.0] },
                 opacity: { value: 0.25 },
+                dpr: { value: typeof window !== 'undefined' ? window.devicePixelRatio : 1 },
             },
             depthTest: false,
             depthWrite: false,

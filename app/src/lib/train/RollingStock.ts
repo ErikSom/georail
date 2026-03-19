@@ -183,8 +183,6 @@ export class RollingStock {
                 });
 
                 child.renderOrder = 1;
-
-                // Stencil: visible train zeros scene's mark, occluded train increments it
                 const activeMat = child.material;
                 const matArr = Array.isArray(activeMat) ? activeMat : [activeMat];
                 for (const m of matArr) {
