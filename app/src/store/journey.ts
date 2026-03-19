@@ -1,7 +1,7 @@
 import { signal, computed } from "@preact/signals";
 import type { RouteData, RouteStop } from "../lib/api/navigation";
 import type Path from "../lib/utils/Path";
-import { trainDistanceTraveled, trainPathTotalLength, trainVelocityKmh, trainLength, resetTrain } from "./train";
+import { trainDistanceTraveled, trainPathTotalLength, trainVelocityKmh, trainLength, resetTrain, trainDoorsOpen } from "./train";
 import { configs, scaledDeltaTime } from "./globals";
 import { startJourneySession as apiStartJourney, reportStationArrival, type StationArrivalResponse } from "../lib/api/journey";
 import { country } from "./globals";
@@ -86,7 +86,7 @@ export function updateStopStatuses(): void {
 
         const current = (newStatuses ?? stopStatuses.value)[i];
 
-        if (!current.arrived && isInStopZone && isStopped) {
+        if (!current.arrived && isInStopZone && isStopped && trainDoorsOpen.value) {
             if (!newStatuses) newStatuses = [...stopStatuses.value];
             newStatuses[i] = {
                 ...current,
