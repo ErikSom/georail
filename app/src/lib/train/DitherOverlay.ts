@@ -25,7 +25,7 @@ uniform float dpr;
 
 void main() {
     // Scale pattern by DPR so it looks the same logical size on all displays
-    int scale = max(int(dpr), 1);
+    int scale = max(int(dpr + 0.5), 1);
     int x = (int(gl_FragCoord.x) / scale) & 7;
     int y = (int(gl_FragCoord.y) / scale) & 7;
     int index = x + y * 8;
@@ -109,7 +109,7 @@ export class DitherOverlay {
     }
 
     setPixelRatio(dpr: number): void {
-        (this.mesh.material as ShaderMaterial).uniforms.dpr.value = dpr;
+        (this.mesh.material as ShaderMaterial).uniforms.dpr.value = Math.round(dpr);
     }
 
     dispose(): void {
