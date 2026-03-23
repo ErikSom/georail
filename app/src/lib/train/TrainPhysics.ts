@@ -222,9 +222,9 @@ export class TrainPhysics {
             (this.velocity > 0 && this.powerSetting < -this.BRAKE_THRESHOLD) ||
             (this.velocity < 0 && this.powerSetting > this.BRAKE_THRESHOLD)
         ) {
-            brakeApplication = 1.0;
-        } else if (Math.abs(this.velocity) > 0 && this.powerSetting === 0) {
-            brakeApplication = 1.0;
+            brakeApplication = Math.abs(this.powerSetting);
+        } else if (Math.abs(this.velocity) > 0 && Math.abs(this.powerSetting) <= this.BRAKE_THRESHOLD) {
+            brakeApplication = this.COAST_BRAKE_APPLICATION;
         } else {
             const targetSpeed = this.getTargetSpeedForPower();
             const speedError = Math.abs(this.velocity) - Math.abs(targetSpeed);
