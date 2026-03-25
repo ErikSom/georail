@@ -29,9 +29,7 @@ export class TrainPhysics {
     private readonly MIN_SPEED_FOR_POWER = 0.5; // m/s
     private readonly BRAKE_THRESHOLD = 0.1;
     private readonly COAST_BRAKE_APPLICATION = 0.05;
-    private readonly COAST_LOW_SPEED_BRAKE = 0.3;     // Stronger braking below low speed threshold
-    private readonly LOW_SPEED_THRESHOLD = 2.78 * 2;      // ~20 km/h in m/s
-    private readonly DRAG_SCALE = 2.3;
+private readonly DRAG_SCALE = 2.3;
 
     // Acceleration realism knobs
     private readonly ADHESION_COEFF = 0.14;        // 0.10–0.18 (dry rail vs sporty game feel)
@@ -258,14 +256,7 @@ export class TrainPhysics {
             // Opposite direction: brake proportional to dial position
             brakeApplication = Math.abs(this.powerSetting);
         } else if (Math.abs(this.velocity) > 0 && Math.abs(this.powerSetting) <= this.BRAKE_THRESHOLD) {
-            const absSpeed = Math.abs(this.velocity);
-            if (absSpeed < this.LOW_SPEED_THRESHOLD) {
-                // Lerp from coast brake to stronger brake as speed approaches 0
-                const t = 1 - absSpeed / this.LOW_SPEED_THRESHOLD;
-                brakeApplication = this.COAST_BRAKE_APPLICATION + t * (this.COAST_LOW_SPEED_BRAKE - this.COAST_BRAKE_APPLICATION);
-            } else {
-                brakeApplication = this.COAST_BRAKE_APPLICATION;
-            }
+            brakeApplication = this.COAST_BRAKE_APPLICATION;
         } else {
             const targetSpeed = this.getTargetSpeedForPower();
             const speedError = Math.abs(this.velocity) - Math.abs(targetSpeed);
