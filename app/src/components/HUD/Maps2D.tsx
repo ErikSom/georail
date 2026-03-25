@@ -128,6 +128,8 @@ function Maps2D() {
 
     const [mapLoaded, setMapLoaded] = useState(false);
 
+    const [northUp, setNorthUp] = useState(false);
+
     // Use refs instead of state for per-frame values to avoid 60fps re-renders
     const trainBearingRef = useRef(0);
     const cameraYawRef = useRef(0);
@@ -135,6 +137,7 @@ function Maps2D() {
     const carDivsRef = useRef<HTMLDivElement | null>(null);
     const compassRef = useRef<HTMLDivElement | null>(null);
     const fallbackIconRef = useRef<HTMLDivElement | null>(null);
+    const northUpRef = useRef(false);
 
     // Route lookup table — rebuilt when route/path changes
     const routeLookupRef = useRef<RouteLookupEntry[]>([]);
@@ -225,8 +228,8 @@ function Maps2D() {
             );
             trainBearingRef.current = bearing;
             cameraYawRef.current = yaw;
-            // Single jumpTo call avoids per-call transition listeners
-            map.jumpTo({ center: [lon, lat], bearing: -yaw });
+            const mapBearing = northUpRef.current ? 0 : -(bearing + yaw);
+            map.jumpTo({ center: [lon, lat], bearing: mapBearing });
         };
 
         const unsubLatE7 = trainLatE7.subscribe((latE7) => {
@@ -260,13 +263,15 @@ function Maps2D() {
             trainBearingRef.current = bearing;
             cameraYawRef.current = yaw;
 
+            const mapBearing = northUpRef.current ? 0 : -yaw;
+
             if (lat !== 0 || lon !== 0) {
-                map.jumpTo({ center: [lon, lat], bearing: -yaw });
+                map.jumpTo({ center: [lon, lat], bearing: mapBearing });
             }
 
             // Update compass via direct DOM
             if (compassRef.current) {
-                compassRef.current.style.setProperty('--rotation', `${-yaw}deg`);
+                compassRef.current.style.setProperty('--rotation', `${northUpRef.current ? 0 : -yaw}deg`);
             }
 
             // Compute car positions
@@ -280,7 +285,8 @@ function Maps2D() {
                 container.style.display = 'none';
                 if (fallbackIconRef.current) {
                     fallbackIconRef.current.style.display = '';
-                    fallbackIconRef.current.style.transform = `translate(-50%, -50%) rotate(${bearing + yaw}deg)`;
+                    const iconRotation = bearing - mapBearing;
+                    fallbackIconRef.current.style.transform = `translate(-50%, -50%) rotate(${iconRotation}deg)`;
                 }
                 return;
             }
@@ -485,6 +491,15 @@ function Maps2D() {
         };
     }, []);
 
+    const toggleNorthUp = (e: Event) => {
+        e.stopPropagation();
+        setNorthUp(prev => {
+            const next = !prev;
+            northUpRef.current = next;
+            return next;
+        });
+    };
+
     const currentWidth = size?.width ?? BASE_MAP_SIZE;
     const currentHeight = size?.height ?? BASE_MAP_SIZE;
 
@@ -514,7 +529,12 @@ function Maps2D() {
                     style={{ transform: 'translate(-50%, -50%)' }}
                 />
 
-                <div ref={compassRef} className={styles.compass}>
+                <div
+                    ref={compassRef}
+                    className={`${styles.compass} ${northUp ? styles.compassNorthUp : ''}`}
+                    onPointerDown={toggleNorthUp}
+                >
+                    <span className={styles.compassLabel}>N</span>
                     <div className={styles.compassNeedle}></div>
                 </div>
             </div>

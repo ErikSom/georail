@@ -61,7 +61,31 @@
     border-radius: 50%;
     border: 1px solid #d0d0d0;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    pointer-events: auto;
+    cursor: pointer;
+    transition: border-color 0.15s;
+}
+
+.compass:hover {
+    border-color: #007aff;
+}
+
+.compassNorthUp {
+    border-color: #007aff;
+    background-color: rgba(230, 242, 255, 0.9);
+}
+
+.compassLabel {
+    position: absolute;
+    top: -1px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 7px;
+    font-weight: 700;
+    color: #FF3B30;
+    line-height: 1;
     pointer-events: none;
+    user-select: none;
 }
 
 /* The Red Arrow (Needle) */

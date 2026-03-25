@@ -430,17 +430,30 @@ export class World {
                 trainBackLonE7.value = Math.round(backCoords.lon * 1e7);
             }
 
-            // Camera yaw relative to train (projected onto horizontal plane)
-            dummyVec3.copy(this.camera.position).sub(this.train.group.position);
-            dummyVec3.y = 0;
-            const cameraAngle = Math.atan2(dummyVec3.x, dummyVec3.z) * MathUtils.RAD2DEG;
+            // Camera look direction on ground plane — use forward vector,
+            // fall back to camera up vector when looking nearly straight down
+            dummyVec3.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
+            const fwdX = dummyVec3.x, fwdZ = dummyVec3.z;
+            const fwdHorizSq = fwdX * fwdX + fwdZ * fwdZ;
+
+            let camBearingX: number, camBearingZ: number;
+            if (fwdHorizSq > 0.01) {
+                camBearingX = fwdX;
+                camBearingZ = fwdZ;
+            } else {
+                // Nearly vertical view — screen "up" direction on the ground
+                dummyVec3.set(0, 1, 0).applyQuaternion(this.camera.quaternion);
+                camBearingX = dummyVec3.x;
+                camBearingZ = dummyVec3.z;
+            }
+
+            const cameraLookAngle = Math.atan2(camBearingX, camBearingZ) * MathUtils.RAD2DEG;
 
             dummyVec3B.set(0, 0, 1).applyQuaternion(this.train.group.quaternion);
             dummyVec3B.y = 0;
             const trainAngle = Math.atan2(dummyVec3B.x, dummyVec3B.z) * MathUtils.RAD2DEG;
 
-            // +180 because camera looks at train, not from train
-            let relativeYaw = cameraAngle - trainAngle + 180;
+            let relativeYaw = cameraLookAngle - trainAngle;
             if (relativeYaw < 0) relativeYaw += 360;
             if (relativeYaw >= 360) relativeYaw -= 360;
             cameraYawRelativeToTrain.value = relativeYaw;
