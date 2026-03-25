@@ -14,6 +14,8 @@ function TrainControls() {
     const initialPowerRef = useRef(0);
     const dialErrorTimer = useRef<ReturnType<typeof setTimeout>>();
     const doorErrorTimer = useRef<ReturnType<typeof setTimeout>>();
+    const prevSpeedRef = useRef(0);
+    const vibrateTimer = useRef(0);
 
     const flashDialError = useCallback(() => {
         setDialError(true);
@@ -29,6 +31,26 @@ function TrainControls() {
 
     useEffect(() => {
         const unsubscribe = updateTick.subscribe(() => {
+            // Braking vibration feedback — steady rumble scaled to deceleration
+            if (trainBraking.value && navigator.vibrate) {
+                const currentSpeed = Math.abs(trainVelocityKmh.value);
+                const dt = deltaTimeMs.value / 1000;
+                const decel = dt > 0 ? (prevSpeedRef.current - currentSpeed) / dt : 0; // km/h per second
+                prevSpeedRef.current = currentSpeed;
+
+                vibrateTimer.current += deltaTimeMs.value;
+                // Pulse every 80ms for a steady rumble
+                if (decel > 0.5 && vibrateTimer.current >= 80) {
+                    // Intensity: 0-1 based on deceleration (5 km/h/s mild, 40+ km/h/s heavy)
+                    const intensity = Math.min(decel / 40, 1);
+                    navigator.vibrate(Math.round(3 + intensity * 10));
+                    vibrateTimer.current = 0;
+                }
+            } else {
+                prevSpeedRef.current = Math.abs(trainVelocityKmh.value);
+                vibrateTimer.current = 0;
+            }
+
             if (trainDoorsOpen.value) {
                 holdTimeRef.current = 0;
                 return;
