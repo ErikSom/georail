@@ -31,6 +31,7 @@ export class Train implements IPhysicsTarget {
     private audio: TrainAudio;
     private physics: TrainPhysics;
     private lightsOn: boolean = false;
+    private lastNonZeroDirection: -1 | 1 = 1;
     private readonly _cabinWorldPos = new Vector3();
 
     constructor(config: TrainConfig, debug: boolean = false) {
@@ -577,7 +578,7 @@ export class Train implements IPhysicsTarget {
     public setTrainLightDirection(): void {
         if (!this.lightsOn) return;
 
-        const forward = this.physics.getVelocity() >= 0;
+        const forward = this.getEffectiveDirection() === 1;
 
         if (this.rearCab) {
             this.cab.setHeadlights(forward);
@@ -629,6 +630,23 @@ export class Train implements IPhysicsTarget {
         return this.physics.getNormalizedTraction();
     }
 
+    public isBraking(): boolean {
+        return this.physics.isBraking();
+    }
+
+    public getDirection(): -1 | 0 | 1 {
+        const dir = this.physics.getDirection();
+        if (dir !== 0) this.lastNonZeroDirection = dir;
+        return dir;
+    }
+
+    /** Returns the last engaged gear direction (never 0) */
+    public getEffectiveDirection(): -1 | 1 {
+        const dir = this.physics.getDirection();
+        if (dir !== 0) this.lastNonZeroDirection = dir;
+        return this.lastNonZeroDirection;
+    }
+
     /**
      * Get the rail positions of the front cab for orientation calculation.
      */
@@ -653,7 +671,7 @@ export class Train implements IPhysicsTarget {
      * Forward (velocity >= 0) = front cab, backward with rear cab = rear cab.
      */
     public getActiveCabinWorldPosition(): Vector3 {
-        const forward = this.physics.getVelocity() >= 0;
+        const forward = this.getEffectiveDirection() === 1;
         if (!forward && this.rearCab) {
             return this.getCabinWorldPosition(true);
         }

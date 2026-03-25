@@ -17,6 +17,7 @@ export class TrainPhysics {
 
     private velocity: number = 0; // m/s
     private powerSetting: number = 0; // -1..1
+    private direction: -1 | 0 | 1 = 0; // Gear: -1 reverse, 0 neutral, 1 forward
 
     // Physics constants (tunable)
     private readonly ROLLING_RESISTANCE_COEFF = 0.0015;
@@ -28,6 +29,8 @@ export class TrainPhysics {
     private readonly MIN_SPEED_FOR_POWER = 0.5; // m/s
     private readonly BRAKE_THRESHOLD = 0.1;
     private readonly COAST_BRAKE_APPLICATION = 0.05;
+    private readonly COAST_LOW_SPEED_BRAKE = 0.3;     // Stronger braking below low speed threshold
+    private readonly LOW_SPEED_THRESHOLD = 2.78 * 2;      // ~20 km/h in m/s
     private readonly DRAG_SCALE = 2.3;
 
     // Acceleration realism knobs
@@ -88,6 +91,29 @@ export class TrainPhysics {
 
     public setPower(value: number): void {
         this.powerSetting = Math.max(-1, Math.min(1, value));
+
+        // Transition to neutral: velocity ~0 and power set to exactly 0
+        if (this.direction !== 0 && this.powerSetting === 0 && Math.abs(this.velocity) < 0.01) {
+            this.direction = 0;
+        }
+
+        // From neutral, first non-zero power picks the direction
+        if (this.direction === 0 && Math.abs(this.powerSetting) > this.BRAKE_THRESHOLD) {
+            this.direction = this.powerSetting > 0 ? 1 : -1;
+        }
+    }
+
+    public getDirection(): -1 | 0 | 1 {
+        return this.direction;
+    }
+
+    /** True when dial opposes the current gear direction (brake mode) */
+    public isBraking(): boolean {
+        if (this.direction === 0) return false;
+        return (
+            (this.direction === 1 && this.powerSetting < 0) ||
+            (this.direction === -1 && this.powerSetting > 0)
+        );
     }
 
     public getPower(): number {
@@ -110,6 +136,7 @@ export class TrainPhysics {
     public reset(): void {
         this.velocity = 0;
         this.powerSetting = 0;
+        this.direction = 0;
     }
 
     public update(deltaTime: number): void {
@@ -137,8 +164,16 @@ export class TrainPhysics {
             }
         }
 
+        // Clamp velocity: never go opposite to gear direction
+        if (this.direction === 1 && this.velocity < 0) this.velocity = 0;
+        if (this.direction === -1 && this.velocity > 0) this.velocity = 0;
+
         if (Math.abs(this.powerSetting) <= this.BRAKE_THRESHOLD && Math.abs(this.velocity) < 0.01) {
             this.velocity = 0;
+            // Coasted to a stop with no power — enter neutral
+            if (this.direction !== 0 && this.powerSetting === 0) {
+                this.direction = 0;
+            }
         }
 
         this.target.distanceTraveled += this.velocity * deltaTime;
@@ -165,6 +200,7 @@ export class TrainPhysics {
     private calculateEngineForce(): number {
         if (this.totalEnginePower === 0) return 0;
         if (Math.abs(this.powerSetting) < this.BRAKE_THRESHOLD) return 0;
+        if (this.direction === 0) return 0;
 
         const powerWatts = this.totalEnginePower * 1000 * this.ENGINE_EFFICIENCY * this.powerSetting;
 
@@ -218,13 +254,18 @@ export class TrainPhysics {
 
         let brakeApplication = 0;
 
-        if (
-            (this.velocity > 0 && this.powerSetting < -this.BRAKE_THRESHOLD) ||
-            (this.velocity < 0 && this.powerSetting > this.BRAKE_THRESHOLD)
-        ) {
+        if (this.isBraking()) {
+            // Opposite direction: brake proportional to dial position
             brakeApplication = Math.abs(this.powerSetting);
         } else if (Math.abs(this.velocity) > 0 && Math.abs(this.powerSetting) <= this.BRAKE_THRESHOLD) {
-            brakeApplication = this.COAST_BRAKE_APPLICATION;
+            const absSpeed = Math.abs(this.velocity);
+            if (absSpeed < this.LOW_SPEED_THRESHOLD) {
+                // Lerp from coast brake to stronger brake as speed approaches 0
+                const t = 1 - absSpeed / this.LOW_SPEED_THRESHOLD;
+                brakeApplication = this.COAST_BRAKE_APPLICATION + t * (this.COAST_LOW_SPEED_BRAKE - this.COAST_BRAKE_APPLICATION);
+            } else {
+                brakeApplication = this.COAST_BRAKE_APPLICATION;
+            }
         } else {
             const targetSpeed = this.getTargetSpeedForPower();
             const speedError = Math.abs(this.velocity) - Math.abs(targetSpeed);

@@ -149,7 +149,7 @@ export class GameCamera {
             const rollingStock = train.getRollingStockTransform(0);
             rollingStock.getWorldQuaternion(this._trainQuat);
             this._delta.set(0, 0, 1).applyQuaternion(this._trainQuat);
-            if (train.getVelocity() < 0) this._delta.negate();
+            this._delta.multiplyScalar(train.getEffectiveDirection());
 
             this.controls.target.copy(this.camera.position).addScaledVector(this._delta, 0.01);
 

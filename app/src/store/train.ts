@@ -6,6 +6,8 @@ export const trainPower = signal(0); // -1 to 1
 export const trainVelocityKmh = signal(0);
 export const trainMaxSpeedKmh = signal(120); // Max speed from train config, default 120
 export const trainTractiveEffort = signal(0); // 0 to 1 (normalized)
+export const trainBraking = signal(false); // True when dial opposes gear direction
+export const trainNeutral = signal(true); // True when gear direction is 0
 export const trainInstance = signal<Train | null>(null);
 export const trainDoorsOpen = signal(false);
 export const trainHeadlightsOn = signal(false);
@@ -90,6 +92,8 @@ export function updateTrainState() {
     if (train) {
         trainVelocityKmh.value = train.getVelocityKmh();
         trainTractiveEffort.value = train.getNormalizedTractiveEffort();
+        trainBraking.value = train.isBraking();
+        trainNeutral.value = train.getDirection() === 0;
         trainDistanceTraveled.value = train.distanceTraveled;
         trainPathTotalLength.value = train.getPath()?.getTotalLength() ?? 0;
         trainLength.value = train.getTotalLength();
@@ -118,6 +122,8 @@ export function resetTrain() {
     trainPathTotalLength.value = 0;
     trainLength.value = 0;
     trainTractiveEffort.value = 0;
+    trainBraking.value = false;
+    trainNeutral.value = true;
     trainConsist.value = [];
     const train = trainInstance.value;
     if (train) {

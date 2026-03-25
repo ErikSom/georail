@@ -3,7 +3,7 @@ import styles from './TrainControls.module.css';
 import BipolarDial from './BipolarDial';
 import IconButton from './IconButton';
 import { Input } from '../../lib/utils/Input';
-import { trainPower, trainPowerPercent, trainVelocityKmh, trainDoorsOpen, trainHeadlightsOn, trainInstance, updateTick, deltaTimeMs } from '../../store/train';
+import { trainPower, trainPowerPercent, trainVelocityKmh, trainDoorsOpen, trainHeadlightsOn, trainInstance, trainBraking, trainNeutral, updateTick, deltaTimeMs } from '../../store/train';
 import GUIControls from './GUIControls';
 
 function TrainControls() {
@@ -148,6 +148,8 @@ function TrainControls() {
                         min={-100}
                         max={100}
                         size={220}
+                        braking={trainBraking.value}
+                        neutral={trainNeutral.value}
                     />
                     <IconButton toggle on={trainHeadlightsOn.value} icon="/icons/lightbulb.svg" className={styles.lightIcon} onClick={handleHeadlights} ariaLabel="Toggle headlights" />
                     <IconButton toggle on={trainDoorsOpen.value} icon={trainDoorsOpen.value ? "/icons/doors-open.svg" : "/icons/doors-close.svg"} className={`${styles.doorIcon} ${doorError ? styles.doorError : ''}`} onClick={handleDoorToggle} ariaLabel="Toggle doors" />

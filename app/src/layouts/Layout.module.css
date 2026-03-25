@@ -53,6 +53,8 @@ select {
         inset 0 1px 0 rgba(255, 255, 255, 0.05);
     --led-amber: #c8c8c8;
     --led-error: #e74c3c;
+    --led-brake: #d48080;
+    --led-neutral: #80a8d4;
     --led-off: #4a3b2a;
     --text-dim: #6b7280;
 }

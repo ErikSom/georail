@@ -41,7 +41,7 @@ function Speedometer() {
     // update on tick
     useEffect(() => {
         const unsubTick = updateTick.subscribe(() => {
-            setSpeed(trainVelocityKmh.value);
+            setSpeed(Math.abs(trainVelocityKmh.value));
             setMaxSpeed(trainMaxSpeedKmh.value + 20);
         });
 
