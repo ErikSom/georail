@@ -529,13 +529,14 @@ function Maps2D() {
                     style={{ transform: 'translate(-50%, -50%)' }}
                 />
 
-                <div
-                    ref={compassRef}
-                    className={`${styles.compass} ${northUp ? styles.compassNorthUp : ''}`}
-                    onPointerDown={toggleNorthUp}
-                >
-                    <span className={styles.compassLabel}>N</span>
-                    <div className={styles.compassNeedle}></div>
+                <div className={styles.compassHitArea} onPointerDown={toggleNorthUp}>
+                    <div
+                        ref={compassRef}
+                        className={`${styles.compass} ${northUp ? styles.compassNorthUp : ''}`}
+                    >
+                        <span className={styles.compassLabel}>N</span>
+                        <div className={styles.compassNeedle}></div>
+                    </div>
                 </div>
             </div>
 

@@ -48,11 +48,21 @@
     mask: url('/icons/train-marker.svg') no-repeat center / contain;
 }
 
-.compass {
+.compassHitArea {
     position: absolute;
-    top: 2px;
-    left: 2px;
+    top: -4px;
+    left: -4px;
     z-index: 10;
+    width: 40px;
+    height: 40px;
+    pointer-events: auto;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.compass {
     transform-origin: center;
     transform: scale(0.8) rotate(calc(var(--rotation) * -1));
     width: 28px;
@@ -61,12 +71,11 @@
     border-radius: 50%;
     border: 1px solid #d0d0d0;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-    pointer-events: auto;
-    cursor: pointer;
+    pointer-events: none;
     transition: border-color 0.15s;
 }
 
-.compass:hover {
+.compassHitArea:hover .compass {
     border-color: #007aff;
 }
 
