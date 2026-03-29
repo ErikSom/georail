@@ -123,6 +123,23 @@
     background: var(--menu-dim-04);
 }
 
+.btnIcon {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    mask-size: contain;
+    mask-repeat: no-repeat;
+    mask-position: center;
+    -webkit-mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    background-color: currentColor;
+    vertical-align: middle;
+    margin-right: 8px;
+    position: relative;
+    top: -1px;
+}
+
 .patreonBtn {
     width: 100%;
     padding: 14px;

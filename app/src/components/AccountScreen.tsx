@@ -180,7 +180,10 @@ export default function AccountScreen({ session, onLogout, onPremiumChange }: Pr
                             <div className={gateStyles.divider}>connections</div>
 
                             <div className={gateStyles.connectionRow}>
-                                <span className={gateStyles.connectionLabel}>Discord</span>
+                                <span className={gateStyles.connectionLabel}>
+                                    <span className={gateStyles.btnIcon} style={{ maskImage: 'url(/icons/discord.svg)', WebkitMaskImage: 'url(/icons/discord.svg)' }} />
+                                    Discord
+                                </span>
                                 {status.discord_linked ? (
                                     <span className={gateStyles.connectedBadge}>Connected</span>
                                 ) : (
@@ -195,7 +198,10 @@ export default function AccountScreen({ session, onLogout, onPremiumChange }: Pr
                             </div>
 
                             <div className={gateStyles.connectionRow}>
-                                <span className={gateStyles.connectionLabel}>Patreon</span>
+                                <span className={gateStyles.connectionLabel}>
+                                    <span className={gateStyles.btnIcon} style={{ maskImage: 'url(/icons/patreon.svg)', WebkitMaskImage: 'url(/icons/patreon.svg)' }} />
+                                    Patreon
+                                </span>
                                 {status.patreon_linked ? (
                                     <span className={gateStyles.connectedBadge}>Connected</span>
                                 ) : (
@@ -221,7 +227,7 @@ export default function AccountScreen({ session, onLogout, onPremiumChange }: Pr
                                 onClick={handleStripeCheckout}
                                 disabled={actionLoading !== null}
                             >
-                                {actionLoading === 'stripe' ? 'Redirecting...' : 'Subscribe with Stripe'}
+                                {actionLoading === 'stripe' ? 'Redirecting...' : 'Subscribe'}
                             </button>
                             <div className={gateStyles.divider}>or</div>
                             <button
@@ -229,7 +235,8 @@ export default function AccountScreen({ session, onLogout, onPremiumChange }: Pr
                                 onClick={handleConnectPatreon}
                                 disabled={actionLoading !== null}
                             >
-                                {actionLoading === 'patreon' ? 'Redirecting...' : "I'm a Patron"}
+                                <span className={gateStyles.btnIcon} style={{ maskImage: 'url(/icons/patreon.svg)', WebkitMaskImage: 'url(/icons/patreon.svg)' }} />
+                                {actionLoading === 'patreon' ? 'Redirecting...' : 'Subscribe on Patreon'}
                             </button>
                             <button className={gateStyles.logoutBtn} onClick={onLogout}>Logout</button>
                         </>

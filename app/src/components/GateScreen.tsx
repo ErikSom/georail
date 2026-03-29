@@ -106,7 +106,7 @@ export default function GateScreen({ session, isPremium, checking, onLogout }: P
                     onClick={handleStripeCheckout}
                     disabled={actionLoading !== null}
                 >
-                    {actionLoading === 'stripe' ? 'Redirecting...' : 'Subscribe with Stripe'}
+                    {actionLoading === 'stripe' ? 'Redirecting...' : 'Subscribe'}
                 </button>
                 <div className={styles.divider}>or</div>
                 <button
@@ -114,7 +114,8 @@ export default function GateScreen({ session, isPremium, checking, onLogout }: P
                     onClick={handleConnectPatreon}
                     disabled={actionLoading !== null}
                 >
-                    {actionLoading === 'patreon' ? 'Redirecting...' : "I'm a Patron"}
+                    <span className={styles.btnIcon} style={{ maskImage: 'url(/icons/patreon.svg)', WebkitMaskImage: 'url(/icons/patreon.svg)' }} />
+                    {actionLoading === 'patreon' ? 'Redirecting...' : 'Subscribe on Patreon'}
                 </button>
                 <button className={styles.logoutBtn} onClick={onLogout}>
                     Logout

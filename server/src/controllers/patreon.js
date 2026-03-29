@@ -82,7 +82,7 @@ export const patreonCallback = async (req, res) => {
 
 	try {
 		// Exchange code for token
-		const tokenResponse = await axios.post(`${PATREON_AUTH}/token`, new URLSearchParams({
+		const tokenResponse = await axios.post('https://www.patreon.com/api/oauth2/token', new URLSearchParams({
 			code,
 			grant_type: 'authorization_code',
 			client_id: process.env.PATREON_CLIENT_ID,

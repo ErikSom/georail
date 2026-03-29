@@ -111,13 +111,18 @@ export const handleStripeWebhook = async (req, res) => {
 				const subscription = event.data.object;
 				const customerId = subscription.customer;
 
-				const { data: profile } = await supabase
+				console.log(`Subscription deleted for Stripe customer: ${customerId}`);
+
+				const { data: profile, error: profileError } = await supabase
 					.from('profiles')
 					.select('id')
 					.eq('stripe_customer_id', customerId)
 					.single();
 
-				if (!profile) break;
+				if (!profile) {
+					console.warn(`No profile found for stripe_customer_id: ${customerId}`, profileError?.message);
+					break;
+				}
 
 				await deactivatePremium(profile.id, 'stripe', event);
 				break;

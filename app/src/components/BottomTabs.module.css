@@ -33,12 +33,21 @@
 }
 
 .icon {
+    display: block;
     width: 22px;
     height: 22px;
+    background-color: var(--menu-dim);
+    mask-size: contain;
+    mask-repeat: no-repeat;
+    mask-position: center;
+    -webkit-mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    transition: background-color 0.2s;
 }
 
 .active .icon {
-    color: var(--menu-accent);
+    background-color: var(--menu-accent);
 }
 
 .label {
