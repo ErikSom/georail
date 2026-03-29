@@ -8,6 +8,8 @@
     --menu-dark-06: rgba(11, 21, 12, 0.6);
     --menu-accent: #98f99e;
     --menu-dim: #858984;
+    --menu-dim-02: rgba(0, 0, 0, 0.06);
+    --menu-dim-04: rgba(0, 0, 0, 0.1);
 }
 
 /* Thin overlay scrollbar — macOS style */

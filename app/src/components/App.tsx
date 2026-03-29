@@ -46,7 +46,6 @@ export default function App() {
         });
     }, [session]);
 
-    // Sync tab state with browser navigation
     useEffect(() => {
         const onPopState = () => setTab(currentTab());
         window.addEventListener('popstate', onPopState);
@@ -54,9 +53,6 @@ export default function App() {
     }, []);
 
     const isPremium = !!(session && !checking && profile?.is_premium);
-
-    // Non-premium users are always forced to account
-    const activeTab = isPremium ? tab : 'account';
 
     const navigate = (to: TabId) => {
         if (to === 'journey' && !isPremium) return;
@@ -83,6 +79,32 @@ export default function App() {
     if (appScreen.value === 'game') {
         return <ThreeViewer />;
     }
+
+    // Not logged in — just show login screen, no tabs
+    if (!session) {
+        return (
+            <MenuScreen
+                session={null}
+                profile={null}
+                checking={false}
+                onLogout={handleLogout}
+            />
+        );
+    }
+
+    // Logged in but not premium — account only, no tabs
+    if (!isPremium) {
+        return (
+            <AccountScreen
+                session={session}
+                onLogout={handleLogout}
+                onPremiumChange={refreshProfile}
+            />
+        );
+    }
+
+    // Premium user — tabs between journey and account
+    const activeTab = tab;
 
     return (
         <>

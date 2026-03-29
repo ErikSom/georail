@@ -77,7 +77,7 @@
 .primaryBtn {
     width: 100%;
     padding: 14px;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 700;
     color: var(--menu-dark);
     background: var(--menu-accent);
@@ -106,7 +106,7 @@
     display: block;
     width: 100%;
     padding: 14px;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 600;
     color: var(--menu-dark);
     background: var(--menu-light);
@@ -120,7 +120,7 @@
 }
 
 .secondaryBtn:hover {
-    background: var(--menu-dark-06);
+    background: var(--menu-dim-04);
 }
 
 .patreonBtn {

@@ -154,7 +154,16 @@ export default function AccountScreen({ session, onLogout, onPremiumChange }: Pr
                     {status?.is_premium ? (
                         <>
                             <div className={gateStyles.successBanner}>
-                                Premium — via {status.premium_source === 'stripe' ? 'Stripe' : 'Patreon'}
+                                {(() => {
+                                    const labels: Record<string, string> = {
+                                        stripe: 'Premium — via Stripe',
+                                        patreon: 'Premium — via Patreon',
+                                        vip: 'VIP — First class',
+                                        gift: 'Gift — Enjoy the ride!',
+                                        influencer: 'Influencer — All aboard',
+                                    };
+                                    return labels[status.premium_source || ''] || 'Premium';
+                                })()}
                                 {status.premium_until && ` — renews ${new Date(status.premium_until).toLocaleDateString()}`}
                             </div>
 
