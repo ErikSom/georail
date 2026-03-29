@@ -36,7 +36,7 @@ export async function activatePremium(userId, source, rawEvent = null) {
 
 	// Sync Discord role if linked
 	if (profile?.discord_user_id) {
-		await grantDiscordRole(profile.discord_user_id);
+		await grantDiscordRole(profile.discord_user_id, source);
 	}
 }
 

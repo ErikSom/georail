@@ -113,12 +113,12 @@ export const discordCallback = async (req, res) => {
 		// If user is premium, grant Discord role immediately
 		const { data: profile } = await supabase
 			.from('profiles')
-			.select('is_premium')
+			.select('is_premium, premium_source')
 			.eq('id', userId)
 			.single();
 
 		if (profile?.is_premium) {
-			await grantDiscordRole(discordUserId);
+			await grantDiscordRole(discordUserId, profile.premium_source);
 		}
 
 		res.redirect(`${clientUrl}/account?discord=linked`);

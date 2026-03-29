@@ -11,33 +11,33 @@ export function initializeDiscordBot() {
 	rest = new REST({ version: '10' }).setToken(token);
 }
 
-function getPremiumRoleIds() {
+function getAllPremiumRoleIds() {
 	const ids = process.env.DISCORD_PREMIUM_ROLE_IDS;
 	if (ids) return ids.split(',').map(id => id.trim()).filter(Boolean);
-	// Fallback to single role ID
 	const single = process.env.DISCORD_PREMIUM_ROLE_ID;
 	return single ? [single] : [];
 }
 
-export async function grantDiscordRole(discordUserId) {
+export async function grantDiscordRole(discordUserId, source) {
 	if (!rest) return;
-	const guildId = process.env.DISCORD_GUILD_ID;
-	const roleIds = getPremiumRoleIds();
-	if (!guildId || roleIds.length === 0) return;
+	// Patreon bot handles its own Discord roles
+	if (source === 'patreon') return;
 
-	for (const roleId of roleIds) {
-		try {
-			await rest.put(Routes.guildMemberRole(guildId, discordUserId, roleId));
-		} catch (error) {
-			console.error(`Failed to grant Discord role ${roleId} to ${discordUserId}:`, error.message);
-		}
+	const guildId = process.env.DISCORD_GUILD_ID;
+	const roleId = process.env.DISCORD_PREMIUM_ROLE_ID;
+	if (!guildId || !roleId) return;
+
+	try {
+		await rest.put(Routes.guildMemberRole(guildId, discordUserId, roleId));
+	} catch (error) {
+		console.error(`Failed to grant Discord role ${roleId} to ${discordUserId}:`, error.message);
 	}
 }
 
 export async function revokeDiscordRole(discordUserId) {
 	if (!rest) return;
 	const guildId = process.env.DISCORD_GUILD_ID;
-	const roleIds = getPremiumRoleIds();
+	const roleIds = getAllPremiumRoleIds();
 	if (!guildId || roleIds.length === 0) return;
 
 	for (const roleId of roleIds) {
