@@ -7,6 +7,8 @@ import navigationRoutes from './routes/navigation.js';
 import stationsRoutes from './routes/stations.js';
 import patchesRoutes from './routes/patches.js';
 import userRoutes from './routes/user.js';
+import subscriptionRoutes from './routes/subscription.js';
+import { initializeDiscordBot } from './lib/discord-bot.js';
 
 const envFile = '.env';
 dotenv.config({ path: path.resolve(process.cwd(), envFile) });
@@ -18,6 +20,12 @@ const app = express();
 app.set('trust proxy', 1);
 
 initializeSupabase();
+initializeDiscordBot();
+
+// Webhook endpoints need raw body for signature verification.
+// Mount these BEFORE the global JSON parser.
+app.use('/subscription/stripe/webhook', express.raw({ type: 'application/json' }));
+app.use('/subscription/patreon/webhook', express.raw({ type: 'application/json' }));
 
 // Limit body size - rejects during upload, not after
 app.use(express.json({ limit: '500kb' }));
@@ -56,6 +64,7 @@ app.use('/navi', navigationRoutes);
 app.use('/stations', stationsRoutes);
 app.use('/patches', patchesRoutes);
 app.use('/user', userRoutes);
+app.use('/subscription', subscriptionRoutes);
 
 // ✅ 4. Health Check & Root
 app.get('/health', (req, res) => res.status(200).send('OK'));

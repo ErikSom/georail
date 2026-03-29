@@ -1,11 +1,16 @@
 ---
 import AstroLayout from "../layouts/Layout.astro";
 import SignupForm from "../components/SignupForm.tsx";
-import styles from "../styles/signup.module.css";
+import styles from "../components/MenuScreen.module.css";
 ---
 
 <AstroLayout title="Georail - Sign Up">
-  <div class={styles.pageContainer}>
+  <div class={styles.screen}>
+    <div class={styles.logoWrapper}>
+      <div class={styles.trapezoid}></div>
+      <img src="/logo.svg" alt="Georail" class={styles.logo} />
+    </div>
     <SignupForm client:load />
+    <footer class={styles.footer}>&copy; 2025 Terminarch Games</footer>
   </div>
 </AstroLayout>

@@ -1,8 +1,6 @@
 import { useState } from 'preact/hooks';
 import { supabase } from '../lib/Supabase';
-import styles from './SignupForm.module.css';
-import utils from '../styles/utils.module.css';
-
+import styles from './GateScreen.module.css';
 
 export default function SignupForm() {
     const [email, setEmail] = useState('');
@@ -11,60 +9,67 @@ export default function SignupForm() {
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
 
-    const handleSignup = async (e: preact.TargetedSubmitEvent<HTMLFormElement>) => {
+    const handleSignup = async (e: Event) => {
         e.preventDefault();
         setLoading(true);
         setMessage('');
         setError('');
 
-        const { error } = await supabase.auth.signUp({
-            email,
-            password
-        });
+        const { error: signupError } = await supabase.auth.signUp({ email, password });
 
-        console.log('Signup response error:', error);
-
-        if (error) {
-            setError(error.message);
+        if (signupError) {
+            setError(signupError.message);
         } else {
-            setMessage('Success! Please check your email to confirm your account.');
+            setMessage('Check your email to confirm your account.');
         }
         setLoading(false);
     };
 
-
     return (
-        <div className={styles.signupFormContainer}>
-            <h2>Create an Account</h2>
-            <form onSubmit={handleSignup} className={utils.form}>
-                <label>
-                    Email:
-                    <input
-                        type="email"
-                        value={email}
-                        onInput={(e) => setEmail((e.target as HTMLInputElement).value)}
-                        required
-                    />
-                </label>
-                <label>
-                    Password (min. 6 characters):
-                    <input
-                        type="password"
-                        value={password}
-                        onInput={(e) => setPassword((e.target as HTMLInputElement).value)}
-                        required
-                        minLength={6}
-                    />
-                </label>
-                <button type="submit" disabled={loading} className={utils.button}>
-                    {loading ? 'Creating account...' : 'Sign Up'}
-                </button>
-                {message && <p className={utils.success}>{message}</p>}
-                {error && <p className={utils.error}>{error}</p>}
-            </form>
-            <p>
-                Already have an account? <a href="/">Go back to Login</a>
-            </p>
+        <div className={styles.container}>
+            <h1 className={styles.title}>Create Account</h1>
+            <div className={styles.content}>
+                {message ? (
+                    <>
+                        <div className={styles.successBanner}>{message}</div>
+                        <a href="/" className={styles.secondaryBtn}>Back to Login</a>
+                    </>
+                ) : (
+                    <>
+                        <form onSubmit={handleSignup} className={styles.form}>
+                            <div className={styles.inputGroup}>
+                                <label className={styles.inputLabel}>Email</label>
+                                <input
+                                    type="email"
+                                    value={email}
+                                    onInput={(e) => setEmail((e.target as HTMLInputElement).value)}
+                                    required
+                                    className={styles.input}
+                                    placeholder="your@email.com"
+                                />
+                            </div>
+                            <div className={styles.inputGroup}>
+                                <label className={styles.inputLabel}>Password</label>
+                                <input
+                                    type="password"
+                                    value={password}
+                                    onInput={(e) => setPassword((e.target as HTMLInputElement).value)}
+                                    required
+                                    minLength={6}
+                                    className={styles.input}
+                                    placeholder="Min. 6 characters"
+                                />
+                            </div>
+                            <button type="submit" disabled={loading} className={styles.primaryBtn}>
+                                {loading ? 'Creating account...' : 'Sign Up'}
+                            </button>
+                            {error && <p className={styles.errorText}>{error}</p>}
+                        </form>
+                        <div className={styles.divider}>or</div>
+                        <a href="/" className={styles.secondaryBtn}>Back to Login</a>
+                    </>
+                )}
+            </div>
         </div>
     );
 }

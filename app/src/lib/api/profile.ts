@@ -10,6 +10,10 @@ export interface UserProfile {
     nodes_edited: number;
     nodes_reviewed: number;
     total_km: number;
+    is_premium: boolean;
+    premium_source: 'stripe' | 'patreon' | null;
+    discord_linked: boolean;
+    patreon_linked: boolean;
 }
 
 const API_URL = `${import.meta.env.PUBLIC_GEORAIL_URL}/user/my`;
@@ -58,7 +62,11 @@ async function fetchUserProfileWithSession(session: Session): Promise<UserProfil
             role: (data.role as UserRole) || 'user',
             nodes_edited: data.nodes_edited || 0,
             nodes_reviewed: data.nodes_reviewed || 0,
-            total_km: data.total_km || 0
+            total_km: data.total_km || 0,
+            is_premium: data.is_premium || false,
+            premium_source: data.premium_source || null,
+            discord_linked: data.discord_linked || false,
+            patreon_linked: data.patreon_linked || false
         };
 
         return cachedProfile;
