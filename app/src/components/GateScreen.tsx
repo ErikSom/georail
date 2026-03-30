@@ -2,16 +2,16 @@ import { useState } from 'preact/hooks';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/Supabase';
 import { createStripeCheckout, connectPatreon } from '../lib/api/subscription';
+import TrainSpinner from './TrainSpinner';
 import styles from './GateScreen.module.css';
 
 interface Props {
     session: Session | null;
-    isPremium: boolean | null;
     checking: boolean;
     onLogout: () => void;
 }
 
-export default function GateScreen({ session, isPremium, checking, onLogout }: Props) {
+export default function GateScreen({ session, checking, onLogout }: Props) {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loginLoading, setLoginLoading] = useState(false);
@@ -46,7 +46,8 @@ export default function GateScreen({ session, isPremium, checking, onLogout }: P
         return (
             <div className={styles.container}>
                 <div className={styles.content}>
-                    <p className={styles.loadingText}>Loading...</p>
+                    <TrainSpinner />
+                    <p className={styles.loadingText}>Departing shortly...</p>
                 </div>
             </div>
         );

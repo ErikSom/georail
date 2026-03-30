@@ -32,7 +32,7 @@ export default function MenuScreen({ session, profile, checking, onLogout }: Pro
             </div>
             {showGame
                 ? <TravelPicker />
-                : <GateScreen session={session} isPremium={profile?.is_premium ?? null} checking={checking} onLogout={onLogout} />
+                : <GateScreen session={session} checking={checking} onLogout={onLogout} />
             }
             <footer className={styles.footer}>&copy; 2025 Terminarch Games</footer>
         </div>

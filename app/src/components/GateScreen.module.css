@@ -278,8 +278,13 @@
 
 .loadingText {
     text-align: center;
-    padding: 40px;
     color: var(--menu-dim);
     font-size: 15px;
-    margin: 0;
+    margin: 0 0 16px;
+}
+
+.loadingContainer {
+    display: flex;
+    justify-content: center;
+    padding: 32px 0;
 }
