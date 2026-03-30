@@ -42,7 +42,7 @@ export default function GateScreen({ session, isPremium, checking, onLogout }: P
     }
 
     // Loading state
-    if (checking && session) {
+    if (checking) {
         return (
             <div className={styles.container}>
                 <div className={styles.content}>

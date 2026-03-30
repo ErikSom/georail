@@ -16,35 +16,29 @@ function currentTab(): TabId {
 export default function App() {
     const [session, setSession] = useState<Session | null>(null);
     const [profile, setProfile] = useState<UserProfile | null>(null);
-    const [checking, setChecking] = useState(true);
+    const [loading, setLoading] = useState(true);
     const [tab, setTab] = useState<TabId>(currentTab);
 
+    // Single source of truth: onAuthStateChange fires INITIAL_SESSION on mount
     useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-        });
-
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             setSession(session);
-            setProfile(null);
-            clearProfileCache();
+            if (!session) {
+                setProfile(null);
+                clearProfileCache();
+                setLoading(false);
+            } else {
+                setLoading(true);
+                clearProfileCache();
+                fetchUserProfile()
+                    .then((p) => setProfile(p))
+                    .catch(() => setProfile(null))
+                    .finally(() => setLoading(false));
+            }
         });
 
         return () => subscription.unsubscribe();
     }, []);
-
-    useEffect(() => {
-        if (!session) {
-            setChecking(false);
-            setProfile(null);
-            return;
-        }
-        setChecking(true);
-        fetchUserProfile().then((p) => {
-            setProfile(p);
-            setChecking(false);
-        });
-    }, [session]);
 
     useEffect(() => {
         const onPopState = () => setTab(currentTab());
@@ -52,7 +46,7 @@ export default function App() {
         return () => window.removeEventListener('popstate', onPopState);
     }, []);
 
-    const isPremium = !!(session && !checking && profile?.is_premium);
+    const isPremium = !!(session && !loading && profile?.is_premium);
 
     const navigate = (to: TabId) => {
         if (to === 'journey' && !isPremium) return;
@@ -72,57 +66,48 @@ export default function App() {
 
     const refreshProfile = async () => {
         clearProfileCache();
-        const p = await fetchUserProfile();
-        setProfile(p);
+        try {
+            const p = await fetchUserProfile();
+            setProfile(p);
+        } catch {
+            setProfile(null);
+        }
     };
 
     if (appScreen.value === 'game') {
         return <ThreeViewer />;
     }
 
-    // Not logged in — just show login screen, no tabs
+    // Still loading — show spinner
+    if (loading) {
+        return (
+            <MenuScreen session={session} profile={null} checking={true} onLogout={handleLogout} />
+        );
+    }
+
+    // Not logged in
     if (!session) {
         return (
-            <MenuScreen
-                session={null}
-                profile={null}
-                checking={false}
-                onLogout={handleLogout}
-            />
+            <MenuScreen session={null} profile={null} checking={false} onLogout={handleLogout} />
         );
     }
 
-    // Logged in but not premium — account only, no tabs
+    // Logged in but not premium
     if (!isPremium) {
         return (
-            <AccountScreen
-                session={session}
-                onLogout={handleLogout}
-                onPremiumChange={refreshProfile}
-            />
+            <AccountScreen session={session} onLogout={handleLogout} onPremiumChange={refreshProfile} />
         );
     }
 
-    // Premium user — tabs between journey and account
-    const activeTab = tab;
-
+    // Premium — tabs
     return (
         <>
-            {activeTab === 'journey' ? (
-                <MenuScreen
-                    session={session}
-                    profile={profile}
-                    checking={checking}
-                    onLogout={handleLogout}
-                />
+            {tab === 'journey' ? (
+                <MenuScreen session={session} profile={profile} checking={false} onLogout={handleLogout} />
             ) : (
-                <AccountScreen
-                    session={session}
-                    onLogout={handleLogout}
-                    onPremiumChange={refreshProfile}
-                />
+                <AccountScreen session={session} onLogout={handleLogout} onPremiumChange={refreshProfile} />
             )}
-            <BottomTabs activeTab={activeTab} onTabChange={navigate} />
+            <BottomTabs activeTab={tab} onTabChange={navigate} />
         </>
     );
 }
