@@ -79,7 +79,7 @@
     padding: 14px;
     font-size: 15px;
     font-weight: 700;
-    color: var(--menu-dark);
+    color: var(--menu-light);
     background: var(--menu-accent);
     border: none;
     border-radius: 16px;
@@ -226,7 +226,7 @@
     padding: 16px;
     font-size: 15px;
     font-weight: 500;
-    color: var(--menu-dark);
+    color: var(--menu-light);
     background: var(--menu-accent);
     border-radius: 16px;
     line-height: 1.5;

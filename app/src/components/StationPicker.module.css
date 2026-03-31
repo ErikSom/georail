@@ -43,7 +43,7 @@
     align-items: center;
     justify-content: center;
     background: var(--menu-accent);
-    color: var(--menu-dark);
+    color: var(--menu-light);
     font-size: 12px;
     font-weight: 700;
     min-width: 22px;

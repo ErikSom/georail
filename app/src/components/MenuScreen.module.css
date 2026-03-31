@@ -36,6 +36,8 @@
     border-radius: 32px;
     transform: rotateX(-20deg) translateY(-18px);
     transform-origin: bottom;
+    background: var(--menu-accent);
+    background: radial-gradient(circle, rgba(52, 115, 230, 1) 0%, rgba(19, 52, 158, 1) 100%);
 }
 
 .logo {
