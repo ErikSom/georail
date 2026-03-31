@@ -716,11 +716,11 @@
 }
 
 .optionCard:hover {
-    background: var(--menu-dark-06);
+    background: var(--menu-dim-04);
 }
 
 .optionCardActive {
-    background: var(--menu-dark-06);
+    background: var(--menu-dim-04);
 }
 
 .optionLabel {
@@ -779,6 +779,7 @@
 
 .conditionPill:hover {
     color: var(--menu-dark);
+    background: var(--menu-dark-06);
 }
 
 .conditionPillActive {
@@ -805,7 +806,7 @@
 }
 
 .timePresetButton:hover {
-    background: var(--menu-accent);
+    background: var(--menu-dark-06);
 }
 
 .weatherOptions {

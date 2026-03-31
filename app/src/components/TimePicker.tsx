@@ -14,8 +14,8 @@ function ScrollWheel({ items, selected, onSelect }: {
 }) {
     const containerRef = useRef<HTMLDivElement>(null);
     const itemHeight = 40;
-    const isScrolling = useRef(false);
     const scrollTimeout = useRef<ReturnType<typeof setTimeout>>();
+    const dragState = useRef<{ active: boolean; startY: number; startScroll: number }>({ active: false, startY: 0, startScroll: 0 });
 
     useEffect(() => {
         const container = containerRef.current;
@@ -26,20 +26,43 @@ function ScrollWheel({ items, selected, onSelect }: {
         }
     }, []);
 
-    const handleScroll = () => {
-        isScrolling.current = true;
+    const snapToNearest = () => {
         if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
-
         scrollTimeout.current = setTimeout(() => {
             const container = containerRef.current;
             if (!container) return;
-
             const idx = Math.round(container.scrollTop / itemHeight);
             const clamped = Math.max(0, Math.min(idx, items.length - 1));
             container.scrollTo({ top: clamped * itemHeight, behavior: 'smooth' });
             onSelect(items[clamped]);
-            isScrolling.current = false;
         }, 80);
+    };
+
+    const handleScroll = () => {
+        if (dragState.current.active) return;
+        snapToNearest();
+    };
+
+    const handlePointerDown = (e: PointerEvent) => {
+        const container = containerRef.current;
+        if (!container) return;
+        if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
+        dragState.current = { active: true, startY: e.clientY, startScroll: container.scrollTop };
+        container.setPointerCapture(e.pointerId);
+    };
+
+    const handlePointerMove = (e: PointerEvent) => {
+        if (!dragState.current.active) return;
+        const container = containerRef.current;
+        if (!container) return;
+        const delta = dragState.current.startY - e.clientY;
+        container.scrollTop = dragState.current.startScroll + delta;
+    };
+
+    const handlePointerUp = () => {
+        if (!dragState.current.active) return;
+        dragState.current.active = false;
+        snapToNearest();
     };
 
     return (
@@ -49,6 +72,11 @@ function ScrollWheel({ items, selected, onSelect }: {
                 ref={containerRef}
                 className={styles.wheelScroll}
                 onScroll={handleScroll}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
+                style={{ touchAction: 'none' }}
             >
                 <div style={{ height: `${itemHeight}px` }} />
                 {items.map(item => (

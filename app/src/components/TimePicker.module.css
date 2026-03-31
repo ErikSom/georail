@@ -36,7 +36,6 @@
 .wheelScroll {
     height: 100%;
     overflow-y: scroll;
-    scroll-snap-type: y mandatory;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     position: relative;
@@ -54,13 +53,12 @@
     font-size: 18px;
     font-weight: 600;
     color: var(--menu-dim);
-    scroll-snap-align: start;
     cursor: pointer;
     transition: color 0.15s;
     font-variant-numeric: tabular-nums;
 }
 
 .wheelItemActive {
-    color: var(--menu-dark);
+    color: var(--menu-light);
     font-weight: 700;
 }
