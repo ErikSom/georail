@@ -6,7 +6,7 @@
     padding: 0 16px;
     position: relative;
     isolation: isolate;
-    gap: 12px;
+    gap: 24px;
 }
 
 .screen::before {

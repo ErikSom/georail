@@ -549,6 +549,10 @@
     border-radius: 8px;
     flex-shrink: 0;
     line-height: 1.4;
+    min-width: 16px;
+    min-height: 16px;
+    display: flex;
+    justify-content: center;
 }
 
 .departureDetails .goButton {
@@ -606,7 +610,6 @@
     border-radius: 32px;
     padding: 16px 24px;
     transition: flex 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-    max-height: 40vh;
     overflow: visible;
 }
 

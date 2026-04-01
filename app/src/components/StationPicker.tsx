@@ -10,6 +10,7 @@ interface StationPickerProps {
     onSelectStation: (stationName: string) => void;
     onSelectTrack: (track: string) => void;
     disabled?: boolean;
+    label?: string;
 }
 
 const isTouchDevice = () => window.matchMedia('(pointer: coarse)').matches;
@@ -22,6 +23,7 @@ export default function StationPicker({
     onSelectStation,
     onSelectTrack,
     disabled,
+    label,
 }: StationPickerProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -109,12 +111,15 @@ export default function StationPicker({
                     onClick={handleOpen}
                     disabled={disabled}
                 >
-                    <span className={selectedStation ? styles.selectedStation : styles.placeholder}>
-                        {selectedStation || 'Select station'}
+                    {label && <span className={styles.label}>{label}</span>}
+                    <span className={styles.displayStation}>
+                        <span className={selectedStation ? styles.selectedStation : styles.placeholder}>
+                            {selectedStation || 'Select station'}
+                        </span>
+                        {selectedTrack && (
+                            <span className={styles.trackBadge}>{selectedTrack}</span>
+                        )}
                     </span>
-                    {selectedTrack && (
-                        <span className={styles.trackBadge}>{selectedTrack}</span>
-                    )}
                 </button>
             </div>
         );
@@ -178,7 +183,7 @@ export default function StationPicker({
                 >
                     <div className={styles.mobileHeader}>
                         <span className={styles.mobileTitle}>
-                            {pickingTrack ? 'Select track' : 'Select station'}
+                            {pickingTrack ? 'Select track' : label ? `${label} — Select station` : 'Select station'}
                         </span>
                         <button className={styles.mobileClose} onClick={close}>✕</button>
                     </div>
@@ -191,6 +196,7 @@ export default function StationPicker({
     // Desktop mode: dropdown
     return (
         <div ref={containerRef} className={styles.container} data-picker-open>
+            {label && <div className={styles.label}>{label}</div>}
             {pickingTrack ? (
                 <>
                     <div className={styles.display}>

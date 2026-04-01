@@ -39,7 +39,6 @@ function StopRow({ index, stops, stations, onUpdate, onRemove, canRemove, disabl
         <>
             <div key={index} className={styles.stopRow}>
                 <div className={styles.stopField}>
-                    <div className={styles.stopLabel}>{getStopLabel(index)}</div>
                     <StationPicker
                         stations={stations}
                         selectedStation={stop.station}
@@ -48,6 +47,7 @@ function StopRow({ index, stops, stations, onUpdate, onRemove, canRemove, disabl
                         onSelectStation={(name) => onUpdate(index, 'station', name)}
                         onSelectTrack={(track) => onUpdate(index, 'track', track)}
                         disabled={disabled}
+                        label={getStopLabel(index)}
                     />
                 </div>
                 {
@@ -684,7 +684,6 @@ export default function TravelPicker() {
                             <>
                                 <div className={styles.stopsList}>
                                     <div className={styles.stopField}>
-                                        <div className={styles.stopLabel}>From</div>
                                         <StationPicker
                                             stations={stations}
                                             selectedStation={fromStation}
@@ -693,6 +692,7 @@ export default function TravelPicker() {
                                             onSelectStation={(name) => handleRegularStationSelect(name)}
                                             onSelectTrack={(track) => updateRegularTrack(track)}
                                             disabled={loadingDepartures}
+                                            label="From"
                                         />
                                     </div>
                                 </div>

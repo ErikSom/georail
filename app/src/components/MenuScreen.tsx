@@ -16,9 +16,11 @@ export default function MenuScreen({ session, profile, checking, onLogout }: Pro
     useEffect(() => {
         document.body.style.overflow = 'auto';
         document.body.style.touchAction = 'auto';
+        document.body.style.scrollbarGutter = 'stable';
         return () => {
             document.body.style.overflow = '';
             document.body.style.touchAction = '';
+            document.body.style.scrollbarGutter = '';
         };
     }, []);
 

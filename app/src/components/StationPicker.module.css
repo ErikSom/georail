@@ -8,8 +8,7 @@
 .display {
     width: 100%;
     display: flex;
-    align-items: center;
-    gap: 8px;
+    flex-direction: column;
     background: none;
     border: none;
     border-bottom: 2px solid transparent;
@@ -22,9 +21,23 @@
     padding: 0 0 4px 0;
 }
 
+.displayStation {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .display:disabled {
     opacity: 0.4;
     cursor: not-allowed;
+}
+
+.label {
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--menu-dim);
+    flex-shrink: 0;
+    margin-bottom: 4px;
 }
 
 .selectedStation {
