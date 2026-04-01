@@ -539,7 +539,7 @@ export default function TravelPicker() {
                 };
 
                 startJourney(routeData, routeData.properties.startTime);
-            appScreen.value = 'game';
+                appScreen.value = 'game';
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'Failed to fetch route');
                 console.error('Failed to fetch journey route:', err);
@@ -557,203 +557,94 @@ export default function TravelPicker() {
 
     return (
         <div className={styles.container}>
-                <h1 className={styles.title}>Plan Journey</h1>
+            <h1 className={styles.title}>Plan Journey</h1>
 
-                {/* Tabs */}
-                <div className={styles.tabs}>
-                    <button
-                        className={`${styles.tab} ${activeTab === 'regular' ? styles.activeTab : ''}`}
-                        onClick={() => { setActiveTab('regular'); setMinimapReady(false); setPreviewRoute(null); setPreviewStopIndices([]); setSelectedDeparture(null); setExpandedDeparture(null); setExpandedJourney(null); setLoadingJourney(false); }}
-                    >
-                        Regular
-                    </button>
-                    <button
-                        className={`${styles.tab} ${activeTab === 'custom' ? styles.activeTab : ''}`}
-                        onClick={() => { setActiveTab('custom'); setMinimapReady(false); }}
-                    >
-                        Custom
-                    </button>
+            {/* Tabs */}
+            <div className={styles.tabs}>
+                <button
+                    className={`${styles.tab} ${activeTab === 'regular' ? styles.activeTab : ''}`}
+                    onClick={() => { setActiveTab('regular'); setMinimapReady(false); setPreviewRoute(null); setPreviewStopIndices([]); setSelectedDeparture(null); setExpandedDeparture(null); setExpandedJourney(null); setLoadingJourney(false); }}
+                >
+                    Regular
+                </button>
+                <button
+                    className={`${styles.tab} ${activeTab === 'custom' ? styles.activeTab : ''}`}
+                    onClick={() => { setActiveTab('custom'); setMinimapReady(false); }}
+                >
+                    Custom
+                </button>
 
-                    <button
-                        className={`${styles.tab} ${activeTab === 'archive' ? styles.activeTab : ''}`}
-                        onClick={() => { setActiveTab('archive'); setMinimapReady(false); setPreviewRoute(null); setPreviewStopIndices([]); }}
-                    >
-                        Archive
-                    </button>
-                    <div
-                        className={styles.tabIndicator}
-                        style={{ transform: `translateX(${TAB_ORDER.indexOf(activeTab) * 100}%)` }}
-                    />
-                </div>
+                <button
+                    className={`${styles.tab} ${activeTab === 'archive' ? styles.activeTab : ''}`}
+                    onClick={() => { setActiveTab('archive'); setMinimapReady(false); setPreviewRoute(null); setPreviewStopIndices([]); }}
+                >
+                    Archive
+                </button>
+                <div
+                    className={styles.tabIndicator}
+                    style={{ transform: `translateX(${TAB_ORDER.indexOf(activeTab) * 100}%)` }}
+                />
+            </div>
 
-                {/* Content */}
-                <div className={styles.content}>
-                    {loading ? (
-                        <div className={styles.loading}>Loading stations...</div>
-                    ) : activeTab === 'regular' ? (
-                        /* Regular Tab Content */
-                        selectedDeparture ? (
-                            /* Detail view for selected departure */
-                            <>
-                                <div className={`${styles.customRow} ${minimapReady ? styles.customRowWithMap : ''}`}>
-                                    <div className={styles.stopsList}>
-                                        <div className={styles.trainInfo}>
-                                            {selectedDeparture.product.longCategoryName} {selectedDeparture.product.number}
-                                        </div>
-
-                                        {loadingJourney && (
-                                            <div className={styles.loadingStops}>Loading stops...</div>
-                                        )}
-
-                                        {!loadingJourney && expandedJourney && (() => {
-                                            const startIdx = expandedJourney.stops.findIndex(
-                                                stop => stop.stop.name === fromStation
-                                            );
-                                            const relevantStops = expandedJourney.stops
-                                                .slice(startIdx >= 0 ? startIdx : 0)
-                                                .filter(stop => stop.status !== 'PASSING');
-
-                                            return (
-                                                <div className={`${styles.timeline} thinScroll`}>
-                                                    {relevantStops.map((stop, idx) => {
-                                                        const isFirst = idx === 0;
-                                                        const isLast = idx === relevantStops.length - 1;
-                                                        const time = stop.departures?.[0]?.plannedTime || stop.arrivals?.[0]?.plannedTime;
-                                                        const track = stop.departures?.[0]?.plannedTrack || stop.arrivals?.[0]?.plannedTrack;
-
-                                                        return (
-                                                            <div key={stop.id} className={`${styles.timelineStop} ${isFirst ? styles.origin : ''} ${isLast ? styles.destination : ''}`}>
-                                                                <div className={styles.timelineTrack}>
-                                                                    <div className={`${styles.timelineDot} ${isFirst ? styles.origin : ''} ${isLast ? styles.destination : ''}`} />
-                                                                </div>
-                                                                <div className={styles.timelineInfo}>
-                                                                    <div className={styles.timelineTime}>
-                                                                        {time ? formatTime(time) : ''}
-                                                                    </div>
-                                                                    <div className={styles.timelineStationRow}>
-                                                                        <span className={styles.timelineStation}>
-                                                                            {stop.stop.name}
-                                                                        </span>
-                                                                        {track && (
-                                                                            <span className={styles.timelineTrackBadge}>{track}</span>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            );
-                                        })()}
-                                    </div>
-
-                                    {/* Route Minimap */}
-                                    <div className={`${styles.minimapContainer} ${minimapReady ? styles.minimapVisible : ''}`}>
-                                        <div className={styles.minimapInner}>
-                                            {previewRoute && (
-                                                <RouteMinimap
-                                                    route={previewRoute}
-                                                    stopIndices={previewStopIndices}
-                                                    onReady={() => setMinimapReady(true)}
-                                                />
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {error && <div className={styles.error}>{error}</div>}
-
-                                <div className={styles.actionRow}>
-                                    <button
-                                        className={styles.backButtonSmall}
-                                        onClick={handleBackToDepartures}
-                                    >
-                                        ←
-                                    </button>
-                                    <button
-                                        className={styles.goButton}
-                                        onClick={() => handleDepartureGo()}
-                                        disabled={fetchingRoute || loadingJourney || !expandedJourney}
-                                    >
-                                        {fetchingRoute ? 'Loading route...' : 'Go'}
-                                    </button>
-                                </div>
-                            </>
-                        ) : (
-                            /* Departures list view */
-                            <>
-                                <div className={styles.stopsList}>
-                                    <div className={styles.stopField}>
-                                        <StationPicker
-                                            stations={stations}
-                                            selectedStation={fromStation}
-                                            selectedTrack={regularFrom.track}
-                                            availableTracks={regularFrom.availableTracks}
-                                            onSelectStation={(name) => handleRegularStationSelect(name)}
-                                            onSelectTrack={(track) => updateRegularTrack(track)}
-                                            disabled={loadingDepartures}
-                                            label="From"
-                                        />
-                                    </div>
-                                </div>
-
-                                {error && <div className={styles.error}>{error}</div>}
-
-                                {loadingDepartures && (
-                                    <div className={styles.loading}>Loading departures...</div>
-                                )}
-
-                                {!loadingDepartures && departures.length > 0 && (
-                                    <div className={styles.departuresList}>
-                                        {departures.map((departure) => {
-                                            const destination = departure.direction || departure.routeStations[departure.routeStations.length - 1]?.mediumName || 'Unknown';
-                                            const track = departure.actualTrack || departure.plannedTrack;
-                                            return (
-                                                <button
-                                                    key={departure.product.number + departure.plannedDateTime}
-                                                    className={`${styles.departureItem} ${departure.cancelled ? styles.cancelled : ''}`}
-                                                    onClick={() => !departure.cancelled && handleSelectDeparture(departure)}
-                                                    disabled={departure.cancelled}
-                                                >
-                                                    <div className={styles.departureContent}>
-                                                        <span className={styles.departureTime}>
-                                                            {formatTime(departure.plannedDateTime)}
-                                                        </span>
-                                                        <span className={styles.departureDestination}>
-                                                            {destination}
-                                                            {track && <span className={styles.departureTrackBadge}>{track}</span>}
-                                                        </span>
-                                                    </div>
-                                                    <span className={styles.departureArrow}>›</span>
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-
-                                {!loadingDepartures && fromStation && departures.length === 0 && !error && (
-                                    <div className={styles.noDepartures}>No departures found</div>
-                                )}
-                            </>
-                        )
-                    ) : (
-                        /* Custom Tab Content */
+            {/* Content */}
+            <div className={styles.content}>
+                {loading ? (
+                    <div className={styles.loading}>Loading stations...</div>
+                ) : activeTab === 'regular' ? (
+                    /* Regular Tab Content */
+                    selectedDeparture ? (
+                        /* Detail view for selected departure */
                         <>
                             <div className={`${styles.customRow} ${minimapReady ? styles.customRowWithMap : ''}`}>
-                                {/* Stops List */}
                                 <div className={styles.stopsList}>
-                                    {customStops.map((stop, index) => (
-                                        <StopRow
-                                            key={index}
-                                            index={index}
-                                            stops={customStops}
-                                            stations={stations}
-                                            onUpdate={updateCustomStop}
-                                            onRemove={removeStop}
-                                            canRemove={customStops.length > 2 && index !== 0 && index !== customStops.length - 1}
-                                            disabled={fetchingRoute}
-                                        />
-                                    ))}
+                                    <div className={styles.trainInfo}>
+                                        {selectedDeparture.product.longCategoryName} {selectedDeparture.product.number}
+                                    </div>
+
+                                    {loadingJourney && (
+                                        <div className={styles.loadingStops}>Loading stops...</div>
+                                    )}
+
+                                    {!loadingJourney && expandedJourney && (() => {
+                                        const startIdx = expandedJourney.stops.findIndex(
+                                            stop => stop.stop.name === fromStation
+                                        );
+                                        const relevantStops = expandedJourney.stops
+                                            .slice(startIdx >= 0 ? startIdx : 0)
+                                            .filter(stop => stop.status !== 'PASSING');
+
+                                        return (
+                                            <div className={`${styles.timeline} thinScroll`}>
+                                                {relevantStops.map((stop, idx) => {
+                                                    const isFirst = idx === 0;
+                                                    const isLast = idx === relevantStops.length - 1;
+                                                    const time = stop.departures?.[0]?.plannedTime || stop.arrivals?.[0]?.plannedTime;
+                                                    const track = stop.departures?.[0]?.plannedTrack || stop.arrivals?.[0]?.plannedTrack;
+
+                                                    return (
+                                                        <div key={stop.id} className={`${styles.timelineStop} ${isFirst ? styles.origin : ''} ${isLast ? styles.destination : ''}`}>
+                                                            <div className={styles.timelineTrack}>
+                                                                <div className={`${styles.timelineDot} ${isFirst ? styles.origin : ''} ${isLast ? styles.destination : ''}`} />
+                                                            </div>
+                                                            <div className={styles.timelineInfo}>
+                                                                <div className={styles.timelineTime}>
+                                                                    {time ? formatTime(time) : ''}
+                                                                </div>
+                                                                <div className={styles.timelineStationRow}>
+                                                                    <span className={styles.timelineStation}>
+                                                                        {stop.stop.name}
+                                                                    </span>
+                                                                    {track && (
+                                                                        <span className={styles.timelineTrackBadge}>{track}</span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
 
                                 {/* Route Minimap */}
@@ -770,113 +661,222 @@ export default function TravelPicker() {
                                 </div>
                             </div>
 
-                            {/* Add Stop Button */}
-                            {customStops.length < MAX_STOPS && (
-                                <button
-                                    className={styles.addStopButton}
-                                    onClick={addStop}
-                                    disabled={fetchingRoute}
-                                >
-                                    + Add Stop
-                                </button>
-                            )}
+                            {error && <div className={styles.error}>{error}</div>}
 
-                            {/* Options row */}
-                            <div className={styles.optionsRow}>
-                                <div
-                                    className={styles.optionCard}
-                                    onClick={() => !fetchingRoute && setReturnToStart(prev => !prev)}
+                            <div className={styles.actionRow}>
+                                <button
+                                    className={styles.backButtonSmall}
+                                    onClick={handleBackToDepartures}
                                 >
-                                    <span className={styles.optionLabel}>Round trip</span>
-                                    <div className={`${styles.returnToggleSwitch} ${returnToStart ? styles.returnToggleSwitchOn : ''}`} />
-                                </div>
-                                <div
-                                    className={`${styles.optionCard} ${showConditions ? styles.optionCardActive : ''}`}
-                                    onClick={() => setShowConditions(prev => !prev)}
+                                    ←
+                                </button>
+                                <button
+                                    className={styles.goButton}
+                                    onClick={() => handleDepartureGo()}
+                                    disabled={fetchingRoute || loadingJourney || !expandedJourney}
                                 >
-                                    <span className={styles.optionLabel}>Conditions</span>
-                                    <span className={styles.optionArrow}>{showConditions ? '▾' : '▸'}</span>
+                                    {fetchingRoute ? 'Loading route...' : 'Go'}
+                                </button>
+                            </div>
+                        </>
+                    ) : (
+                        /* Departures list view */
+                        <>
+                            <div className={styles.stopsList}>
+                                <div className={styles.stopField}>
+                                    <StationPicker
+                                        stations={stations}
+                                        selectedStation={fromStation}
+                                        selectedTrack={regularFrom.track}
+                                        availableTracks={regularFrom.availableTracks}
+                                        onSelectStation={(name) => handleRegularStationSelect(name)}
+                                        onSelectTrack={(track) => updateRegularTrack(track)}
+                                        disabled={loadingDepartures}
+                                        label="From"
+                                    />
                                 </div>
                             </div>
 
-                            {/* Conditions panel */}
-                            {showConditions && (
-                                <div className={styles.conditionsPanel}>
-                                    <div className={styles.conditionSection}>
-                                        <div className={styles.conditionHeader}>
-                                            <span className={styles.conditionLabel}>Time of day</span>
-                                            <button
-                                                className={`${styles.conditionPill} ${conditions.timeOfDay < 0 ? styles.conditionPillActive : ''}`}
-                                                onClick={() => setGameCondition('timeOfDay', -1)}
-                                            >
-                                                Auto
-                                            </button>
-                                        </div>
-                                        {conditions.timeOfDay >= 0 ? (
-                                            <TimePicker
-                                                hour={Math.floor(conditions.timeOfDay / 100)}
-                                                minute={conditions.timeOfDay % 100}
-                                                onChange={(h, m) => setGameCondition('timeOfDay', h * 100 + m)}
-                                            />
-                                        ) : (
-                                            <div className={styles.timePresets}>
-                                                {([
-                                                    ['Dawn', 600],
-                                                    ['Morning', 900],
-                                                    ['Noon', 1200],
-                                                    ['Afternoon', 1500],
-                                                    ['Sunset', 1900],
-                                                    ['Night', 2200],
-                                                ] as const).map(([label, value]) => (
-                                                    <button
-                                                        key={label}
-                                                        className={styles.timePresetButton}
-                                                        onClick={() => setGameCondition('timeOfDay', value)}
-                                                    >
-                                                        {label}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
+                            {error && <div className={styles.error}>{error}</div>}
 
-                                    <div className={styles.conditionSection}>
-                                        <span className={styles.conditionLabel}>Weather</span>
-                                        <div className={styles.weatherOptions}>
+                            {loadingDepartures && (
+                                <div className={styles.loading}>Loading departures...</div>
+                            )}
+
+                            {!loadingDepartures && departures.length > 0 && (
+                                <div className={styles.departuresList}>
+                                    {departures.map((departure) => {
+                                        const destination = departure.direction || departure.routeStations[departure.routeStations.length - 1]?.mediumName || 'Unknown';
+                                        const track = departure.actualTrack || departure.plannedTrack;
+                                        return (
+                                            <button
+                                                key={departure.product.number + departure.plannedDateTime}
+                                                className={`${styles.departureItem} ${departure.cancelled ? styles.cancelled : ''}`}
+                                                onClick={() => !departure.cancelled && handleSelectDeparture(departure)}
+                                                disabled={departure.cancelled}
+                                            >
+                                                <div className={styles.departureContent}>
+                                                    <span className={styles.departureTime}>
+                                                        {formatTime(departure.plannedDateTime)}
+                                                    </span>
+                                                    <span className={styles.departureDestination}>
+                                                        {destination}
+                                                        {track && <span className={styles.timelineTrackBadge}>{track}</span>}
+                                                    </span>
+                                                </div>
+                                                <span className={styles.departureArrow}>›</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {!loadingDepartures && fromStation && departures.length === 0 && !error && (
+                                <div className={styles.noDepartures}>No departures found</div>
+                            )}
+                        </>
+                    )
+                ) : (
+                    /* Custom Tab Content */
+                    <>
+                        <div className={`${styles.customRow} ${minimapReady ? styles.customRowWithMap : ''}`}>
+                            {/* Stops List */}
+                            <div className={styles.stopsList}>
+                                {customStops.map((stop, index) => (
+                                    <StopRow
+                                        key={index}
+                                        index={index}
+                                        stops={customStops}
+                                        stations={stations}
+                                        onUpdate={updateCustomStop}
+                                        onRemove={removeStop}
+                                        canRemove={customStops.length > 2 && index !== 0 && index !== customStops.length - 1}
+                                        disabled={fetchingRoute}
+                                    />
+                                ))}
+                            </div>
+
+                            {/* Route Minimap */}
+                            <div className={`${styles.minimapContainer} ${minimapReady ? styles.minimapVisible : ''}`}>
+                                <div className={styles.minimapInner}>
+                                    {previewRoute && (
+                                        <RouteMinimap
+                                            route={previewRoute}
+                                            stopIndices={previewStopIndices}
+                                            onReady={() => setMinimapReady(true)}
+                                        />
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Add Stop Button */}
+                        {customStops.length < MAX_STOPS && (
+                            <button
+                                className={styles.addStopButton}
+                                onClick={addStop}
+                                disabled={fetchingRoute}
+                            >
+                                + Add Stop
+                            </button>
+                        )}
+
+                        {/* Options row */}
+                        <div className={styles.optionsRow}>
+                            <div
+                                className={styles.optionCard}
+                                onClick={() => !fetchingRoute && setReturnToStart(prev => !prev)}
+                            >
+                                <span className={styles.optionLabel}>Round trip</span>
+                                <div className={`${styles.returnToggleSwitch} ${returnToStart ? styles.returnToggleSwitchOn : ''}`} />
+                            </div>
+                            <div
+                                className={`${styles.optionCard} ${showConditions ? styles.optionCardActive : ''}`}
+                                onClick={() => setShowConditions(prev => !prev)}
+                            >
+                                <span className={styles.optionLabel}>Conditions</span>
+                                <span className={styles.optionArrow}>{showConditions ? '▾' : '▸'}</span>
+                            </div>
+                        </div>
+
+                        {/* Conditions panel */}
+                        {showConditions && (
+                            <div className={styles.conditionsPanel}>
+                                <div className={styles.conditionSection}>
+                                    <div className={styles.conditionHeader}>
+                                        <span className={styles.conditionLabel}>Time of day</span>
+                                        <button
+                                            className={`${styles.conditionPill} ${conditions.timeOfDay < 0 ? styles.conditionPillActive : ''}`}
+                                            onClick={() => setGameCondition('timeOfDay', -1)}
+                                        >
+                                            Auto
+                                        </button>
+                                    </div>
+                                    {conditions.timeOfDay >= 0 ? (
+                                        <TimePicker
+                                            hour={Math.floor(conditions.timeOfDay / 100)}
+                                            minute={conditions.timeOfDay % 100}
+                                            onChange={(h, m) => setGameCondition('timeOfDay', h * 100 + m)}
+                                        />
+                                    ) : (
+                                        <div className={styles.timePresets}>
                                             {([
-                                                ['clear', 'Clear'],
-                                                ['cloudy', 'Cloudy'],
-                                                ['overcast', 'Overcast'],
-                                                ['rain', 'Rain'],
-                                                ['heavy-rain', 'Storm'],
-                                            ] as [GameConditions['weather'], string][]).map(([value, label]) => (
+                                                ['Dawn', 600],
+                                                ['Morning', 900],
+                                                ['Noon', 1200],
+                                                ['Afternoon', 1500],
+                                                ['Sunset', 1900],
+                                                ['Night', 2200],
+                                            ] as const).map(([label, value]) => (
                                                 <button
-                                                    key={value}
-                                                    className={`${styles.weatherButton} ${conditions.weather === value ? styles.weatherButtonActive : ''}`}
-                                                    onClick={() => setGameCondition('weather', value)}
+                                                    key={label}
+                                                    className={styles.timePresetButton}
+                                                    onClick={() => setGameCondition('timeOfDay', value)}
                                                 >
                                                     {label}
                                                 </button>
                                             ))}
                                         </div>
+                                    )}
+                                </div>
+
+                                <div className={styles.conditionSection}>
+                                    <span className={styles.conditionLabel}>Weather</span>
+                                    <div className={styles.weatherOptions}>
+                                        {([
+                                            ['clear', 'Clear'],
+                                            ['cloudy', 'Cloudy'],
+                                            ['overcast', 'Overcast'],
+                                            ['rain', 'Rain'],
+                                            ['heavy-rain', 'Storm'],
+                                        ] as [GameConditions['weather'], string][]).map(([value, label]) => (
+                                            <button
+                                                key={value}
+                                                className={`${styles.weatherButton} ${conditions.weather === value ? styles.weatherButtonActive : ''}`}
+                                                onClick={() => setGameCondition('weather', value)}
+                                            >
+                                                {label}
+                                            </button>
+                                        ))}
                                     </div>
                                 </div>
-                            )}
+                            </div>
+                        )}
 
-                            {/* Error message */}
-                            {error && <div className={styles.error}>{error}</div>}
+                        {/* Error message */}
+                        {error && <div className={styles.error}>{error}</div>}
 
-                            {/* Go button */}
-                            <button
-                                className={styles.goButton}
-                                onClick={handleGo}
-                                disabled={!canSubmit}
-                            >
-                                {fetchingRoute ? 'Loading route...' : 'Go'}
-                            </button>
-                        </>
-                    )}
-                </div>
+                        {/* Go button */}
+                        <button
+                            className={styles.goButton}
+                            onClick={handleGo}
+                            disabled={!canSubmit}
+                        >
+                            {fetchingRoute ? 'Loading route...' : 'Go'}
+                        </button>
+                    </>
+                )}
             </div>
+        </div>
     );
 }

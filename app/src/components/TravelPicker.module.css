@@ -314,7 +314,7 @@
     color: var(--menu-light);
     font-size: 12px;
     font-weight: 700;
-    min-width: 22px;
+    min-width: 20px;
     height: 20px;
     padding: 0 6px;
     border-radius: 11px;
@@ -391,16 +391,6 @@
     display: flex;
     align-items: center;
     gap: 6px;
-}
-
-.departureTrackBadge {
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--menu-light);
-    background: var(--menu-accent);
-    padding: 1px 5px;
-    border-radius: 8px;
-    line-height: 1.4;
 }
 
 .trainInfo {
@@ -553,6 +543,7 @@
     min-height: 16px;
     display: flex;
     justify-content: center;
+    align-items: center;
 }
 
 .departureDetails .goButton {
