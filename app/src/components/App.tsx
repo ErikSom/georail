@@ -3,7 +3,6 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/Supabase';
 import { fetchUserProfile, clearProfileCache, type UserProfile } from '../lib/api/profile';
 import MenuScreen from './MenuScreen';
-import AccountScreen from './AccountScreen';
 import ThreeViewer from './ThreeViewer';
 import BottomTabs, { type TabId } from './BottomTabs';
 import SplashOverlay from './SplashOverlay';
@@ -40,7 +39,6 @@ export default function App() {
 
         return () => subscription.unsubscribe();
     }, []);
-
 
     useEffect(() => {
         const onPopState = () => setTab(currentTab());
@@ -80,30 +78,18 @@ export default function App() {
         return <ThreeViewer />;
     }
 
-    // Determine the content to show behind the splash
-    const content = (() => {
-        if (!session || loading) {
-            return <MenuScreen session={null} profile={null} checking={false} onLogout={handleLogout} />;
-        }
-        if (!isPremium) {
-            return <AccountScreen session={session} onLogout={handleLogout} onPremiumChange={refreshProfile} />;
-        }
-        return (
-            <>
-                {tab === 'journey' ? (
-                    <MenuScreen session={session} profile={profile} checking={false} onLogout={handleLogout} />
-                ) : (
-                    <AccountScreen session={session} onLogout={handleLogout} onPremiumChange={refreshProfile} />
-                )}
-                <BottomTabs activeTab={tab} onTabChange={navigate} />
-            </>
-        );
-    })();
-
     return (
         <>
             {showSplash && <SplashOverlay ready={!loading} onDone={() => setShowSplash(false)} />}
-            {content}
+            <MenuScreen
+                session={session}
+                profile={profile}
+                checking={loading}
+                activeTab={tab}
+                onLogout={handleLogout}
+                onPremiumChange={refreshProfile}
+            />
+            {isPremium && <BottomTabs activeTab={tab} onTabChange={navigate} />}
         </>
     );
 }

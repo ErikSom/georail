@@ -1,18 +1,22 @@
 import { useEffect } from 'preact/hooks';
 import type { Session } from '@supabase/supabase-js';
 import type { UserProfile } from '../lib/api/profile';
+import type { TabId } from './BottomTabs';
 import TravelPicker from './TravelPicker';
 import GateScreen from './GateScreen';
+import AccountScreen from './AccountScreen';
 import styles from './MenuScreen.module.css';
 
 interface Props {
     session: Session | null;
     profile: UserProfile | null;
     checking: boolean;
+    activeTab: TabId;
     onLogout: () => void;
+    onPremiumChange: () => void;
 }
 
-export default function MenuScreen({ session, profile, checking, onLogout }: Props) {
+export default function MenuScreen({ session, profile, checking, activeTab, onLogout, onPremiumChange }: Props) {
     useEffect(() => {
         document.body.style.touchAction = 'auto';
         return () => {
@@ -20,7 +24,26 @@ export default function MenuScreen({ session, profile, checking, onLogout }: Pro
         };
     }, []);
 
-    const showGame = session && !checking && profile?.is_premium;
+    const isPremium = session && !checking && profile?.is_premium;
+
+    const renderPanel = () => {
+        // Loading or not logged in
+        if (checking || !session) {
+            return <GateScreen session={session} checking={checking} onLogout={onLogout} />;
+        }
+
+        // Not premium — show subscribe (via AccountScreen)
+        if (!isPremium) {
+            return <AccountScreen session={session} onLogout={onLogout} onPremiumChange={onPremiumChange} />;
+        }
+
+        // Premium — show active tab content
+        if (activeTab === 'account') {
+            return <AccountScreen session={session} onLogout={onLogout} onPremiumChange={onPremiumChange} />;
+        }
+
+        return <TravelPicker />;
+    };
 
     return (
         <div className={styles.screen}>
@@ -29,10 +52,7 @@ export default function MenuScreen({ session, profile, checking, onLogout }: Pro
                 <div className={styles.trapezoid} />
                 <img src="/logo.svg" alt="Georail" className={styles.logo} />
             </div>
-            {showGame
-                ? <TravelPicker />
-                : <GateScreen session={session} checking={checking} onLogout={onLogout} />
-            }
+            {renderPanel()}
             <footer className={styles.footer}>&copy; 2025 Terminarch Games</footer>
         </div>
     );
