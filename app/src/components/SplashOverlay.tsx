@@ -10,7 +10,7 @@ export default function SplashOverlay({ ready, onDone }: Props) {
     const [done, setDone] = useState(false);
 
     useEffect(() => {
-        const timer = setTimeout(() => setMinTimePassed(true), 1800);
+        const timer = setTimeout(() => setMinTimePassed(true), 600);
         return () => clearTimeout(timer);
     }, []);
 
