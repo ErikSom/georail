@@ -14,13 +14,9 @@ interface Props {
 
 export default function MenuScreen({ session, profile, checking, onLogout }: Props) {
     useEffect(() => {
-        document.body.style.overflow = 'auto';
         document.body.style.touchAction = 'auto';
-        document.body.style.scrollbarGutter = 'stable';
         return () => {
-            document.body.style.overflow = '';
             document.body.style.touchAction = '';
-            document.body.style.scrollbarGutter = '';
         };
     }, []);
 
@@ -28,6 +24,7 @@ export default function MenuScreen({ session, profile, checking, onLogout }: Pro
 
     return (
         <div className={styles.screen}>
+            <div className={styles.background} />
             <div className={styles.logoWrapper}>
                 <div className={styles.trapezoid} />
                 <img src="/logo.svg" alt="Georail" className={styles.logo} />

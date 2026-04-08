@@ -19,9 +19,6 @@ body {
     background-color: #000;
 }
 
-body {
-    scrollbar-gutter: stable;
-}
 
 input,
 button,

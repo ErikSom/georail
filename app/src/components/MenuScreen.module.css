@@ -1,22 +1,31 @@
 .screen {
-    min-height: 100dvh;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
     align-items: center;
     padding: 0 16px;
     position: relative;
-    isolation: isolate;
     gap: 24px;
+    overflow-y: auto;
+    scrollbar-width: none;
 }
 
-.screen::before {
-    content: '';
+.screen::-webkit-scrollbar {
+    display: none;
+}
+
+.background {
     position: fixed;
     inset: -20px;
     background: #78b27b url('/backgrounds/background-nl.png') center / cover no-repeat;
     filter: blur(10px);
-    z-index: -1;
+    z-index: 0;
     pointer-events: none;
+}
+
+.screen>*:not(.background) {
+    position: relative;
+    z-index: 1;
 }
 
 .logoWrapper {
@@ -41,9 +50,9 @@
 }
 
 .logo {
-    position: relative;
     width: 88px;
     height: 88px;
+    z-index: 1;
 }
 
 .footer {
