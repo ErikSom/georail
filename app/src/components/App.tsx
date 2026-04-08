@@ -6,6 +6,7 @@ import MenuScreen from './MenuScreen';
 import AccountScreen from './AccountScreen';
 import ThreeViewer from './ThreeViewer';
 import BottomTabs, { type TabId } from './BottomTabs';
+import SplashOverlay from './SplashOverlay';
 import { appScreen } from '../store/app';
 
 function currentTab(): TabId {
@@ -18,8 +19,8 @@ export default function App() {
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [tab, setTab] = useState<TabId>(currentTab);
+    const [showSplash, setShowSplash] = useState(true);
 
-    // Single source of truth: onAuthStateChange fires INITIAL_SESSION on mount
     useEffect(() => {
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             setSession(session);
@@ -39,6 +40,7 @@ export default function App() {
 
         return () => subscription.unsubscribe();
     }, []);
+
 
     useEffect(() => {
         const onPopState = () => setTab(currentTab());
@@ -78,36 +80,30 @@ export default function App() {
         return <ThreeViewer />;
     }
 
-    // Still loading — show spinner
-    if (loading) {
+    // Determine the content to show behind the splash
+    const content = (() => {
+        if (!session || loading) {
+            return <MenuScreen session={null} profile={null} checking={false} onLogout={handleLogout} />;
+        }
+        if (!isPremium) {
+            return <AccountScreen session={session} onLogout={handleLogout} onPremiumChange={refreshProfile} />;
+        }
         return (
-            <MenuScreen session={session} profile={null} checking={true} onLogout={handleLogout} />
+            <>
+                {tab === 'journey' ? (
+                    <MenuScreen session={session} profile={profile} checking={false} onLogout={handleLogout} />
+                ) : (
+                    <AccountScreen session={session} onLogout={handleLogout} onPremiumChange={refreshProfile} />
+                )}
+                <BottomTabs activeTab={tab} onTabChange={navigate} />
+            </>
         );
-    }
+    })();
 
-    // Not logged in
-    if (!session) {
-        return (
-            <MenuScreen session={null} profile={null} checking={false} onLogout={handleLogout} />
-        );
-    }
-
-    // Logged in but not premium
-    if (!isPremium) {
-        return (
-            <AccountScreen session={session} onLogout={handleLogout} onPremiumChange={refreshProfile} />
-        );
-    }
-
-    // Premium — tabs
     return (
         <>
-            {tab === 'journey' ? (
-                <MenuScreen session={session} profile={profile} checking={false} onLogout={handleLogout} />
-            ) : (
-                <AccountScreen session={session} onLogout={handleLogout} onPremiumChange={refreshProfile} />
-            )}
-            <BottomTabs activeTab={tab} onTabChange={navigate} />
+            {showSplash && <SplashOverlay ready={!loading} onDone={() => setShowSplash(false)} />}
+            {content}
         </>
     );
 }
