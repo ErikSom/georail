@@ -2,6 +2,12 @@
 import { defineConfig } from 'astro/config';
 import preact from '@astrojs/preact';
 import obfuscator from 'vite-plugin-javascript-obfuscator';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+const rootPkg = JSON.parse(
+  readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf-8')
+);
 
 /** * Common settings shared between both instances.
  * @type {import('javascript-obfuscator').ObfuscatorOptions} 
@@ -67,6 +73,9 @@ const createObfuscator = (isSecureMode) => {
 export default defineConfig({
   integrations: [preact()],
   vite: {
+    define: {
+      __APP_VERSION__: JSON.stringify(rootPkg.version),
+    },
     build: {
       rollupOptions: {
         output: {

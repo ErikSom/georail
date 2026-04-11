@@ -69,15 +69,12 @@ export default function Auth() {
         );
     }
 
-    // If user is not logged in, show Login and Sign Up buttons
+    // If user is not logged in, show Login button
     return (
         <div className={styles.authWidget}>
             <button onClick={() => setShowLogin(true)} className={utils.button}>
                 Login
             </button>
-            <a href="/signup" className={utils.button}>
-                Sign Up
-            </a>
 
             {/* Login Modal */}
             {showLogin && (

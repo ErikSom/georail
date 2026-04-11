@@ -1,47 +1,49 @@
 import { useState } from 'preact/hooks';
-import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/Supabase';
-import { createStripeCheckout, connectPatreon } from '../lib/api/subscription';
 import TrainSpinner from './TrainSpinner';
 import styles from './GateScreen.module.css';
 
 interface Props {
-    session: Session | null;
     checking: boolean;
-    onLogout: () => void;
 }
 
-export default function GateScreen({ session, checking, onLogout }: Props) {
+type Mode = 'login' | 'signup';
+
+export default function GateScreen({ checking }: Props) {
+    const [mode, setMode] = useState<Mode>('login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [loginLoading, setLoginLoading] = useState(false);
-    const [loginMessage, setLoginMessage] = useState('');
-    const [actionLoading, setActionLoading] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('');
+    const [successMessage, setSuccessMessage] = useState('');
 
-    const handleLogin = async (e: Event) => {
-        e.preventDefault();
-        setLoginLoading(true);
-        setLoginMessage('');
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) setLoginMessage(error.message);
-        setLoginLoading(false);
+    const switchMode = (next: Mode) => {
+        setMode(next);
+        setErrorMessage('');
+        setSuccessMessage('');
     };
 
-    async function handleStripeCheckout() {
-        setActionLoading('stripe');
-        const url = await createStripeCheckout();
-        if (url) window.location.href = url;
-        setActionLoading(null);
-    }
+    const handleSubmit = async (e: Event) => {
+        e.preventDefault();
+        setLoading(true);
+        setErrorMessage('');
+        setSuccessMessage('');
 
-    async function handleConnectPatreon() {
-        setActionLoading('patreon');
-        const url = await connectPatreon();
-        if (url) window.location.href = url;
-        setActionLoading(null);
-    }
+        if (mode === 'login') {
+            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) setErrorMessage(error.message);
+        } else {
+            const { error } = await supabase.auth.signUp({ email, password });
+            if (error) {
+                setErrorMessage(error.message);
+            } else {
+                setSuccessMessage('Check your email to confirm your account.');
+            }
+        }
 
-    // Loading state
+        setLoading(false);
+    };
+
     if (checking) {
         return (
             <div className={styles.container}>
@@ -53,74 +55,61 @@ export default function GateScreen({ session, checking, onLogout }: Props) {
         );
     }
 
-    // Not logged in
-    if (!session) {
-        return (
-            <div className={styles.container}>
-                <h1 className={styles.title}>Welcome</h1>
-                <div className={styles.content}>
-                    <form onSubmit={handleLogin} className={styles.form}>
-                        <div className={styles.inputGroup}>
-                            <label className={styles.inputLabel}>Email</label>
-                            <input
-                                type="email"
-                                value={email}
-                                onInput={(e) => setEmail((e.target as HTMLInputElement).value)}
-                                required
-                                className={styles.input}
-                                placeholder="your@email.com"
-                            />
-                        </div>
-                        <div className={styles.inputGroup}>
-                            <label className={styles.inputLabel}>Password</label>
-                            <input
-                                type="password"
-                                value={password}
-                                onInput={(e) => setPassword((e.target as HTMLInputElement).value)}
-                                required
-                                className={styles.input}
-                                placeholder="Min. 6 characters"
-                            />
-                        </div>
-                        <button type="submit" disabled={loginLoading} className={styles.primaryBtn}>
-                            {loginLoading ? 'Logging in...' : 'Login'}
-                        </button>
-                        {loginMessage && <p className={styles.errorText}>{loginMessage}</p>}
-                    </form>
-                    <div className={styles.divider}>or</div>
-                    <a href="/signup" className={styles.secondaryBtn}>Create Account</a>
-                </div>
-            </div>
-        );
-    }
+    const isLogin = mode === 'login';
 
-    // Logged in but not premium
     return (
         <div className={styles.container}>
-            <h1 className={styles.title}>Subscribe to Play</h1>
+            <h1 className={styles.title}>{isLogin ? 'Welcome' : 'Create Account'}</h1>
             <div className={styles.content}>
-                <p className={styles.subscribeText}>
-                    Get access to GeoRail and join the premium Discord community.
-                </p>
-                <button
-                    className={styles.primaryBtn}
-                    onClick={handleStripeCheckout}
-                    disabled={actionLoading !== null}
-                >
-                    {actionLoading === 'stripe' ? 'Redirecting...' : 'Subscribe'}
-                </button>
-                <div className={styles.divider}>or</div>
-                <button
-                    className={styles.patreonBtn}
-                    onClick={handleConnectPatreon}
-                    disabled={actionLoading !== null}
-                >
-                    <span className={styles.btnIcon} style={{ maskImage: 'url(/icons/patreon.svg)', WebkitMaskImage: 'url(/icons/patreon.svg)' }} />
-                    {actionLoading === 'patreon' ? 'Redirecting...' : 'Subscribe on Patreon'}
-                </button>
-                <button className={styles.logoutBtn} onClick={onLogout}>
-                    Logout
-                </button>
+                {successMessage ? (
+                    <>
+                        <div className={styles.successBanner}>{successMessage}</div>
+                        <button className={styles.secondaryBtn} onClick={() => switchMode('login')}>
+                            Back to Login
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <form onSubmit={handleSubmit} className={styles.form}>
+                            <div className={styles.inputGroup}>
+                                <label className={styles.inputLabel}>Email</label>
+                                <input
+                                    type="email"
+                                    value={email}
+                                    onInput={(e) => setEmail((e.target as HTMLInputElement).value)}
+                                    required
+                                    className={styles.input}
+                                    placeholder="your@email.com"
+                                />
+                            </div>
+                            <div className={styles.inputGroup}>
+                                <label className={styles.inputLabel}>Password</label>
+                                <input
+                                    type="password"
+                                    value={password}
+                                    onInput={(e) => setPassword((e.target as HTMLInputElement).value)}
+                                    required
+                                    minLength={isLogin ? undefined : 6}
+                                    className={styles.input}
+                                    placeholder="Min. 6 characters"
+                                />
+                            </div>
+                            <button type="submit" disabled={loading} className={styles.primaryBtn}>
+                                {loading
+                                    ? (isLogin ? 'Logging in...' : 'Creating account...')
+                                    : (isLogin ? 'Login' : 'Sign Up')}
+                            </button>
+                            {errorMessage && <p className={styles.errorText}>{errorMessage}</p>}
+                        </form>
+                        <div className={styles.divider}>or</div>
+                        <button
+                            className={styles.secondaryBtn}
+                            onClick={() => switchMode(isLogin ? 'signup' : 'login')}
+                        >
+                            {isLogin ? 'Create Account' : 'Back to Login'}
+                        </button>
+                    </>
+                )}
             </div>
         </div>
     );

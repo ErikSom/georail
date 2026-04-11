@@ -29,7 +29,7 @@ export default function MenuScreen({ session, profile, checking, activeTab, onLo
     const renderPanel = () => {
         // Loading or not logged in
         if (checking || !session) {
-            return <GateScreen session={session} checking={checking} onLogout={onLogout} />;
+            return <GateScreen checking={checking} />;
         }
 
         // Not premium — show subscribe (via AccountScreen)
@@ -53,7 +53,7 @@ export default function MenuScreen({ session, profile, checking, activeTab, onLo
                 <img src="/logo.svg" alt="Georail" className={styles.logo} />
             </div>
             {renderPanel()}
-            <footer className={styles.footer}>&copy; 2025 Terminarch Games</footer>
+            <footer className={styles.footer}>&copy; 2025 Terminarch Games &middot; v{__APP_VERSION__}</footer>
         </div>
     );
 }
