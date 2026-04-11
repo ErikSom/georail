@@ -19,9 +19,16 @@ export default function App() {
     const [loading, setLoading] = useState(true);
     const [tab, setTab] = useState<TabId>(currentTab);
     const [showSplash, setShowSplash] = useState(true);
+    const [recoveryMode, setRecoveryMode] = useState(false);
 
     useEffect(() => {
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'PASSWORD_RECOVERY') {
+                setRecoveryMode(true);
+                setSession(session);
+                setLoading(false);
+                return;
+            }
             setSession(session);
             if (!session) {
                 setProfile(null);
@@ -39,6 +46,18 @@ export default function App() {
 
         return () => subscription.unsubscribe();
     }, []);
+
+    const handleRecoveryComplete = () => {
+        setRecoveryMode(false);
+        // Refetch profile now that password is updated and user is fully signed in
+        if (session) {
+            setLoading(true);
+            fetchUserProfile()
+                .then((p) => setProfile(p))
+                .catch(() => setProfile(null))
+                .finally(() => setLoading(false));
+        }
+    };
 
     useEffect(() => {
         const onPopState = () => setTab(currentTab());
@@ -86,10 +105,12 @@ export default function App() {
                 profile={profile}
                 checking={loading}
                 activeTab={tab}
+                recoveryMode={recoveryMode}
                 onLogout={handleLogout}
                 onPremiumChange={refreshProfile}
+                onRecoveryComplete={handleRecoveryComplete}
             />
-            {isPremium && <BottomTabs activeTab={tab} onTabChange={navigate} />}
+            {isPremium && !recoveryMode && <BottomTabs activeTab={tab} onTabChange={navigate} />}
         </>
     );
 }

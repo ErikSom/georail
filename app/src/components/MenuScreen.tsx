@@ -12,11 +12,13 @@ interface Props {
     profile: UserProfile | null;
     checking: boolean;
     activeTab: TabId;
+    recoveryMode: boolean;
     onLogout: () => void;
     onPremiumChange: () => void;
+    onRecoveryComplete: () => void;
 }
 
-export default function MenuScreen({ session, profile, checking, activeTab, onLogout, onPremiumChange }: Props) {
+export default function MenuScreen({ session, profile, checking, activeTab, recoveryMode, onLogout, onPremiumChange, onRecoveryComplete }: Props) {
     useEffect(() => {
         document.body.style.touchAction = 'auto';
         return () => {
@@ -27,6 +29,11 @@ export default function MenuScreen({ session, profile, checking, activeTab, onLo
     const isPremium = session && !checking && profile?.is_premium;
 
     const renderPanel = () => {
+        // Password recovery — override everything else
+        if (recoveryMode) {
+            return <GateScreen checking={false} recoveryMode onRecoveryComplete={onRecoveryComplete} />;
+        }
+
         // Loading or not logged in
         if (checking || !session) {
             return <GateScreen checking={checking} />;

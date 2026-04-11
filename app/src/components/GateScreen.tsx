@@ -1,26 +1,33 @@
-import { useState } from 'preact/hooks';
+import { useState, useEffect } from 'preact/hooks';
 import { supabase } from '../lib/Supabase';
 import TrainSpinner from './TrainSpinner';
 import styles from './GateScreen.module.css';
 
 interface Props {
     checking: boolean;
+    recoveryMode?: boolean;
+    onRecoveryComplete?: () => void;
 }
 
-type Mode = 'login' | 'signup';
+type Mode = 'login' | 'signup' | 'forgot' | 'reset';
 
-export default function GateScreen({ checking }: Props) {
-    const [mode, setMode] = useState<Mode>('login');
+export default function GateScreen({ checking, recoveryMode = false, onRecoveryComplete }: Props) {
+    const [mode, setMode] = useState<Mode>(recoveryMode ? 'reset' : 'login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
 
+    useEffect(() => {
+        if (recoveryMode) setMode('reset');
+    }, [recoveryMode]);
+
     const switchMode = (next: Mode) => {
         setMode(next);
         setErrorMessage('');
         setSuccessMessage('');
+        setPassword('');
     };
 
     const handleSubmit = async (e: Event) => {
@@ -32,12 +39,28 @@ export default function GateScreen({ checking }: Props) {
         if (mode === 'login') {
             const { error } = await supabase.auth.signInWithPassword({ email, password });
             if (error) setErrorMessage(error.message);
-        } else {
+        } else if (mode === 'signup') {
             const { error } = await supabase.auth.signUp({ email, password });
             if (error) {
                 setErrorMessage(error.message);
             } else {
                 setSuccessMessage('Check your email to confirm your account.');
+            }
+        } else if (mode === 'forgot') {
+            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: window.location.origin,
+            });
+            if (error) {
+                setErrorMessage(error.message);
+            } else {
+                setSuccessMessage('Check your email for a reset link.');
+            }
+        } else if (mode === 'reset') {
+            const { error } = await supabase.auth.updateUser({ password });
+            if (error) {
+                setErrorMessage(error.message);
+            } else {
+                onRecoveryComplete?.();
             }
         }
 
@@ -55,11 +78,30 @@ export default function GateScreen({ checking }: Props) {
         );
     }
 
-    const isLogin = mode === 'login';
+    const title =
+        mode === 'login' ? 'Welcome' :
+        mode === 'signup' ? 'Create Account' :
+        mode === 'forgot' ? 'Reset Password' :
+        'Set New Password';
+
+    const submitLabel =
+        mode === 'login' ? 'Login' :
+        mode === 'signup' ? 'Sign Up' :
+        mode === 'forgot' ? 'Send Reset Link' :
+        'Update Password';
+
+    const loadingLabel =
+        mode === 'login' ? 'Logging in...' :
+        mode === 'signup' ? 'Creating account...' :
+        mode === 'forgot' ? 'Sending...' :
+        'Updating...';
+
+    const showEmail = mode !== 'reset';
+    const showPassword = mode !== 'forgot';
 
     return (
         <div className={styles.container}>
-            <h1 className={styles.title}>{isLogin ? 'Welcome' : 'Create Account'}</h1>
+            <h1 className={styles.title}>{title}</h1>
             <div className={styles.content}>
                 {successMessage ? (
                     <>
@@ -71,43 +113,82 @@ export default function GateScreen({ checking }: Props) {
                 ) : (
                     <>
                         <form onSubmit={handleSubmit} className={styles.form}>
-                            <div className={styles.inputGroup}>
-                                <label className={styles.inputLabel}>Email</label>
-                                <input
-                                    type="email"
-                                    value={email}
-                                    onInput={(e) => setEmail((e.target as HTMLInputElement).value)}
-                                    required
-                                    className={styles.input}
-                                    placeholder="your@email.com"
-                                />
-                            </div>
-                            <div className={styles.inputGroup}>
-                                <label className={styles.inputLabel}>Password</label>
-                                <input
-                                    type="password"
-                                    value={password}
-                                    onInput={(e) => setPassword((e.target as HTMLInputElement).value)}
-                                    required
-                                    minLength={isLogin ? undefined : 6}
-                                    className={styles.input}
-                                    placeholder="Min. 6 characters"
-                                />
-                            </div>
+                            {showEmail && (
+                                <div className={styles.inputGroup}>
+                                    <label className={styles.inputLabel}>Email</label>
+                                    <input
+                                        type="email"
+                                        value={email}
+                                        onInput={(e) => setEmail((e.target as HTMLInputElement).value)}
+                                        required
+                                        className={styles.input}
+                                        placeholder="your@email.com"
+                                    />
+                                </div>
+                            )}
+                            {showPassword && (
+                                <div className={styles.inputGroup}>
+                                    <label className={styles.inputLabel}>
+                                        {mode === 'reset' ? 'New Password' : 'Password'}
+                                    </label>
+                                    <input
+                                        type="password"
+                                        value={password}
+                                        onInput={(e) => setPassword((e.target as HTMLInputElement).value)}
+                                        required
+                                        minLength={mode === 'login' ? undefined : 6}
+                                        className={styles.input}
+                                        placeholder="Min. 6 characters"
+                                    />
+                                </div>
+                            )}
                             <button type="submit" disabled={loading} className={styles.primaryBtn}>
-                                {loading
-                                    ? (isLogin ? 'Logging in...' : 'Creating account...')
-                                    : (isLogin ? 'Login' : 'Sign Up')}
+                                {loading ? loadingLabel : submitLabel}
                             </button>
                             {errorMessage && <p className={styles.errorText}>{errorMessage}</p>}
                         </form>
-                        <div className={styles.divider}>or</div>
-                        <button
-                            className={styles.secondaryBtn}
-                            onClick={() => switchMode(isLogin ? 'signup' : 'login')}
-                        >
-                            {isLogin ? 'Create Account' : 'Back to Login'}
-                        </button>
+
+                        {mode === 'login' && (
+                            <>
+                                <button
+                                    className={styles.linkBtn}
+                                    onClick={() => switchMode('forgot')}
+                                >
+                                    Forgot password?
+                                </button>
+                                <div className={styles.divider}>or</div>
+                                <button
+                                    className={styles.secondaryBtn}
+                                    onClick={() => switchMode('signup')}
+                                >
+                                    Create Account
+                                </button>
+                            </>
+                        )}
+
+                        {mode === 'signup' && (
+                            <>
+                                <div className={styles.divider}>or</div>
+                                <button
+                                    className={styles.secondaryBtn}
+                                    onClick={() => switchMode('login')}
+                                >
+                                    Back to Login
+                                </button>
+                            </>
+                        )}
+
+                        {mode === 'forgot' && (
+                            <>
+                                <div className={styles.divider}>or</div>
+                                <button
+                                    className={styles.secondaryBtn}
+                                    onClick={() => switchMode('login')}
+                                >
+                                    Back to Login
+                                </button>
+                            </>
+                        )}
                     </>
                 )}
             </div>
