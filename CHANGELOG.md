@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.3.0 (2026-04-11)
+
+### docs
+
+* **Config:** comment cleanup 
+
+### Features
+
+* **Game:** ability to lock compass to north + fix rotation issues 
+* **Game:** added in-game menu 
+* **Game:** improve travel picker look 
+* **Game:** let it rain 
+* **Train Editor:** added coasting and gear shifting 
+* **Train Editor:** improved controls for reverse 
+* **Train Editor:** train sounds for doors and horn 
+
+### Bug Fixes
+
+* **Config:** ability to show indicator at start station 
+* **Game:** better initial positions for components 
+* **Game:** fix distance for routes 
+* **Game:** fix editor bug with shared coords 
+* **Game:** fix editor with multi stops and long distance corrections 
+* **Game:** fix journey issues 
+* **Game:** fix routing bugs 
+* **Game:** less frame allocations 
+* **Game:** optimize draw calls 
+* **Game:** performance improvements 
+* **Game:** simplify new station logic
+
 ## 0.2.0 (2026-02-22)
 
 ### refactor
