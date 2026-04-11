@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'preact/hooks';
 import { World } from '../lib/World';
 import JourneyComplete from './JourneyComplete';
 import TrainControls from './HUD/TrainControls';
+import GameMenu from './HUD/GameMenu';
 import Maps2D from './HUD/Maps2D';
 import Transit from './HUD/Transit';
 import Tiles3DAttribution, { type Tiles3DAttributionCredits } from './HUD/Tiles3DAttribution';
@@ -41,12 +42,16 @@ function ThreeViewer() {
         return unsub;
     }, []);
 
-    const handleJourneyDismiss = () => {
-        setShowComplete(false);
+    const exitToMenu = () => {
         worldRef.current?.cleanup();
         worldRef.current = null;
         resetJourney();
         appScreen.value = 'menu';
+    };
+
+    const handleJourneyDismiss = () => {
+        setShowComplete(false);
+        exitToMenu();
     };
 
     // Reset journey on unmount
@@ -63,6 +68,7 @@ function ThreeViewer() {
             {!showComplete && (
                 <>
                     <TrainControls />
+                    <GameMenu onExit={exitToMenu} />
                     {hudSettings.value.showMap2D && <Maps2D />}
                     {hudSettings.value.showTransit && <Transit />}
                     {hudSettings.value.showSpeedometer && <Speedometer />}

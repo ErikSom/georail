@@ -4,7 +4,6 @@ import BipolarDial from './BipolarDial';
 import IconButton from './IconButton';
 import { Input } from '../../lib/utils/Input';
 import { trainPower, trainPowerPercent, trainVelocityKmh, trainDoorsOpen, trainHeadlightsOn, trainInstance, trainBraking, trainNeutral, updateTick, deltaTimeMs } from '../../store/train';
-import GUIControls from './GUIControls';
 
 function TrainControls() {
     const [isOpen, setIsOpen] = useState(true);
@@ -177,7 +176,6 @@ function TrainControls() {
                     <IconButton toggle on={trainDoorsOpen.value} icon={trainDoorsOpen.value ? "/icons/doors-open.svg" : "/icons/doors-close.svg"} className={`${styles.doorIcon} ${doorError ? styles.doorError : ''}`} onClick={handleDoorToggle} ariaLabel="Toggle doors" />
                     <IconButton icon="/icons/stop.svg" className={styles.stopIcon} onClick={handleStop} ariaLabel="Emergency stop" />
                     <IconButton icon="/icons/horn.svg" className={styles.hornIcon} onShortPress={handleHornLow} onLongPress={handleHornHigh} ariaLabel="Sound horn" />
-                    <GUIControls className={styles.settingsIcon} />
                     <IconButton icon="/icons/controls-off.svg" className={styles.closeControls} onClick={() => setIsOpen(false)} ariaLabel="Close train controls" />
                 </div>
             </div>

@@ -1,0 +1,201 @@
+.container {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 1000;
+}
+
+.panel {
+    position: absolute;
+    top: 56px;
+    right: 0;
+    background: var(--menu-panel);
+    border-radius: 32px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 220px;
+    color: var(--menu-dark);
+    transform: translateY(-8px);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+        opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.panelOpen {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* ─── Section ────────────────────────────────────────────── */
+
+.section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sectionTitle {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--menu-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0 4px;
+}
+
+/* ─── Row (option card style from TravelPicker) ──────────── */
+
+.row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--menu-light);
+    border-radius: 16px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.row:hover {
+    background: var(--menu-dim-04);
+}
+
+.label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--menu-dark);
+    white-space: nowrap;
+    user-select: none;
+}
+
+/* ─── Toggle switch (same as TravelPicker .returnToggleSwitch) ── */
+
+.switch {
+    position: relative;
+    width: 40px;
+    height: 24px;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+
+.lever {
+    position: absolute;
+    inset: 0;
+    background: var(--menu-dim);
+    border-radius: 12px;
+    transition: background 0.2s;
+}
+
+.lever::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    background: var(--menu-light);
+    border-radius: 50%;
+    transition: transform 0.2s;
+}
+
+.switch input:checked+.lever {
+    background: var(--menu-accent);
+}
+
+.switch input:checked+.lever::after {
+    transform: translateX(16px);
+}
+
+/* ─── Volume slider ──────────────────────────────────────── */
+
+.volumeRow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--menu-light);
+    border-radius: 16px;
+}
+
+.volumeIcon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--menu-dark);
+    flex-shrink: 0;
+}
+
+.slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    background: var(--menu-dim);
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+    background-image: linear-gradient(var(--menu-accent), var(--menu-accent));
+    background-repeat: no-repeat;
+    background-size: calc(var(--fill, 100%)) 100%;
+}
+
+.slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--menu-light);
+    border: 2px solid var(--menu-accent);
+    cursor: pointer;
+    transition: transform 0.15s;
+}
+
+.slider::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+}
+
+.slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--menu-light);
+    border: 2px solid var(--menu-accent);
+    cursor: pointer;
+}
+
+/* ─── Exit button ────────────────────────────────────────── */
+
+.exitButton {
+    width: 100%;
+    padding: 14px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--menu-dark);
+    background: var(--menu-light);
+    border: none;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.exitButton:hover {
+    background: var(--menu-dim-04);
+    transform: translateY(-1px);
+}
+
+.exitButton:active {
+    transform: translateY(0);
+}

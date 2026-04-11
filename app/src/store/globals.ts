@@ -1,4 +1,4 @@
-import { signal } from "@preact/signals";
+import { signal, effect } from "@preact/signals";
 import { AudioListener, PerspectiveCamera } from "three";
 import { loadData, saveData } from "../lib/utils/LocalStorage";
 
@@ -16,6 +16,21 @@ export function screenWidth(): number {
 
 // Audio listener for positional audio (typically attached to the camera)
 export const audioListener = signal<AudioListener | null>(null);
+
+// Master volume (0..1), persisted via unified localStorage
+export const masterVolume = signal<number>(loadData('masterVolume', 1));
+
+export function setMasterVolume(value: number) {
+    const clamped = Math.max(0, Math.min(1, value));
+    masterVolume.value = clamped;
+    saveData('masterVolume', clamped);
+}
+
+// Apply master volume to the audio listener whenever either changes
+effect(() => {
+    const listener = audioListener.value;
+    if (listener) listener.setMasterVolume(masterVolume.value);
+});
 
 // Main camera reference (optional, for future use)
 export const mainCamera = signal<PerspectiveCamera | null>(null);
