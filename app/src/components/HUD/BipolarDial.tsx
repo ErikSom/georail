@@ -11,7 +11,6 @@ interface BipolarDialProps {
     size?: number;
     ticks?: number;
     braking?: boolean;
-    neutral?: boolean;
 }
 
 const MAX_ANGLE = 150;
@@ -32,7 +31,6 @@ function BipolarDial({
     size = 220,
     ticks = 41,
     braking = false,
-    neutral = false,
 }: BipolarDialProps) {
     // --- Physics State ---
     const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -310,14 +308,14 @@ function BipolarDial({
             out.push(
                 <div
                     key={i}
-                    className={`${styles.scalePoint} ${isActive ? (braking ? styles.scalePointBraking : neutral ? styles.scalePointNeutral : styles.scalePointActive) : ""}`}
+                    className={`${styles.scalePoint} ${isActive ? (braking ? styles.scalePointBraking : styles.scalePointActive) : ""}`}
                     style={style}
                 />
             );
         }
 
         return out;
-    }, [ticks, size, displayAngle, displayValue, step, braking, neutral]);
+    }, [ticks, size, displayAngle, displayValue, step, braking]);
 
     const decimals = stepDecimals(step);
 
@@ -332,10 +330,10 @@ function BipolarDial({
                 <div className={styles.knobScale}>{renderedTicks}</div>
 
                 <div className={styles.knobDial}>
-                    <div className={`${styles.knobIndicator} ${braking ? styles.knobIndicatorBraking : neutral ? styles.knobIndicatorNeutral : ""}`} style={{ transform: `rotate(${displayAngle}deg)` }} />
+                    <div className={`${styles.knobIndicator} ${braking ? styles.knobIndicatorBraking : ""}`} style={{ transform: `rotate(${displayAngle}deg)` }} />
                 </div>
 
-                <div className={`${styles.knobValue} ${braking ? styles.knobValueBraking : neutral ? styles.knobValueNeutral : ""}`}>
+                <div className={`${styles.knobValue} ${braking ? styles.knobValueBraking : ""}`}>
                     {displayValue.toFixed(decimals)}
                 </div>
 

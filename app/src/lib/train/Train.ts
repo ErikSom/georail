@@ -8,7 +8,7 @@ import * as EssentialsPlugin from '@tweakpane/plugin-essentials';
 import { TrainPhysics, type IPhysicsTarget } from './TrainPhysics';
 import { getFolderKey } from './TrainUiUtils';
 import { TrainAudio } from './TrainAudio';
-import { trainPower, type ConsistCar } from '../../store/train';
+import { type ConsistCar } from '../../store/train';
 
 export class Train implements IPhysicsTarget {
     public group: Group;
@@ -598,8 +598,6 @@ export class Train implements IPhysicsTarget {
      */
     public setPower(power: number): void {
         this.physics.setPower(power);
-        // Sync with global store for audio and UI
-        trainPower.value = power;
     }
 
     /**
@@ -716,9 +714,6 @@ export class Train implements IPhysicsTarget {
     public update(delta: number): void {
         // Update physics simulation (this will directly update distanceTraveled)
         this.physics.update(delta);
-
-        // Sync power back to store in case physics auto-reset it (boundary braking)
-        trainPower.value = this.physics.getPower();
 
         // Calculate distance delta for wheel rotation
         const distanceDelta = this.distanceTraveled - this.previousDistanceTraveled;

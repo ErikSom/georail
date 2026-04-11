@@ -2,12 +2,12 @@ import { signal, computed, effect } from "@preact/signals";
 import type { Train } from "../lib/train/Train";
 
 // Train state signals
-export const trainPower = signal(0); // -1 to 1
+export const trainPower = signal(0); // -1 to 1 — dial value: positive = accelerate, negative = brake
+export const trainDirection = signal<1 | -1>(1); // 1 = forward, -1 = backward
 export const trainVelocityKmh = signal(0);
 export const trainMaxSpeedKmh = signal(120); // Max speed from train config, default 120
 export const trainTractiveEffort = signal(0); // 0 to 1 (normalized)
 export const trainBraking = signal(false); // True when dial opposes gear direction
-export const trainNeutral = signal(true); // True when gear direction is 0
 export const trainInstance = signal<Train | null>(null);
 export const trainDoorsOpen = signal(false);
 export const trainHeadlightsOn = signal(false);
@@ -68,8 +68,9 @@ effect(() => {
     const train = trainInstance.value;
     if (!train) return;
 
-    // Apply power changes to train
-    train.setPower(trainPower.value);
+    // Dial is direction-agnostic: positive = accelerate, negative = brake.
+    // Multiply by direction so physics receives the correct signed power.
+    train.setPower(trainPower.value * trainDirection.value);
 });
 
 effect(() => {
@@ -93,7 +94,6 @@ export function updateTrainState() {
         trainVelocityKmh.value = train.getVelocityKmh();
         trainTractiveEffort.value = train.getNormalizedTractiveEffort();
         trainBraking.value = train.isBraking();
-        trainNeutral.value = train.getDirection() === 0;
         trainDistanceTraveled.value = train.distanceTraveled;
         trainPathTotalLength.value = train.getPath()?.getTotalLength() ?? 0;
         trainLength.value = train.getTotalLength();
@@ -117,13 +117,13 @@ export function updateTrainState() {
 // Helper to reset train
 export function resetTrain() {
     trainPower.value = 0;
+    trainDirection.value = 1;
     trainVelocityKmh.value = 0;
     trainDistanceTraveled.value = 0;
     trainPathTotalLength.value = 0;
     trainLength.value = 0;
     trainTractiveEffort.value = 0;
     trainBraking.value = false;
-    trainNeutral.value = true;
     trainConsist.value = [];
     const train = trainInstance.value;
     if (train) {

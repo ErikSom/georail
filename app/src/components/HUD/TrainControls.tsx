@@ -3,16 +3,18 @@ import styles from './TrainControls.module.css';
 import BipolarDial from './BipolarDial';
 import IconButton from './IconButton';
 import { Input } from '../../lib/utils/Input';
-import { trainPower, trainPowerPercent, trainVelocityKmh, trainDoorsOpen, trainHeadlightsOn, trainInstance, trainBraking, trainNeutral, updateTick, deltaTimeMs } from '../../store/train';
+import { trainPower, trainPowerPercent, trainVelocityKmh, trainDoorsOpen, trainHeadlightsOn, trainInstance, trainBraking, trainDirection, updateTick, deltaTimeMs } from '../../store/train';
 
 function TrainControls() {
     const [isOpen, setIsOpen] = useState(true);
     const [dialError, setDialError] = useState(false);
     const [doorError, setDoorError] = useState(false);
+    const [directionError, setDirectionError] = useState(false);
     const holdTimeRef = useRef(0);
     const initialPowerRef = useRef(0);
     const dialErrorTimer = useRef<ReturnType<typeof setTimeout>>();
     const doorErrorTimer = useRef<ReturnType<typeof setTimeout>>();
+    const directionErrorTimer = useRef<ReturnType<typeof setTimeout>>();
     const prevSpeedRef = useRef(0);
     const vibrateTimer = useRef(0);
 
@@ -26,6 +28,12 @@ function TrainControls() {
         setDoorError(true);
         clearTimeout(doorErrorTimer.current);
         doorErrorTimer.current = setTimeout(() => setDoorError(false), 600);
+    }, []);
+
+    const flashDirectionError = useCallback(() => {
+        setDirectionError(true);
+        clearTimeout(directionErrorTimer.current);
+        directionErrorTimer.current = setTimeout(() => setDirectionError(false), 600);
     }, []);
 
     useEffect(() => {
@@ -132,6 +140,15 @@ function TrainControls() {
         trainInstance.value?.playSound(wasOpen ? 'door_close' : 'door_open');
     };
 
+    const handleDirectionToggle = () => {
+        if (Math.abs(trainVelocityKmh.value) > 3) {
+            flashDirectionError();
+            return;
+        }
+        trainPower.value = 0;
+        trainDirection.value = trainDirection.value === 1 ? -1 : 1;
+    };
+
     const handleStop = () => {
         trainPower.value = 0;
         holdTimeRef.current = 0;
@@ -170,12 +187,19 @@ function TrainControls() {
                         max={100}
                         size={220}
                         braking={trainBraking.value}
-                        neutral={trainNeutral.value}
                     />
                     <IconButton toggle on={trainHeadlightsOn.value} icon="/icons/lightbulb.svg" className={styles.lightIcon} onClick={handleHeadlights} ariaLabel="Toggle headlights" />
                     <IconButton toggle on={trainDoorsOpen.value} icon={trainDoorsOpen.value ? "/icons/doors-open.svg" : "/icons/doors-close.svg"} className={`${styles.doorIcon} ${doorError ? styles.doorError : ''}`} onClick={handleDoorToggle} ariaLabel="Toggle doors" />
                     <IconButton icon="/icons/stop.svg" className={styles.stopIcon} onClick={handleStop} ariaLabel="Emergency stop" />
                     <IconButton icon="/icons/horn.svg" className={styles.hornIcon} onShortPress={handleHornLow} onLongPress={handleHornHigh} ariaLabel="Sound horn" />
+                    <IconButton
+                        toggle
+                        on={trainDirection.value === -1}
+                        icon={trainDirection.value === 1 ? "/icons/forward.svg" : "/icons/backward.svg"}
+                        className={`${styles.directionIcon} ${directionError ? styles.doorError : ''}`}
+                        onClick={handleDirectionToggle}
+                        ariaLabel="Toggle direction"
+                    />
                     <IconButton icon="/icons/controls-off.svg" className={styles.closeControls} onClick={() => setIsOpen(false)} ariaLabel="Close train controls" />
                 </div>
             </div>
