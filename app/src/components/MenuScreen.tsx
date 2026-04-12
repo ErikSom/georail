@@ -57,7 +57,7 @@ export default function MenuScreen({ session, profile, checking, activeTab, reco
             <div className={styles.background} />
             <div className={styles.logoWrapper}>
                 <div className={styles.trapezoid} />
-                <img src="/logo.svg" alt="Georail" className={styles.logo} />
+                <img src="/logo.svg" alt="GeoRail" className={styles.logo} />
             </div>
             {renderPanel()}
             <footer className={styles.footer}>&copy; 2025 Terminarch Games &middot; v{__APP_VERSION__}</footer>
