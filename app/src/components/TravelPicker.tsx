@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'preact/hooks';
 import { fetchAllStations, fetchStationDepartures, fetchJourney, type StationTrackInfo, type Departure, type Journey } from '../lib/api/station';
 import { fetchJourneyRoute, calculateStopTimes, type RouteData, type RouteStop, type JourneyStopInput } from '../lib/api/navigation';
+import { fetchJourneyHistory, fetchFavoriteRoutes, toggleFavorite, type JourneyHistoryEntry, type FavoriteRoute } from '../lib/api/journey';
 import { configs, country, gameConditions, setGameCondition, type GameConditions } from '../store/globals';
 import { appScreen } from '../store/app';
 import { startJourney } from '../store/journey';
@@ -102,6 +103,15 @@ export default function TravelPicker() {
     const [expandedJourney, setExpandedJourney] = useState<Journey | null>(null);
     const [loadingJourney, setLoadingJourney] = useState(false);
 
+    // Archive tab state
+    type ArchiveView = 'history' | 'favorites';
+    const [archiveView, setArchiveView] = useState<ArchiveView>('history');
+    const [history, setHistory] = useState<JourneyHistoryEntry[]>([]);
+    const [favorites, setFavorites] = useState<FavoriteRoute[]>([]);
+    const [loadingArchive, setLoadingArchive] = useState(false);
+    const [archiveError, setArchiveError] = useState<string | null>(null);
+    const [expandedArchiveId, setExpandedArchiveId] = useState<string | null>(null);
+
     // Conditions panel
     const [showConditions, setShowConditions] = useState(false);
     const conditions = gameConditions.value;
@@ -143,6 +153,7 @@ export default function TravelPicker() {
             return;
         }
 
+        // Route API only needs the forward leg — round trip is handled at journey start
         const journeyStops: JourneyStopInput[] = customStops.map(stop => {
             const stationData = stations.find(s => s.name === stop.station);
             return { code: stationData?.code || '', track: stop.track || undefined };
@@ -167,7 +178,7 @@ export default function TravelPicker() {
             });
 
         return () => { cancelled = true; };
-    }, [customStops, stations, activeTab]);
+    }, [customStops, stations, activeTab, returnToStart]);
 
     // Fetch departures when switching to Regular tab with a station already selected
     useEffect(() => {
@@ -178,6 +189,82 @@ export default function TravelPicker() {
             }
         }
     }, [activeTab, regularFrom.station, stations]);
+
+    // Fetch archive data when switching to archive tab
+    useEffect(() => {
+        if (activeTab !== 'archive') return;
+        let cancelled = false;
+        setLoadingArchive(true);
+
+        Promise.all([fetchJourneyHistory(country.value), fetchFavoriteRoutes(country.value)]).then(([historyRes, favRes]) => {
+            if (cancelled) return;
+            setHistory(historyRes?.history || []);
+            setFavorites(favRes?.favorites || []);
+            setLoadingArchive(false);
+        });
+
+        return () => { cancelled = true; };
+    }, [activeTab]);
+
+    const resolveStationName = (code: string) => {
+        return stations.find(s => s.code === code)?.name || code;
+    };
+
+    const handleToggleFavorite = async (stationCodes: string[], totalKm?: number, routeCountry?: string, isRoundTrip?: boolean) => {
+        setArchiveError(null);
+        try {
+            const stationNames = stationCodes.map(resolveStationName);
+            const result = await toggleFavorite(stationCodes, stationNames, totalKm, routeCountry, isRoundTrip);
+            if (!result) return;
+
+            // Update history entries' is_favorited status
+            setHistory(prev => prev.map(h => {
+                const matches = h.station_codes.length === stationCodes.length &&
+                    h.station_codes.every((c, i) => c === stationCodes[i]);
+                return matches ? { ...h, is_favorited: result.favorited } : h;
+            }));
+
+            if (result.favorited) {
+                // Re-fetch favorites to get the new entry with server-generated id
+                const favRes = await fetchFavoriteRoutes(country.value);
+                if (favRes) setFavorites(favRes.favorites);
+            } else {
+                // Remove from local favorites
+                setFavorites(prev => prev.filter(f => {
+                    return !(f.station_codes.length === stationCodes.length &&
+                        f.station_codes.every((c, i) => c === stationCodes[i]));
+                }));
+            }
+        } catch (err) {
+            setArchiveError(err instanceof Error ? err.message : 'Failed to update favorite');
+        }
+    };
+
+    const loadRouteIntoCustom = (stationCodes: string[], isRoundTrip: boolean) => {
+        // For round trips [A,B,C,D,C,B,A], extract original stops [A,B,C,D]
+        const codes = isRoundTrip && stationCodes.length >= 3
+            ? stationCodes.slice(0, Math.ceil(stationCodes.length / 2))
+            : stationCodes;
+
+        const newStops: Stop[] = codes.map(code => {
+            const stationData = stations.find(s => s.code === code);
+            return {
+                station: stationData?.name || code,
+                track: '',
+                availableTracks: stationData?.tracks || [],
+            };
+        });
+
+        setCustomStops(newStops);
+        setReturnToStart(isRoundTrip);
+        setActiveTab('custom');
+        setMinimapReady(false);
+    };
+
+    const formatDate = (dateStr: string) => {
+        const d = new Date(dateStr);
+        return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    };
 
     // Custom stop management functions
     const updateCustomStop = (index: number, field: 'station' | 'track', value: string) => {
@@ -296,8 +383,8 @@ export default function TravelPicker() {
             return;
         }
 
-        // Build stops array for journey API
-        const journeyStops: JourneyStopInput[] = customStops.map(stop => {
+        // Build stops array — fetch only the forward leg from the route API
+        const forwardJourneyStops: JourneyStopInput[] = customStops.map(stop => {
             const stationData = stations.find(s => s.name === stop.station);
             return {
                 code: stationData?.code || '',
@@ -305,22 +392,50 @@ export default function TravelPicker() {
             };
         }).filter(s => s.code);
 
-        if (journeyStops.length < 2) {
+        if (forwardJourneyStops.length < 2) {
             setError('Could not find station codes');
             return;
+        }
+
+        // Round trip: mirror stops for the journey session (A,B,C,D → A,B,C,D,C,B,A)
+        let effectiveStops = customStops;
+        let effectiveJourneyStops = forwardJourneyStops;
+        if (returnToStart && customStops.length >= 2) {
+            const returnStops = customStops.slice(0, -1).reverse();
+            effectiveStops = [...customStops, ...returnStops];
+            const returnJourneyStops = forwardJourneyStops.slice(0, -1).reverse();
+            effectiveJourneyStops = [...forwardJourneyStops, ...returnJourneyStops];
         }
 
         try {
             setFetchingRoute(true);
             setError(null);
 
-            const journeyData = await fetchJourneyRoute(journeyStops);
+            // Fetch route geometry for the forward leg only
+            const journeyData = await fetchJourneyRoute(forwardJourneyStops);
+
+            // For round trips, mirror the geometry: reverse route points and stop indices
+            if (returnToStart && customStops.length >= 2) {
+                const geo = journeyData.geometry;
+                const forwardRoute = geo.route;
+                const forwardStopIndices = geo.stop_indices;
+
+                // Reverse the route points (skip first of reversed to avoid duplicating the turnaround point)
+                const returnRoute = [...forwardRoute].reverse().slice(1);
+                // Map forward stop indices into the appended return portion
+                const lastForwardIdx = forwardRoute.length - 1;
+                const returnStopIndices = [...forwardStopIndices].reverse().slice(1)
+                    .map(idx => 2 * lastForwardIdx - idx);
+
+                geo.route = [...forwardRoute, ...returnRoute];
+                geo.stop_indices = [...forwardStopIndices, ...returnStopIndices];
+            }
 
             // Calculate arrival/departure times from route metadata
             const routeStops = calculateStopTimes(
-                customStops.map(s => s.station),
-                journeyStops.map(s => s.code),
-                customStops.map(s => s.track || null),
+                effectiveStops.map(s => s.station),
+                effectiveJourneyStops.map(s => s.code),
+                effectiveStops.map(s => s.track || null),
                 journeyData.geometry
             );
 
@@ -333,7 +448,7 @@ export default function TravelPicker() {
                 }
             };
 
-            startJourney(routeData, routeData.properties.startTime);
+            startJourney(routeData, routeData.properties.startTime, returnToStart);
             appScreen.value = 'game';
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to fetch route');
@@ -736,6 +851,161 @@ export default function TravelPicker() {
                             )}
                         </>
                     )
+                ) : activeTab === 'archive' ? (
+                    /* Archive Tab Content */
+                    <>
+                        <div className={styles.archiveToggle}>
+                            <button
+                                className={`${styles.archiveToggleButton} ${archiveView === 'history' ? styles.archiveToggleButtonActive : ''}`}
+                                onClick={() => setArchiveView('history')}
+                            >
+                                History
+                            </button>
+                            <button
+                                className={`${styles.archiveToggleButton} ${archiveView === 'favorites' ? styles.archiveToggleButtonActive : ''}`}
+                                onClick={() => setArchiveView('favorites')}
+                            >
+                                Starred
+                            </button>
+                        </div>
+
+                        {archiveError && <div className={styles.error}>{archiveError}</div>}
+
+                        {loadingArchive ? (
+                            <div className={styles.loading}>Loading...</div>
+                        ) : archiveView === 'history' ? (
+                            history.length === 0 ? (
+                                <div className={styles.archiveEmpty}>No journeys yet</div>
+                            ) : (
+                                <div className={styles.archiveList}>
+                                    {history.map(entry => {
+                                        const isExpanded = expandedArchiveId === entry.id;
+                                        return (
+                                            <div key={entry.id} className={`${styles.archiveItem} ${isExpanded ? styles.archiveExpanded : ''}`}>
+                                                <div
+                                                    className={styles.archiveItemHeader}
+                                                    onClick={() => setExpandedArchiveId(isExpanded ? null : entry.id)}
+                                                >
+                                                    <div className={styles.archiveItemContent}>
+                                                        <span className={styles.archiveRoute}>
+                                                            {resolveStationName(entry.station_codes[0])} → {resolveStationName(entry.station_codes[entry.station_codes.length - 1])}
+                                                            {entry.is_round_trip && <span className={styles.roundTripBadge}>Round trip</span>}
+                                                        </span>
+                                                        <span className={styles.archiveMeta}>
+                                                            <span>{formatDate(entry.started_at)}</span>
+                                                            <span>{entry.station_codes.length} stops</span>
+                                                            <span>{entry.total_km_earned} km</span>
+                                                        </span>
+                                                    </div>
+                                                    <button
+                                                        className={`${styles.starButton} ${entry.is_favorited ? styles.starButtonActive : ''}`}
+                                                        onClick={(e) => { e.stopPropagation(); handleToggleFavorite(entry.station_codes, entry.total_km_earned, entry.country, entry.is_round_trip); }}
+                                                    >
+                                                        {entry.is_favorited ? '★' : '☆'}
+                                                    </button>
+                                                </div>
+                                                {isExpanded && (
+                                                    <div className={styles.archiveDetail}>
+                                                        <div className={styles.timeline}>
+                                                            {entry.station_codes.map((code, idx) => {
+                                                                const isFirst = idx === 0;
+                                                                const isLast = idx === entry.station_codes.length - 1;
+                                                                return (
+                                                                    <div key={idx} className={`${styles.timelineStop} ${isFirst ? styles.origin : ''} ${isLast ? styles.destination : ''}`}>
+                                                                        <div className={styles.timelineTrack}>
+                                                                            <div className={`${styles.timelineDot} ${isFirst ? styles.origin : ''} ${isLast ? styles.destination : ''}`} />
+                                                                        </div>
+                                                                        <div className={styles.timelineInfo}>
+                                                                            <div className={styles.timelineStationRow}>
+                                                                                <span className={styles.timelineStation}>{resolveStationName(code)}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                        <div className={styles.archiveActions}>
+                                                            <button
+                                                                className={styles.driveButton}
+                                                                onClick={() => loadRouteIntoCustom(entry.station_codes, entry.is_round_trip)}
+                                                            >
+                                                                Drive this route
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )
+                        ) : (
+                            favorites.length === 0 ? (
+                                <div className={styles.archiveEmpty}>No starred routes</div>
+                            ) : (
+                                <div className={styles.archiveList}>
+                                    {favorites.map(fav => {
+                                        const isExpanded = expandedArchiveId === fav.id;
+                                        return (
+                                            <div key={fav.id} className={`${styles.archiveItem} ${isExpanded ? styles.archiveExpanded : ''}`}>
+                                                <div
+                                                    className={styles.archiveItemHeader}
+                                                    onClick={() => setExpandedArchiveId(isExpanded ? null : fav.id)}
+                                                >
+                                                    <div className={styles.archiveItemContent}>
+                                                        <span className={styles.archiveRoute}>
+                                                            {(fav.station_names?.[0] || resolveStationName(fav.station_codes[0]))} → {(fav.station_names?.[fav.station_names.length - 1] || resolveStationName(fav.station_codes[fav.station_codes.length - 1]))}
+                                                            {fav.is_round_trip && <span className={styles.roundTripBadge}>Round trip</span>}
+                                                        </span>
+                                                        <span className={styles.archiveMeta}>
+                                                            <span>{fav.station_codes.length} stops</span>
+                                                            {fav.total_km && <span>{Math.round(fav.total_km * 100) / 100} km</span>}
+                                                        </span>
+                                                    </div>
+                                                    <button
+                                                        className={`${styles.starButton} ${styles.starButtonActive}`}
+                                                        onClick={(e) => { e.stopPropagation(); handleToggleFavorite(fav.station_codes, fav.total_km || undefined, fav.country, fav.is_round_trip); }}
+                                                    >
+                                                        ★
+                                                    </button>
+                                                </div>
+                                                {isExpanded && (
+                                                    <div className={styles.archiveDetail}>
+                                                        <div className={styles.timeline}>
+                                                            {fav.station_codes.map((code, idx) => {
+                                                                const isFirst = idx === 0;
+                                                                const isLast = idx === fav.station_codes.length - 1;
+                                                                return (
+                                                                    <div key={idx} className={`${styles.timelineStop} ${isFirst ? styles.origin : ''} ${isLast ? styles.destination : ''}`}>
+                                                                        <div className={styles.timelineTrack}>
+                                                                            <div className={`${styles.timelineDot} ${isFirst ? styles.origin : ''} ${isLast ? styles.destination : ''}`} />
+                                                                        </div>
+                                                                        <div className={styles.timelineInfo}>
+                                                                            <div className={styles.timelineStationRow}>
+                                                                                <span className={styles.timelineStation}>{fav.station_names?.[idx] || resolveStationName(code)}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                        <div className={styles.archiveActions}>
+                                                            <button
+                                                                className={styles.driveButton}
+                                                                onClick={() => loadRouteIntoCustom(fav.station_codes, fav.is_round_trip)}
+                                                            >
+                                                                Drive this route
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )
+                        )}
+                    </>
                 ) : (
                     /* Custom Tab Content */
                     <>

@@ -373,7 +373,7 @@ export function getProgressBetweenStops(fromStopIndex: number, toStopIndex: numb
     return Math.max(0, Math.min(1, distanceIntoSegment / segmentLength));
 }
 
-export function startJourney(route: RouteData, customStartTime?: number): void {
+export function startJourney(route: RouteData, customStartTime?: number, isRoundTrip?: boolean): void {
     routeData.value = route;
     journeyStartTime.value = customStartTime ?? Date.now();
     currentRouteIndex.value = 0;
@@ -400,7 +400,7 @@ export function startJourney(route: RouteData, customStartTime?: number): void {
     const stationTracks = stopsArr.map(s => s.track || null);
     if (stationCodes.length >= 2) {
         const segmentDistances = computeSegmentDistances(route).map(d => Math.round(d * 100) / 100);
-        apiStartJourney(stationCodes, country.value, segmentDistances, stationTracks).then(result => {
+        apiStartJourney(stationCodes, country.value, segmentDistances, stationTracks, isRoundTrip).then(result => {
             if (result) {
                 journeySessionId.value = result.session_id;
                 alreadyVisitedStations.value = new Set(result.already_visited);

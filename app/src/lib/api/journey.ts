@@ -31,7 +31,7 @@ export interface JourneyStartResponse {
     already_visited: string[];
 }
 
-export async function startJourneySession(stationCodes: string[], country: string, segmentDistances: number[], stationTracks: (string | null)[]): Promise<JourneyStartResponse | null> {
+export async function startJourneySession(stationCodes: string[], country: string, segmentDistances: number[], stationTracks: (string | null)[], isRoundTrip?: boolean): Promise<JourneyStartResponse | null> {
     try {
         const headers = await getAuthHeaders();
         if (!headers) return null;
@@ -39,7 +39,7 @@ export async function startJourneySession(stationCodes: string[], country: strin
         const response = await fetch(`${API_BASE}/journey/start`, {
             method: 'POST',
             headers,
-            body: JSON.stringify({ station_codes: stationCodes, country, segment_distances: segmentDistances, station_tracks: stationTracks }),
+            body: JSON.stringify({ station_codes: stationCodes, country, segment_distances: segmentDistances, station_tracks: stationTracks, is_round_trip: !!isRoundTrip }),
         });
 
         if (!response.ok) return null;
@@ -69,6 +69,90 @@ export async function reportStationArrival(
     } catch (err) {
         console.error('Failed to report station arrival:', err);
         return null;
+    }
+}
+
+export interface JourneyHistoryEntry {
+    id: string;
+    station_codes: string[];
+    total_km_earned: number;
+    started_at: string;
+    country: string;
+    is_round_trip: boolean;
+    route_hash: string;
+    is_favorited: boolean;
+}
+
+export interface FavoriteRoute {
+    id: string;
+    route_hash: string;
+    station_codes: string[];
+    station_names: string[] | null;
+    total_km: number | null;
+    is_round_trip: boolean;
+    country: string;
+    created_at: string;
+}
+
+export async function fetchJourneyHistory(country: string): Promise<{ history: JourneyHistoryEntry[] } | null> {
+    try {
+        const headers = await getAuthHeaders();
+        if (!headers) return null;
+
+        const response = await fetch(`${API_BASE}/journey/history?country=${encodeURIComponent(country)}`, { headers });
+        if (!response.ok) return null;
+        return await response.json();
+    } catch (err) {
+        console.error('Failed to fetch journey history:', err);
+        return null;
+    }
+}
+
+export async function fetchFavoriteRoutes(country: string): Promise<{ favorites: FavoriteRoute[] } | null> {
+    try {
+        const headers = await getAuthHeaders();
+        if (!headers) return null;
+
+        const response = await fetch(`${API_BASE}/journey/favorites?country=${encodeURIComponent(country)}`, { headers });
+        if (!response.ok) return null;
+        return await response.json();
+    } catch (err) {
+        console.error('Failed to fetch favorite routes:', err);
+        return null;
+    }
+}
+
+export async function toggleFavorite(
+    stationCodes: string[],
+    stationNames?: string[],
+    totalKm?: number,
+    country?: string,
+    isRoundTrip?: boolean,
+): Promise<{ favorited: boolean } | null> {
+    try {
+        const headers = await getAuthHeaders();
+        if (!headers) return null;
+
+        const response = await fetch(`${API_BASE}/journey/favorite`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                station_codes: stationCodes,
+                station_names: stationNames,
+                total_km: totalKm,
+                is_round_trip: !!isRoundTrip,
+                country: country || 'NL',
+            }),
+        });
+
+        if (!response.ok) {
+            const body = await response.json().catch(() => null);
+            throw new Error(body?.error || 'Failed to toggle favorite');
+        }
+        return await response.json();
+    } catch (err) {
+        if (err instanceof Error) throw err;
+        throw new Error('Failed to toggle favorite');
     }
 }
 

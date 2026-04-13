@@ -1,7 +1,10 @@
+import crypto from 'crypto';
 import { supabase } from '../supabase.js';
 
 const MAX_AVERAGE_SPEED_KMH = 250;
 const MAX_STATIONS = 30;
+const MAX_HISTORY = 50;
+const MAX_FAVORITES = 25;
 
 function haversineKm(lat1, lon1, lat2, lon2) {
 	const R = 6371;
@@ -15,7 +18,7 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 
 export const startJourneySession = async (req, res) => {
 	try {
-		const { station_codes, country, segment_distances, station_tracks } = req.body;
+		const { station_codes, country, segment_distances, station_tracks, is_round_trip } = req.body;
 
 		if (!Array.isArray(station_codes) || station_codes.length < 2 || station_codes.length > MAX_STATIONS) {
 			return res.status(400).json({ error: 'Between 2 and 30 station codes required' });
@@ -84,6 +87,7 @@ export const startJourneySession = async (req, res) => {
 				station_codes,
 				station_coords,
 				segment_distances,
+				is_round_trip: !!is_round_trip,
 				country: sessionCountry,
 				last_station_index: 0,
 				last_ping_at: new Date().toISOString(),
@@ -195,6 +199,24 @@ export const reportStationArrival = async (req, res) => {
 			.select('*', { count: 'exact', head: true })
 			.eq('user_id', req.userId);
 
+		// Cap history at MAX_HISTORY completed sessions
+		if (isComplete) {
+			const { data: oldSessions } = await supabase
+				.from('journey_sessions')
+				.select('id')
+				.eq('user_id', req.userId)
+				.eq('completed', true)
+				.order('started_at', { ascending: false })
+				.range(MAX_HISTORY, MAX_HISTORY + 100);
+
+			if (oldSessions?.length > 0) {
+				await supabase
+					.from('journey_sessions')
+					.delete()
+					.in('id', oldSessions.map(s => s.id));
+			}
+		}
+
 		res.set('Cache-Control', 'no-store');
 		res.json({
 			valid: true,
@@ -239,6 +261,134 @@ export const getUserStats = async (req, res) => {
 		});
 	} catch (err) {
 		console.error('Stats error:', err);
+		res.status(500).json({ error: 'Server error' });
+	}
+};
+
+function computeRouteHash(stationCodes) {
+	return crypto.createHash('md5').update(stationCodes.join('|')).digest('hex');
+}
+
+export const getJourneyHistory = async (req, res) => {
+	try {
+		const { country } = req.query;
+		const filterCountry = (country || 'NL').toUpperCase();
+
+		const { data: sessions } = await supabase
+			.from('journey_sessions')
+			.select('id, station_codes, total_km_earned, started_at, country, is_round_trip')
+			.eq('user_id', req.userId)
+			.eq('completed', true)
+			.eq('country', filterCountry)
+			.order('started_at', { ascending: false })
+			.limit(MAX_HISTORY);
+
+		const { data: favorites } = await supabase
+			.from('favorite_routes')
+			.select('route_hash')
+			.eq('user_id', req.userId)
+			.eq('country', filterCountry);
+
+		const favHashes = new Set((favorites || []).map(f => f.route_hash));
+
+		const history = (sessions || []).map(s => {
+			const route_hash = computeRouteHash(s.station_codes);
+			return {
+				id: s.id,
+				station_codes: s.station_codes,
+				total_km_earned: Math.round(s.total_km_earned * 100) / 100,
+				started_at: s.started_at,
+				country: s.country,
+				is_round_trip: s.is_round_trip,
+				route_hash,
+				is_favorited: favHashes.has(route_hash),
+			};
+		});
+
+		res.set('Cache-Control', 'no-store');
+		res.json({ history });
+	} catch (err) {
+		console.error('Journey history error:', err);
+		res.status(500).json({ error: 'Server error' });
+	}
+};
+
+export const toggleFavoriteRoute = async (req, res) => {
+	try {
+		const { station_codes, station_names, total_km, country, is_round_trip } = req.body;
+
+		if (!Array.isArray(station_codes) || station_codes.length < 2) {
+			return res.status(400).json({ error: 'At least 2 station codes required' });
+		}
+
+		const route_hash = computeRouteHash(station_codes);
+
+		const favCountry = (country || 'NL').toUpperCase();
+
+		const { data: existing } = await supabase
+			.from('favorite_routes')
+			.select('id')
+			.eq('user_id', req.userId)
+			.eq('route_hash', route_hash)
+			.eq('country', favCountry)
+			.single();
+
+		if (existing) {
+			await supabase
+				.from('favorite_routes')
+				.delete()
+				.eq('id', existing.id);
+
+			res.set('Cache-Control', 'no-store');
+			return res.json({ favorited: false });
+		}
+
+		const { count: favCount } = await supabase
+			.from('favorite_routes')
+			.select('*', { count: 'exact', head: true })
+			.eq('user_id', req.userId)
+			.eq('country', favCountry);
+
+		if (favCount >= MAX_FAVORITES) {
+			return res.status(400).json({ error: `Maximum of ${MAX_FAVORITES} favorites reached` });
+		}
+
+		await supabase
+			.from('favorite_routes')
+			.insert({
+				user_id: req.userId,
+				route_hash,
+				station_codes,
+				station_names: station_names || null,
+				total_km: total_km || null,
+				is_round_trip: !!is_round_trip,
+				country: favCountry,
+			});
+
+		res.set('Cache-Control', 'no-store');
+		res.json({ favorited: true });
+	} catch (err) {
+		console.error('Toggle favorite error:', err);
+		res.status(500).json({ error: 'Server error' });
+	}
+};
+
+export const getFavoriteRoutes = async (req, res) => {
+	try {
+		const { country } = req.query;
+		const filterCountry = (country || 'NL').toUpperCase();
+
+		const { data: favorites } = await supabase
+			.from('favorite_routes')
+			.select('id, route_hash, station_codes, station_names, total_km, is_round_trip, country, created_at')
+			.eq('user_id', req.userId)
+			.eq('country', filterCountry)
+			.order('created_at', { ascending: false });
+
+		res.set('Cache-Control', 'no-store');
+		res.json({ favorites: favorites || [] });
+	} catch (err) {
+		console.error('Get favorites error:', err);
 		res.status(500).json({ error: 'Server error' });
 	}
 };
