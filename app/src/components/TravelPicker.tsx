@@ -411,24 +411,17 @@ export default function TravelPicker() {
             setFetchingRoute(true);
             setError(null);
 
-            // Fetch route geometry for the forward leg only
+            // Fetch route geometry for the forward leg only (physical path stays one-way)
             const journeyData = await fetchJourneyRoute(forwardJourneyStops);
 
-            // For round trips, mirror the geometry: reverse route points and stop indices
+            // Round trip: build virtualized stop_indices [i0,i1,i2,i3,i2,i1,i0] that reuse
+            // the forward point indices. Return-leg virtual stops resolve to the same physical
+            // distances as their forward counterparts, so the player must physically reverse
+            // the train at the turnaround to progress.
             if (returnToStart && customStops.length >= 2) {
-                const geo = journeyData.geometry;
-                const forwardRoute = geo.route;
-                const forwardStopIndices = geo.stop_indices;
-
-                // Reverse the route points (skip first of reversed to avoid duplicating the turnaround point)
-                const returnRoute = [...forwardRoute].reverse().slice(1);
-                // Map forward stop indices into the appended return portion
-                const lastForwardIdx = forwardRoute.length - 1;
-                const returnStopIndices = [...forwardStopIndices].reverse().slice(1)
-                    .map(idx => 2 * lastForwardIdx - idx);
-
-                geo.route = [...forwardRoute, ...returnRoute];
-                geo.stop_indices = [...forwardStopIndices, ...returnStopIndices];
+                const forwardStopIndices = journeyData.geometry.stop_indices;
+                const returnStopIndices = [...forwardStopIndices].slice(0, -1).reverse();
+                journeyData.geometry.stop_indices = [...forwardStopIndices, ...returnStopIndices];
             }
 
             // Calculate arrival/departure times from route metadata

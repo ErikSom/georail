@@ -24,6 +24,11 @@ export const journeySessionId = signal<string | null>(null);
 export const journeyCompleted = signal(false);
 export const stationArrivalResults = signal<StationArrivalResponse[]>([]);
 export const alreadyVisitedStations = signal<Set<string>>(new Set());
+
+// Round trip: 'forward' while heading to turnaround, 'return' after.
+// turnaroundStopIndex is the virtual stop index at the turnaround (null for one-way trips).
+export const journeyPhase = signal<'forward' | 'return'>('forward');
+export const turnaroundStopIndex = signal<number | null>(null);
 const pendingStationPings = new Set<number>();
 
 function pingStationArrival(stationIndex: number): void {
@@ -61,6 +66,8 @@ export function updateStopStatuses(): void {
     const trainCenterKm = trainDistanceTraveled.value / 1000;
     const velocity = trainVelocityKmh.value;
     const isStopped = Math.abs(velocity) < 1;
+    const turnaroundIdx = turnaroundStopIndex.value;
+    const phase = journeyPhase.value;
 
     if (distances.length === 0 || stopsArr.length === 0) return;
 
@@ -77,12 +84,22 @@ export function updateStopStatuses(): void {
 
     let newStatuses: typeof stopStatuses.value | null = null;
 
-    for (let i = 0; i < stopsArr.length; i++) {
+    // Phase-gated index range. For one-way trips (turnaroundIdx === null) this spans all stops.
+    // Forward phase: 0 .. turnaroundIdx (or last stop if one-way).
+    // Return phase: turnaroundIdx .. lastStop — the turnaround is kept in range so its
+    // `departed` flag gets set once the train reverses past its zone.
+    const startIdx = phase === 'return' && turnaroundIdx !== null ? turnaroundIdx : 0;
+    const endIdx = phase === 'forward' && turnaroundIdx !== null ? turnaroundIdx : stopsArr.length - 1;
+
+    for (let i = startIdx; i <= endIdx; i++) {
         const stopDistanceKm = distances[i];
         const stopZone = getStopZone(stopDistanceKm);
 
         const isInStopZone = trainCenterKm >= stopZone.start && trainCenterKm <= stopZone.end;
-        const isPastStopZone = trainCenterKm > stopZone.end;
+        // Forward leg: past means train moved beyond end-of-zone. Return leg: past means train moved below start-of-zone.
+        const isPastStopZone = phase === 'return'
+            ? trainCenterKm < stopZone.start
+            : trainCenterKm > stopZone.end;
 
         const current = (newStatuses ?? stopStatuses.value)[i];
 
@@ -97,6 +114,11 @@ export function updateStopStatuses(): void {
 
             if (i > 0) {
                 pingStationArrival(i);
+            }
+
+            // Flip phase when the turnaround stop is reached.
+            if (turnaroundIdx !== null && i === turnaroundIdx && phase === 'forward') {
+                journeyPhase.value = 'return';
             }
         }
 
@@ -159,8 +181,9 @@ function computeSegmentDistances(route: RouteData): number[] {
 
     const segments: number[] = [];
     for (let i = 1; i < stopIndices.length; i++) {
-        const startIdx = stopIndices[i - 1];
-        const endIdx = stopIndices[i];
+        // Direction-agnostic for round trips: return-leg segments have startIdx > endIdx
+        const startIdx = Math.min(stopIndices[i - 1], stopIndices[i]);
+        const endIdx = Math.max(stopIndices[i - 1], stopIndices[i]);
         let segmentDistance = 0;
         for (let j = startIdx; j < endIdx; j++) {
             const [lon1, lat1] = routePoints[j];
@@ -345,6 +368,12 @@ export function distanceToStop(stopIndex: number): number {
 
     const trainDistance = trainDistanceTraveled.value / 1000;
     const stopDistance = distances[stopIndex];
+    const turnaroundIdx = turnaroundStopIndex.value;
+
+    // Return-leg stops are approached from higher km (train driving backward).
+    if (turnaroundIdx !== null && stopIndex > turnaroundIdx) {
+        return trainDistance - stopDistance;
+    }
 
     return stopDistance - trainDistance;
 }
@@ -352,7 +381,17 @@ export function distanceToStop(stopIndex: number): number {
 export function getJourneyProgress(): number {
     const totalLength = trainPathTotalLength.value;
     if (totalLength === 0) return 0;
-    return Math.min(1, trainDistanceTraveled.value / totalLength);
+
+    const raw = trainDistanceTraveled.value / totalLength;
+    const turnaroundIdx = turnaroundStopIndex.value;
+    if (turnaroundIdx === null) {
+        return Math.min(1, raw);
+    }
+
+    // Round trip: forward half 0→0.5, return half 0.5→1.0 as distance decreases.
+    return journeyPhase.value === 'forward'
+        ? Math.min(0.5, raw * 0.5)
+        : Math.min(1, 0.5 + (1 - raw) * 0.5);
 }
 
 export function getProgressBetweenStops(fromStopIndex: number, toStopIndex: number): number {
@@ -365,11 +404,12 @@ export function getProgressBetweenStops(fromStopIndex: number, toStopIndex: numb
     const trainDistance = trainDistanceTraveled.value / 1000;
     const fromDistance = distances[fromStopIndex];
     const toDistance = distances[toStopIndex];
-    const segmentLength = toDistance - fromDistance;
+    // Round trip return segments have fromDistance > toDistance; use absolute length.
+    const segmentLength = Math.abs(toDistance - fromDistance);
 
     if (segmentLength <= 0) return 1;
 
-    const distanceIntoSegment = trainDistance - fromDistance;
+    const distanceIntoSegment = Math.abs(trainDistance - fromDistance);
     return Math.max(0, Math.min(1, distanceIntoSegment / segmentLength));
 }
 
@@ -385,6 +425,14 @@ export function startJourney(route: RouteData, customStartTime?: number, isRound
     pendingStationPings.clear();
 
     const stopsArr = route.properties?.stops ?? [];
+
+    // Round trip: turnaround is the midpoint of the 7-stop virtual list (index 3 for [A,B,C,D,C,B,A]).
+    // One-way: null disables return-phase gating.
+    journeyPhase.value = 'forward';
+    turnaroundStopIndex.value = (isRoundTrip && stopsArr.length >= 3)
+        ? Math.floor((stopsArr.length - 1) / 2)
+        : null;
+
     if (stopsArr.length > 0) {
         stopStatuses.value = stopsArr.map((_, idx) => ({
             arrived: idx === 0,
@@ -431,6 +479,8 @@ export function resetJourney(): void {
     stationArrivalResults.value = [];
     alreadyVisitedStations.value = new Set();
     pendingStationPings.clear();
+    journeyPhase.value = 'forward';
+    turnaroundStopIndex.value = null;
     resetTrain();
 }
 

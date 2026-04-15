@@ -14,8 +14,6 @@ export interface RoutePointMetadata {
 
 export interface JourneyRouteData {
     geometry: {
-        start_node: number;
-        end_node: number;
         route: number[][]; // [lon, lat, world_offset_x, world_offset_y, world_offset_z]
         metadata: RoutePointMetadata[]; // Metadata for each route point
         stop_indices: number[]; // Indices in route array where each stop is located
@@ -36,8 +34,6 @@ export interface RouteStop {
 
 export interface RouteData {
     geometry: {
-        start_node: number;
-        end_node: number;
         route: number[][]; // [lon, lat, world_offset_x, world_offset_y, world_offset_z]
         metadata: RoutePointMetadata[]; // Metadata for each route point
         stop_indices: number[]; // Indices in route array where each stop is located
@@ -94,9 +90,11 @@ export function calculateStopTimes(
         // Random dwell time between min and max for intermediate stops
         const dwellTime = Math.floor(Math.random() * (maxStopDwellTime - minStopDwellTime + 1)) + minStopDwellTime;
 
-        // Get route indices for this segment
-        const startRouteIdx = stop_indices[stopIdx - 1];
-        const endRouteIdx = stop_indices[stopIdx];
+        // Get route indices for this segment (direction-agnostic for round trips)
+        const rawStart = stop_indices[stopIdx - 1];
+        const rawEnd = stop_indices[stopIdx];
+        const startRouteIdx = Math.min(rawStart, rawEnd);
+        const endRouteIdx = Math.max(rawStart, rawEnd);
 
         // Sum distance and calculate weighted average speed for this segment
         let segmentDistance = 0;
@@ -121,8 +119,10 @@ export function calculateStopTimes(
         const avgDwellTime = (minStopDwellTime + maxStopDwellTime) / 2;
         let cumulativeTime = initialDwellTime; // First stop departure
         for (let prevIdx = 1; prevIdx < stopIdx; prevIdx++) {
-            const prevStart = stop_indices[prevIdx - 1];
-            const prevEnd = stop_indices[prevIdx];
+            const prevRawStart = stop_indices[prevIdx - 1];
+            const prevRawEnd = stop_indices[prevIdx];
+            const prevStart = Math.min(prevRawStart, prevRawEnd);
+            const prevEnd = Math.max(prevRawStart, prevRawEnd);
             let prevDistance = 0;
             let prevWeightedSpeed = 0;
 

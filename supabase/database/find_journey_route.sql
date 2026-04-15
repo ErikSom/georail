@@ -16,14 +16,21 @@ DECLARE
   start_coords float[];
   end_coords float[];
 
-  start_node bigint;
-  end_node bigint;
-  first_start_node bigint;
-  last_end_node bigint;
+  -- Station projected onto nearest rail edge (virtual graph vertex)
+  start_edge_id bigint;
+  end_edge_id bigint;
+  start_fraction float;
+  end_fraction float;
+
+  first_start_edge_id bigint;
+  first_start_fraction float;
+  last_end_edge_id bigint;
+  last_end_fraction float;
 
   -- Optimization: cache previous segment's end for reuse as next start
   prev_end_coords float[];
-  prev_end_node bigint;
+  prev_end_edge_id bigint;
+  prev_end_fraction float;
 
   segment_route json;
   segment_editor json;
@@ -54,11 +61,8 @@ DECLARE
   -- FIX: Helper variable for regex construction
   track_regex text;
 
-  -- Edge-based node snapping (prefer junction vertices over dead-ends)
-  snap_source bigint;
-  snap_target bigint;
-  src_degree int;
-  tgt_degree int;
+  -- pgr_withPointsDijkstra parameters
+  points_sql text;
 
   -- Post-processing: snap stops to closest existing route point
   all_stop_lons float[] := ARRAY[]::float[];
@@ -67,6 +71,8 @@ DECLARE
   snap_best_j int;
   snap_d float8;
   snap_p jsonb;
+  s int;
+  j int;
 BEGIN
   stop_count := jsonb_array_length(stops);
 
@@ -78,10 +84,11 @@ BEGIN
     current_stop := stops->i;
     next_stop := stops->(i + 1);
 
-    -- 1. DETERMINE START NODE
+    -- 1. DETERMINE START (virtual point on nearest rail edge)
     IF i > 0 AND prev_end_coords IS NOT NULL THEN
       start_coords := prev_end_coords;
-      start_node := prev_end_node;
+      start_edge_id := prev_end_edge_id;
+      start_fraction := prev_end_fraction;
     ELSE
       -- Primary lookup: Exact code + optional track match
       SELECT ARRAY[ST_X(geom), ST_Y(geom)] INTO start_coords
@@ -92,9 +99,8 @@ BEGIN
 
       -- Fallback: Regex match (e.g. track "6" matches "6A")
       IF start_coords IS NULL AND current_stop->>'track' IS NOT NULL THEN
-        -- FIX: Build regex using format() to prevent parser errors
         track_regex := format('^%s[^0-9]', current_stop->>'track');
-        
+
         SELECT ARRAY[ST_X(geom), ST_Y(geom)] INTO start_coords
         FROM stations
         WHERE code = current_stop->>'code'
@@ -106,46 +112,31 @@ BEGIN
         RETURN json_build_object('error', format('Station not found: %s', current_stop->>'code'));
       END IF;
 
-      -- Collect first stop coordinates for post-processing
       all_stop_lons := array_append(all_stop_lons, start_coords[1]);
       all_stop_lats := array_append(all_stop_lats, start_coords[2]);
 
-      -- Find start_node on network (edge-based snap, prefer junction vertex)
-      SELECT rl.source, rl.target INTO snap_source, snap_target
+      -- Find nearest edge to the station and project onto it
+      SELECT
+        rl.id,
+        ST_LineLocatePoint(rl.geom, ST_SetSRID(ST_MakePoint(start_coords[1], start_coords[2]), 4326))
+      INTO start_edge_id, start_fraction
       FROM rail_lines rl
       ORDER BY rl.geom <-> ST_SetSRID(ST_MakePoint(start_coords[1], start_coords[2]), 4326)
       LIMIT 1;
 
-      SELECT COUNT(*) INTO src_degree FROM rail_lines WHERE source = snap_source OR target = snap_source;
-      SELECT COUNT(*) INTO tgt_degree FROM rail_lines WHERE source = snap_target OR target = snap_target;
-
-      IF src_degree > tgt_degree THEN
-        start_node := snap_source;
-      ELSIF tgt_degree > src_degree THEN
-        start_node := snap_target;
-      ELSE
-        SELECT CASE
-          WHEN ST_Distance(v1.the_geom, ST_SetSRID(ST_MakePoint(start_coords[1], start_coords[2]), 4326))
-            <= ST_Distance(v2.the_geom, ST_SetSRID(ST_MakePoint(start_coords[1], start_coords[2]), 4326))
-          THEN snap_source ELSE snap_target
-        END INTO start_node
-        FROM rail_lines_vertices_pgr v1, rail_lines_vertices_pgr v2
-        WHERE v1.id = snap_source AND v2.id = snap_target;
-      END IF;
+      -- pgr_withPoints needs fractions strictly inside the edge (not at a vertex)
+      start_fraction := GREATEST(0.0001, LEAST(0.9999, start_fraction));
     END IF;
 
-    -- 2. DETERMINE END NODE
+    -- 2. DETERMINE END (virtual point on nearest rail edge)
     SELECT ARRAY[ST_X(geom), ST_Y(geom)] INTO end_coords
     FROM stations
     WHERE code = next_stop->>'code'
       AND (next_stop->>'track' IS NULL OR ref = next_stop->>'track')
     LIMIT 1;
 
-    -- Fallback: Regex match for end station
     IF end_coords IS NULL AND next_stop->>'track' IS NOT NULL THEN
-      -- FIX: Build regex using format() to prevent parser errors
       track_regex := format('^%s[^0-9]', next_stop->>'track');
-
       SELECT ARRAY[ST_X(geom), ST_Y(geom)] INTO end_coords
       FROM stations
       WHERE code = next_stop->>'code'
@@ -157,32 +148,19 @@ BEGIN
       RETURN json_build_object('error', format('Station not found: %s', next_stop->>'code'));
     END IF;
 
-    -- Collect end stop coordinates for post-processing
     all_stop_lons := array_append(all_stop_lons, end_coords[1]);
     all_stop_lats := array_append(all_stop_lats, end_coords[2]);
 
-    -- Find end_node on network (edge-based snap, prefer junction vertex)
-    SELECT rl.source, rl.target INTO snap_source, snap_target
+    SELECT
+      rl.id,
+      ST_LineLocatePoint(rl.geom, ST_SetSRID(ST_MakePoint(end_coords[1], end_coords[2]), 4326))
+    INTO end_edge_id, end_fraction
     FROM rail_lines rl
     ORDER BY rl.geom <-> ST_SetSRID(ST_MakePoint(end_coords[1], end_coords[2]), 4326)
     LIMIT 1;
 
-    SELECT COUNT(*) INTO src_degree FROM rail_lines WHERE source = snap_source OR target = snap_source;
-    SELECT COUNT(*) INTO tgt_degree FROM rail_lines WHERE source = snap_target OR target = snap_target;
-
-    IF src_degree > tgt_degree THEN
-      end_node := snap_source;
-    ELSIF tgt_degree > src_degree THEN
-      end_node := snap_target;
-    ELSE
-      SELECT CASE
-        WHEN ST_Distance(v1.the_geom, ST_SetSRID(ST_MakePoint(end_coords[1], end_coords[2]), 4326))
-          <= ST_Distance(v2.the_geom, ST_SetSRID(ST_MakePoint(end_coords[1], end_coords[2]), 4326))
-        THEN snap_source ELSE snap_target
-      END INTO end_node
-      FROM rail_lines_vertices_pgr v1, rail_lines_vertices_pgr v2
-      WHERE v1.id = snap_source AND v2.id = snap_target;
-    END IF;
+    -- pgr_withPoints needs fractions strictly inside the edge (not at a vertex)
+    end_fraction := GREATEST(0.0001, LEAST(0.9999, end_fraction));
 
     -- 3. DISTANCE CHECKS
     segment_distance := ST_Distance(
@@ -224,30 +202,93 @@ BEGIN
 
     prev_segment_azimuth := curr_segment_azimuth;
 
-    -- Store nodes and cache for next loop
-    IF i = 0 THEN first_start_node := start_node; END IF;
-    IF i = stop_count - 2 THEN last_end_node := end_node; END IF;
+    -- Store virtual-vertex info for final result / next iteration
+    IF i = 0 THEN
+      first_start_edge_id := start_edge_id;
+      first_start_fraction := start_fraction;
+    END IF;
+    IF i = stop_count - 2 THEN
+      last_end_edge_id := end_edge_id;
+      last_end_fraction := end_fraction;
+    END IF;
     prev_end_coords := end_coords;
-    prev_end_node := end_node;
+    prev_end_edge_id := end_edge_id;
+    prev_end_fraction := end_fraction;
 
-    -- 5. ROUTING (DIJKSTRA)
+    -- 5. ROUTING (DIJKSTRA WITH VIRTUAL POINTS)
+    -- Two virtual points per segment: pid=1 (start), pid=2 (end). Negative pids below
+    -- tell pgr_withPoints to route from/to the virtual points.
+    points_sql := format(
+      'SELECT 1::bigint AS pid, %s::bigint AS edge_id, %s::float AS fraction ' ||
+      'UNION ALL SELECT 2::bigint, %s::bigint, %s::float',
+      start_edge_id, start_fraction, end_edge_id, end_fraction
+    );
+
     WITH
     d AS (
-      SELECT * FROM pgr_dijkstra(
-        'SELECT id, source, target, length_m AS cost FROM rail_lines',
-        start_node, end_node, false
+      SELECT * FROM pgr_withPoints(
+        'SELECT id, source, target, length_m AS cost FROM rail_lines'::text,
+        points_sql,
+        (-1)::bigint, (-2)::bigint,
+        false,        -- directed = false
+        'b',          -- driving_side = 'b' (irrelevant when undirected)
+        false         -- details = false
       )
+    ),
+    -- Build (from_node, edge_id, to_node) triples. Skip the terminal row (edge = -1).
+    path_edges AS (
+      SELECT
+        di.path_seq,
+        di.node AS from_node,
+        LEAD(di.node) OVER (ORDER BY di.path_seq) AS to_node,
+        di.edge AS edge_id
+      FROM d di
+      WHERE di.edge <> -1
     ),
     ordered_segments AS (
       SELECT
-        di.path_seq,
+        pe.path_seq,
         rl.id AS segment_id,
         rl.geom AS original_geom,
-        CASE WHEN di.node = rl.source THEN false ELSE true END AS is_reversed,
-        CASE WHEN di.node = rl.source THEN rl.geom ELSE ST_Reverse(rl.geom) END AS geom_dir
-      FROM d AS di
-      JOIN rail_lines AS rl ON rl.id = di.edge
-      WHERE di.edge <> -1
+        -- Direction the edge is traversed in (used downstream for point indexing).
+        CASE
+          -- Same edge contains both start and end virtual points
+          WHEN pe.from_node = -1 AND pe.to_node = -2 THEN start_fraction > end_fraction
+          -- First edge: going from projection toward to_node (a real vertex)
+          WHEN pe.from_node = -1 THEN pe.to_node = rl.source
+          -- Last edge: going from from_node (a real vertex) toward projection
+          WHEN pe.to_node = -2 THEN pe.from_node = rl.target
+          -- Interior edges: direction follows current source/target
+          ELSE pe.from_node <> rl.source
+        END AS is_reversed,
+        -- Trim first/last edges at projection fractions; interior edges use full geom.
+        CASE
+          WHEN pe.from_node = -1 AND pe.to_node = -2 THEN
+            -- Same-edge segment: substring between the two projections, flipped if needed
+            CASE
+              WHEN start_fraction <= end_fraction
+                THEN ST_LineSubstring(rl.geom, start_fraction, end_fraction)
+              ELSE ST_Reverse(ST_LineSubstring(rl.geom, end_fraction, start_fraction))
+            END
+          WHEN pe.from_node = -1 THEN
+            -- First edge: leave projection toward real vertex
+            CASE
+              WHEN pe.to_node = rl.target
+                THEN ST_LineSubstring(rl.geom, start_fraction, 1)
+              ELSE ST_Reverse(ST_LineSubstring(rl.geom, 0, start_fraction))
+            END
+          WHEN pe.to_node = -2 THEN
+            -- Last edge: arrive at projection from real vertex
+            CASE
+              WHEN pe.from_node = rl.source
+                THEN ST_LineSubstring(rl.geom, 0, end_fraction)
+              ELSE ST_Reverse(ST_LineSubstring(rl.geom, end_fraction, 1))
+            END
+          ELSE
+            CASE WHEN pe.from_node = rl.source THEN rl.geom ELSE ST_Reverse(rl.geom) END
+        END AS geom_dir
+      FROM path_edges pe
+      JOIN rail_lines rl ON rl.id = pe.edge_id
     ),
     route_points_base AS (
       SELECT
@@ -348,13 +389,15 @@ BEGIN
 
   IF editor THEN
     RETURN json_build_object(
-      'start_node', first_start_node, 'end_node', last_end_node,
+      'start_edge_id', first_start_edge_id, 'start_fraction', first_start_fraction,
+      'end_edge_id', last_end_edge_id, 'end_fraction', last_end_fraction,
       'route', combined_route, 'metadata', combined_metadata,
       'stop_indices', stop_indices, 'editor', combined_editor
     );
   ELSE
     RETURN json_build_object(
-      'start_node', first_start_node, 'end_node', last_end_node,
+      'start_edge_id', first_start_edge_id, 'start_fraction', first_start_fraction,
+      'end_edge_id', last_end_edge_id, 'end_fraction', last_end_fraction,
       'route', combined_route, 'metadata', combined_metadata, 'stop_indices', stop_indices
     );
   END IF;
