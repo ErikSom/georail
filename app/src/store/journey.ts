@@ -369,13 +369,29 @@ export function distanceToStop(stopIndex: number): number {
     const trainDistance = trainDistanceTraveled.value / 1000;
     const stopDistance = distances[stopIndex];
     const turnaroundIdx = turnaroundStopIndex.value;
+    const phase = journeyPhase.value;
 
-    // Return-leg stops are approached from higher km (train driving backward).
-    if (turnaroundIdx !== null && stopIndex > turnaroundIdx) {
-        return trainDistance - stopDistance;
+    // One-way journey: simple linear distance along the forward path.
+    if (turnaroundIdx === null) {
+        return stopDistance - trainDistance;
     }
 
-    return stopDistance - trainDistance;
+    // Round trip: distance must be measured along the route, not as physical distance.
+    const turnaroundKm = distances[turnaroundIdx];
+
+    if (phase === 'forward') {
+        if (stopIndex <= turnaroundIdx) {
+            return stopDistance - trainDistance;
+        }
+        // Target is a return-leg stop: go to turnaround first, then back to target.
+        return (turnaroundKm - trainDistance) + (turnaroundKm - stopDistance);
+    }
+
+    // Return phase: already past turnaround, train approaches return stops from higher km.
+    if (stopIndex <= turnaroundIdx) {
+        return 0;
+    }
+    return trainDistance - stopDistance;
 }
 
 export function getJourneyProgress(): number {

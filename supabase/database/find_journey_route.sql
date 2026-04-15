@@ -235,15 +235,20 @@ BEGIN
         false         -- details = false
       )
     ),
-    -- Build (from_node, edge_id, to_node) triples. Skip the terminal row (edge = -1).
+    -- Build (from_node, edge_id, to_node) triples. LEAD must run over the full
+    -- result (including the terminal row) so the last real edge knows its to_node
+    -- is the virtual end point (-2). Filter terminal rows only after LEAD.
     path_edges AS (
-      SELECT
-        di.path_seq,
-        di.node AS from_node,
-        LEAD(di.node) OVER (ORDER BY di.path_seq) AS to_node,
-        di.edge AS edge_id
-      FROM d di
-      WHERE di.edge <> -1
+      SELECT path_seq, from_node, to_node, edge_id
+      FROM (
+        SELECT
+          di.path_seq,
+          di.node AS from_node,
+          LEAD(di.node) OVER (ORDER BY di.path_seq) AS to_node,
+          di.edge AS edge_id
+        FROM d di
+      ) sub
+      WHERE sub.edge_id <> -1
     ),
     ordered_segments AS (
       SELECT
