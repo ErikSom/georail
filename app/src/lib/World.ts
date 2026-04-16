@@ -35,8 +35,9 @@ import { trainInstance, updateTrainState, trainDebugMode, trainLatE7, trainLonE7
 import { getPerformanceConfig, type PerformanceConfig } from './utils/PerformanceConfig';
 import type { Tiles3DAttributionCredits } from '../components/HUD/Tiles3DAttribution';
 import { Pane } from 'tweakpane';
-import { audioListener, timeScale, scaledDeltaTime, gameConditions } from '../store/globals';
+import { audioListener, timeScale, scaledDeltaTime, gameConditions, ATMOSPHERE_COLOR } from '../store/globals';
 import { trainPath } from '../store/journey';
+import { gameReady } from '../store/app';
 import { DitherOverlay } from './train/DitherOverlay';
 
 export class World {
@@ -89,6 +90,7 @@ export class World {
         this.renderer.outputColorSpace = SRGBColorSpace;
         this.renderer.toneMapping = NeutralToneMapping;
         this.renderer.toneMappingExposure = 1.08;
+        this.renderer.setClearColor(ATMOSPHERE_COLOR, 1);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.perfConfig.pixelRatio));
         this.renderer.setSize(this.mountElement.clientWidth, this.mountElement.clientHeight);
         this.mountElement.appendChild(this.renderer.domElement);
@@ -106,6 +108,7 @@ export class World {
         audioListener.value = this.audioListener;
 
         this.mapViewer = new MapViewer();
+        this.mapViewer.onInitialized = () => { gameReady.value = true; };
 
         this.sky = new Sky(this.scene);
 
@@ -195,6 +198,7 @@ export class World {
         Input.cleanup();
 
         trainInstance.value = null;
+        gameReady.value = false;
 
         this.sky.cleanup();
         this.mapViewer.cleanup();

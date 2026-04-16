@@ -15,7 +15,7 @@
 }
 
 .shape {
-    fill: var(--menu-dark);
+    fill: var(--menu-accent);
 }
 
 .track {

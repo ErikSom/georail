@@ -6,10 +6,11 @@ import GameMenu from './HUD/GameMenu';
 import Maps2D from './HUD/Maps2D';
 import Transit from './HUD/Transit';
 import Tiles3DAttribution, { type Tiles3DAttributionCredits } from './HUD/Tiles3DAttribution';
+import TrainSpinner from './TrainSpinner';
 import styles from './ThreeViewer.module.css';
 import Speedometer from './HUD/Speedometer';
 import { routeData, resetJourney, journeyCompleted } from '../store/journey';
-import { appScreen } from '../store/app';
+import { appScreen, gameReady } from '../store/app';
 import { hudSettings } from '../store/globals';
 
 function ThreeViewer() {
@@ -61,11 +62,18 @@ function ThreeViewer() {
         };
     }, []);
 
+    const ready = gameReady.value;
+
     return (
         <div className={styles.container}>
-            <div ref={mountRef} className={styles.canvas} />
+            <div ref={mountRef} className={`${styles.canvas} ${!ready ? styles.canvasLoading : ''}`} />
 
-            {!showComplete && (
+            <div className={`${styles.loadingOverlay} ${ready ? styles.loadingOverlayHidden : ''}`}>
+                <TrainSpinner />
+                <p className={styles.loadingText}>Departing shortly...</p>
+            </div>
+
+            {!showComplete && ready && (
                 <>
                     <TrainControls />
                     <GameMenu onExit={exitToMenu} />

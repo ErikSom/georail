@@ -6,4 +6,35 @@
 .canvas {
     position: absolute;
     inset: 0;
+    transition: filter 0.4s ease-out;
+}
+
+.canvasLoading {
+    filter: blur(16px);
+}
+
+.loadingOverlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    background: rgba(0, 0, 0, 0.25);
+    z-index: 10;
+    transition: opacity 0.4s ease-out;
+}
+
+.loadingOverlayHidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.loadingText {
+    color: var(--menu-light, #fff);
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }

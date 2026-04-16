@@ -6,6 +6,8 @@ import { loadData, saveData } from "../lib/utils/LocalStorage";
  * Global state for Three.js objects that need to be shared across systems
  */
 
+export const ATMOSPHERE_COLOR = 0x0d1b2a;
+
 const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
 
 // Screen-size helper (evaluated once at load time)

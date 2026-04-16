@@ -116,6 +116,7 @@ export default function AccountScreen({ session, onLogout, onPremiumChange }: Pr
             <div className={styles.container}>
                 <div className={styles.content}>
                     <TrainSpinner />
+                    <p className={styles.loadingText}>Departing shortly...</p>
                 </div>
             </div>
         );

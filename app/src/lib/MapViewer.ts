@@ -25,6 +25,7 @@ import {
 } from 'three';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { type PerformanceConfig } from './utils/PerformanceConfig';
+import { ATMOSPHERE_COLOR } from '../store/globals';
 import type { Tiles3DAttributionCredits } from '../components/HUD/Tiles3DAttribution';
 
 const getDracoDecoderPath = (): string => {
@@ -49,6 +50,7 @@ export class MapViewer {
 
     /** Called after automatic reorientation with the delta transform matrix. */
     public onReorient: ((deltaMatrix: Matrix4) => void) | null = null;
+    public onInitialized: (() => void) | null = null;
     private reorientCheckCounter = 0;
     private static readonly REORIENT_CHECK_INTERVAL = 30;
 
@@ -186,6 +188,7 @@ export class MapViewer {
         this.tiles.addEventListener('tiles-load-end', () => {
             if (!this.initialized) {
                 this.initialized = true;
+                this.onInitialized?.();
                 console.log('MapViewer initialized: Initial tiles loaded');
             }
         });
@@ -219,7 +222,7 @@ export class MapViewer {
 
         const planeGeometry = new PlaneGeometry(1e5, 1e5);
         const planeMaterial = new MeshBasicMaterial({
-            color: 0x000000,
+            color: ATMOSPHERE_COLOR,
             side: 2
         });
         this.groundPlane = new Mesh(planeGeometry, planeMaterial);
