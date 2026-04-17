@@ -86,6 +86,7 @@ export const startJourneySession = async (req, res) => {
 				user_id: req.userId,
 				station_codes,
 				station_coords,
+				station_tracks: Array.isArray(station_tracks) ? station_tracks : null,
 				segment_distances,
 				is_round_trip: !!is_round_trip,
 				country: sessionCountry,
@@ -199,13 +200,12 @@ export const reportStationArrival = async (req, res) => {
 			.select('*', { count: 'exact', head: true })
 			.eq('user_id', req.userId);
 
-		// Cap history at MAX_HISTORY completed sessions
+		// Cap history at MAX_HISTORY sessions (all sessions count, not just completed)
 		if (isComplete) {
 			const { data: oldSessions } = await supabase
 				.from('journey_sessions')
 				.select('id')
 				.eq('user_id', req.userId)
-				.eq('completed', true)
 				.order('started_at', { ascending: false })
 				.range(MAX_HISTORY, MAX_HISTORY + 100);
 
@@ -276,9 +276,8 @@ export const getJourneyHistory = async (req, res) => {
 
 		const { data: sessions } = await supabase
 			.from('journey_sessions')
-			.select('id, station_codes, total_km_earned, started_at, country, is_round_trip')
+			.select('id, station_codes, station_tracks, segment_distances, total_km_earned, started_at, country, is_round_trip')
 			.eq('user_id', req.userId)
-			.eq('completed', true)
 			.eq('country', filterCountry)
 			.order('started_at', { ascending: false })
 			.limit(MAX_HISTORY);
@@ -293,9 +292,14 @@ export const getJourneyHistory = async (req, res) => {
 
 		const history = (sessions || []).map(s => {
 			const route_hash = computeRouteHash(s.station_codes);
+			const total_km = Array.isArray(s.segment_distances)
+				? Math.round(s.segment_distances.reduce((a, b) => a + b, 0) * 100) / 100
+				: 0;
 			return {
 				id: s.id,
 				station_codes: s.station_codes,
+				station_tracks: s.station_tracks || null,
+				total_km,
 				total_km_earned: Math.round(s.total_km_earned * 100) / 100,
 				started_at: s.started_at,
 				country: s.country,
@@ -315,7 +319,7 @@ export const getJourneyHistory = async (req, res) => {
 
 export const toggleFavoriteRoute = async (req, res) => {
 	try {
-		const { station_codes, station_names, total_km, country, is_round_trip } = req.body;
+		const { station_codes, station_names, station_tracks, total_km, country, is_round_trip } = req.body;
 
 		if (!Array.isArray(station_codes) || station_codes.length < 2) {
 			return res.status(400).json({ error: 'At least 2 station codes required' });
@@ -360,6 +364,7 @@ export const toggleFavoriteRoute = async (req, res) => {
 				route_hash,
 				station_codes,
 				station_names: station_names || null,
+				station_tracks: Array.isArray(station_tracks) ? station_tracks : null,
 				total_km: total_km || null,
 				is_round_trip: !!is_round_trip,
 				country: favCountry,
@@ -380,7 +385,7 @@ export const getFavoriteRoutes = async (req, res) => {
 
 		const { data: favorites } = await supabase
 			.from('favorite_routes')
-			.select('id, route_hash, station_codes, station_names, total_km, is_round_trip, country, created_at')
+			.select('id, route_hash, station_codes, station_names, station_tracks, total_km, is_round_trip, country, created_at')
 			.eq('user_id', req.userId)
 			.eq('country', filterCountry)
 			.order('created_at', { ascending: false });

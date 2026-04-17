@@ -45,6 +45,15 @@
     height: 16px;
 }
 
+.map2dAttribution {
+    white-space: nowrap;
+}
+
+.attribution a,
+.attribution__overlay a {
+    color: white;
+}
+
 .attribution__overlay {
     position: absolute;
     bottom: 40px;

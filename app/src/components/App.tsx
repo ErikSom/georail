@@ -13,6 +13,11 @@ function currentTab(): TabId {
     return window.location.pathname === '/account' ? 'account' : 'journey';
 }
 
+function isCreditsRoute(): boolean {
+    if (typeof window === 'undefined') return false;
+    return window.location.pathname === '/credits';
+}
+
 export default function App() {
     const [session, setSession] = useState<Session | null>(null);
     const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -20,6 +25,7 @@ export default function App() {
     const [tab, setTab] = useState<TabId>(currentTab);
     const [showSplash, setShowSplash] = useState(true);
     const [recoveryMode, setRecoveryMode] = useState(false);
+    const [showCredits, setShowCredits] = useState(isCreditsRoute);
 
     useEffect(() => {
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -60,10 +66,27 @@ export default function App() {
     };
 
     useEffect(() => {
-        const onPopState = () => setTab(currentTab());
+        const onPopState = () => {
+            setTab(currentTab());
+            setShowCredits(isCreditsRoute());
+        };
         window.addEventListener('popstate', onPopState);
         return () => window.removeEventListener('popstate', onPopState);
     }, []);
+
+    const openCredits = () => {
+        setShowCredits(true);
+        if (window.location.pathname !== '/credits') {
+            window.history.pushState({}, '', '/credits');
+        }
+    };
+
+    const closeCredits = () => {
+        setShowCredits(false);
+        if (window.location.pathname === '/credits') {
+            window.history.pushState({}, '', tab === 'account' ? '/account' : '/');
+        }
+    };
 
     const isPremium = !!(session && !loading && profile?.is_premium);
 
@@ -106,9 +129,12 @@ export default function App() {
                 checking={loading}
                 activeTab={tab}
                 recoveryMode={recoveryMode}
+                showCredits={showCredits}
                 onLogout={handleLogout}
                 onPremiumChange={refreshProfile}
                 onRecoveryComplete={handleRecoveryComplete}
+                onOpenCredits={openCredits}
+                onCloseCredits={closeCredits}
             />
             {isPremium && !recoveryMode && <BottomTabs activeTab={tab} onTabChange={navigate} />}
         </>

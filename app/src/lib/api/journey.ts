@@ -75,6 +75,8 @@ export async function reportStationArrival(
 export interface JourneyHistoryEntry {
     id: string;
     station_codes: string[];
+    station_tracks: (string | null)[] | null;
+    total_km: number;
     total_km_earned: number;
     started_at: string;
     country: string;
@@ -88,6 +90,7 @@ export interface FavoriteRoute {
     route_hash: string;
     station_codes: string[];
     station_names: string[] | null;
+    station_tracks: (string | null)[] | null;
     total_km: number | null;
     is_round_trip: boolean;
     country: string;
@@ -128,6 +131,7 @@ export async function toggleFavorite(
     totalKm?: number,
     country?: string,
     isRoundTrip?: boolean,
+    stationTracks?: (string | null)[],
 ): Promise<{ favorited: boolean } | null> {
     try {
         const headers = await getAuthHeaders();
@@ -139,6 +143,7 @@ export async function toggleFavorite(
             body: JSON.stringify({
                 station_codes: stationCodes,
                 station_names: stationNames,
+                station_tracks: stationTracks,
                 total_km: totalKm,
                 is_round_trip: !!isRoundTrip,
                 country: country || 'NL',

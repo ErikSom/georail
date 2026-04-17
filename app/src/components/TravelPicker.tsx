@@ -17,6 +17,7 @@ interface Stop {
     station: string;
     track: string;
     availableTracks: string[];
+    trackPicked?: boolean;
 }
 
 function StopRow({ index, stops, stations, onUpdate, onRemove, canRemove, disabled }: {
@@ -145,7 +146,7 @@ export default function TravelPicker() {
     useEffect(() => {
         if (activeTab !== 'custom') return;
 
-        const allFilled = customStops.every(s => s.station && (s.availableTracks.length === 0 || s.track));
+        const allFilled = customStops.every(s => s.station && (s.availableTracks.length === 0 || s.trackPicked));
         if (!allFilled || customStops.length < 2 || stations.length === 0) {
             setMinimapReady(false);
             setPreviewRoute(null);
@@ -210,11 +211,11 @@ export default function TravelPicker() {
         return stations.find(s => s.code === code)?.name || code;
     };
 
-    const handleToggleFavorite = async (stationCodes: string[], totalKm?: number, routeCountry?: string, isRoundTrip?: boolean) => {
+    const handleToggleFavorite = async (stationCodes: string[], totalKm?: number, routeCountry?: string, isRoundTrip?: boolean, stationTracks?: (string | null)[] | null) => {
         setArchiveError(null);
         try {
             const stationNames = stationCodes.map(resolveStationName);
-            const result = await toggleFavorite(stationCodes, stationNames, totalKm, routeCountry, isRoundTrip);
+            const result = await toggleFavorite(stationCodes, stationNames, totalKm, routeCountry, isRoundTrip, stationTracks ?? undefined);
             if (!result) return;
 
             // Update history entries' is_favorited status
@@ -240,18 +241,21 @@ export default function TravelPicker() {
         }
     };
 
-    const loadRouteIntoCustom = (stationCodes: string[], isRoundTrip: boolean) => {
+    const loadRouteIntoCustom = (stationCodes: string[], isRoundTrip: boolean, stationTracks?: (string | null)[] | null) => {
         // For round trips [A,B,C,D,C,B,A], extract original stops [A,B,C,D]
-        const codes = isRoundTrip && stationCodes.length >= 3
-            ? stationCodes.slice(0, Math.ceil(stationCodes.length / 2))
-            : stationCodes;
+        const keep = isRoundTrip && stationCodes.length >= 3
+            ? Math.ceil(stationCodes.length / 2)
+            : stationCodes.length;
+        const codes = stationCodes.slice(0, keep);
+        const tracks = stationTracks ? stationTracks.slice(0, keep) : null;
 
-        const newStops: Stop[] = codes.map(code => {
+        const newStops: Stop[] = codes.map((code, idx) => {
             const stationData = stations.find(s => s.code === code);
             return {
                 station: stationData?.name || code,
-                track: '',
+                track: tracks?.[idx] || '',
                 availableTracks: stationData?.tracks || [],
+                trackPicked: true,
             };
         });
 
@@ -275,10 +279,11 @@ export default function TravelPicker() {
                 newStops[index] = {
                     station: value,
                     track: '',
-                    availableTracks: stationData?.tracks || []
+                    availableTracks: stationData?.tracks || [],
+                    trackPicked: false,
                 };
             } else {
-                newStops[index] = { ...newStops[index], track: value };
+                newStops[index] = { ...newStops[index], track: value, trackPicked: true };
             }
             return newStops;
         });
@@ -337,7 +342,8 @@ export default function TravelPicker() {
                             return {
                                 station: s.station || '',
                                 track: s.track || '',
-                                availableTracks: stationData?.tracks || []
+                                availableTracks: stationData?.tracks || [],
+                                trackPicked: !!s.station,
                             };
                         });
                         setCustomStops(restoredStops);
@@ -887,12 +893,12 @@ export default function TravelPicker() {
                                                         <span className={styles.archiveMeta}>
                                                             <span>{formatDate(entry.started_at)}</span>
                                                             <span>{entry.station_codes.length} stops</span>
-                                                            <span>{entry.total_km_earned} km</span>
+                                                            <span>{entry.total_km} km</span>
                                                         </span>
                                                     </div>
                                                     <button
                                                         className={`${styles.starButton} ${entry.is_favorited ? styles.starButtonActive : ''}`}
-                                                        onClick={(e) => { e.stopPropagation(); handleToggleFavorite(entry.station_codes, entry.total_km_earned, entry.country, entry.is_round_trip); }}
+                                                        onClick={(e) => { e.stopPropagation(); handleToggleFavorite(entry.station_codes, entry.total_km_earned, entry.country, entry.is_round_trip, entry.station_tracks); }}
                                                     >
                                                         {entry.is_favorited ? '★' : '☆'}
                                                     </button>
@@ -903,6 +909,7 @@ export default function TravelPicker() {
                                                             {entry.station_codes.map((code, idx) => {
                                                                 const isFirst = idx === 0;
                                                                 const isLast = idx === entry.station_codes.length - 1;
+                                                                const track = entry.station_tracks?.[idx];
                                                                 return (
                                                                     <div key={idx} className={`${styles.timelineStop} ${isFirst ? styles.origin : ''} ${isLast ? styles.destination : ''}`}>
                                                                         <div className={styles.timelineTrack}>
@@ -911,6 +918,7 @@ export default function TravelPicker() {
                                                                         <div className={styles.timelineInfo}>
                                                                             <div className={styles.timelineStationRow}>
                                                                                 <span className={styles.timelineStation}>{resolveStationName(code)}</span>
+                                                                                {track && <span className={styles.timelineTrackBadge}>{track}</span>}
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -920,7 +928,7 @@ export default function TravelPicker() {
                                                         <div className={styles.archiveActions}>
                                                             <button
                                                                 className={styles.driveButton}
-                                                                onClick={() => loadRouteIntoCustom(entry.station_codes, entry.is_round_trip)}
+                                                                onClick={() => loadRouteIntoCustom(entry.station_codes, entry.is_round_trip, entry.station_tracks)}
                                                             >
                                                                 Drive this route
                                                             </button>
@@ -957,7 +965,7 @@ export default function TravelPicker() {
                                                     </div>
                                                     <button
                                                         className={`${styles.starButton} ${styles.starButtonActive}`}
-                                                        onClick={(e) => { e.stopPropagation(); handleToggleFavorite(fav.station_codes, fav.total_km || undefined, fav.country, fav.is_round_trip); }}
+                                                        onClick={(e) => { e.stopPropagation(); handleToggleFavorite(fav.station_codes, fav.total_km || undefined, fav.country, fav.is_round_trip, fav.station_tracks); }}
                                                     >
                                                         ★
                                                     </button>
@@ -968,6 +976,7 @@ export default function TravelPicker() {
                                                             {fav.station_codes.map((code, idx) => {
                                                                 const isFirst = idx === 0;
                                                                 const isLast = idx === fav.station_codes.length - 1;
+                                                                const track = fav.station_tracks?.[idx];
                                                                 return (
                                                                     <div key={idx} className={`${styles.timelineStop} ${isFirst ? styles.origin : ''} ${isLast ? styles.destination : ''}`}>
                                                                         <div className={styles.timelineTrack}>
@@ -976,6 +985,7 @@ export default function TravelPicker() {
                                                                         <div className={styles.timelineInfo}>
                                                                             <div className={styles.timelineStationRow}>
                                                                                 <span className={styles.timelineStation}>{fav.station_names?.[idx] || resolveStationName(code)}</span>
+                                                                                {track && <span className={styles.timelineTrackBadge}>{track}</span>}
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -985,7 +995,7 @@ export default function TravelPicker() {
                                                         <div className={styles.archiveActions}>
                                                             <button
                                                                 className={styles.driveButton}
-                                                                onClick={() => loadRouteIntoCustom(fav.station_codes, fav.is_round_trip)}
+                                                                onClick={() => loadRouteIntoCustom(fav.station_codes, fav.is_round_trip, fav.station_tracks)}
                                                             >
                                                                 Drive this route
                                                             </button>

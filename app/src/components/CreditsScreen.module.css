@@ -1,0 +1,66 @@
+.backButton {
+    width: 100%;
+    margin-top: 8px;
+    padding: 14px 16px;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--menu-dark);
+    background: var(--menu-dim-02, rgba(0, 0, 0, 0.06));
+    border: none;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.backButton:hover {
+    background: var(--menu-dark-06);
+}
+
+.section {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.section:last-child {
+    border-bottom: none;
+}
+
+.section h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--menu-dark);
+}
+
+.section h3 {
+    margin: 0 0 4px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--menu-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.section p {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--menu-dark);
+}
+
+.section a {
+    color: var(--menu-accent);
+    text-decoration: none;
+}
+
+.section a:hover {
+    text-decoration: underline;
+}
+
+.muted {
+    color: var(--menu-dim) !important;
+    font-size: 12px !important;
+}

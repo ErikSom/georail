@@ -5,6 +5,7 @@ import type { TabId } from './BottomTabs';
 import TravelPicker from './TravelPicker';
 import GateScreen from './GateScreen';
 import AccountScreen from './AccountScreen';
+import CreditsScreen from './CreditsScreen';
 import styles from './MenuScreen.module.css';
 
 interface Props {
@@ -13,12 +14,15 @@ interface Props {
     checking: boolean;
     activeTab: TabId;
     recoveryMode: boolean;
+    showCredits: boolean;
     onLogout: () => void;
     onPremiumChange: () => void;
     onRecoveryComplete: () => void;
+    onOpenCredits: () => void;
+    onCloseCredits: () => void;
 }
 
-export default function MenuScreen({ session, profile, checking, activeTab, recoveryMode, onLogout, onPremiumChange, onRecoveryComplete }: Props) {
+export default function MenuScreen({ session, profile, checking, activeTab, recoveryMode, showCredits, onLogout, onPremiumChange, onRecoveryComplete, onOpenCredits, onCloseCredits }: Props) {
     useEffect(() => {
         document.body.style.touchAction = 'auto';
         return () => {
@@ -29,6 +33,10 @@ export default function MenuScreen({ session, profile, checking, activeTab, reco
     const isPremium = session && !checking && profile?.is_premium;
 
     const renderPanel = () => {
+        if (showCredits) {
+            return <CreditsScreen onBack={onCloseCredits} />;
+        }
+
         // Password recovery — override everything else
         if (recoveryMode) {
             return <GateScreen checking={false} recoveryMode onRecoveryComplete={onRecoveryComplete} />;
@@ -60,7 +68,13 @@ export default function MenuScreen({ session, profile, checking, activeTab, reco
                 <img src="/logo.svg" alt="GeoRail" className={styles.logo} />
             </div>
             {renderPanel()}
-            <footer className={styles.footer}>&copy; 2025 Terminarch Games &middot; v{__APP_VERSION__}</footer>
+            <footer className={styles.footer}>
+                &copy; 2025 Terminarch Games &middot; v{__APP_VERSION__}
+                {' · '}
+                <button className={styles.creditsLink} onClick={onOpenCredits}>
+                    Credits
+                </button>
+            </footer>
         </div>
     );
 }

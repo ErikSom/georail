@@ -83,7 +83,7 @@ function ThreeViewer() {
                 </>
             )}
 
-            <Tiles3DAttribution attribution={attribution} />
+            <Tiles3DAttribution attribution={attribution} showMap2DAttribution={hudSettings.value.showMap2D} />
 
             {showComplete && <JourneyComplete onDismiss={handleJourneyDismiss} />}
         </div>
