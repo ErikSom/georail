@@ -12,7 +12,7 @@ export default function CreditsScreen({ onBack }: Props) {
             <div className={styles.content}>
                 <section className={creditsStyles.section}>
                     <h2>GeoRail</h2>
-                    <p>A train simulator built on open data and open source.</p>
+                    <p>A tabletop-style train simulator built on Google's photorealistic 3D tiles, following real-world rail networks. Starting in the Netherlands and expanding from there.</p>
                     <p className={creditsStyles.muted}>© 2025 Terminarch Games</p>
                 </section>
 
