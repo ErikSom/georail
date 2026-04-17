@@ -1,6 +1,7 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import preact from '@astrojs/preact';
+import sitemap from '@astrojs/sitemap';
 import obfuscator from 'vite-plugin-javascript-obfuscator';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -71,7 +72,13 @@ const createObfuscator = (isSecureMode) => {
 };
 
 export default defineConfig({
-  integrations: [preact()],
+  site: 'https://georail.app',
+  integrations: [
+    preact(),
+    sitemap({
+      filter: (page) => !page.includes('/editor') && !page.includes('/train-editor') && !page.includes('/maps-test'),
+    }),
+  ],
   vite: {
     define: {
       __APP_VERSION__: JSON.stringify(rootPkg.version),

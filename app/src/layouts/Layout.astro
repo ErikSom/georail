@@ -3,10 +3,19 @@ import "./Layout.module.css";
 import "../styles/palette.css";
 
 interface Props {
-    title: string;
+    title?: string;
+    description?: string;
 }
 
-const { title } = Astro.props;
+const SITE_NAME = "GeoRail";
+const SITE_URL = "https://georail.app";
+const DEFAULT_TITLE = "GeoRail — Drive real trains on photorealistic 3D maps";
+const DEFAULT_DESCRIPTION =
+    "A tabletop-style train simulator on Google's photorealistic 3D tiles. Drive real Dutch trains on real tracks — with more countries coming.";
+const OG_IMAGE = `${SITE_URL}/og-image.png`;
+
+const { title = DEFAULT_TITLE, description = DEFAULT_DESCRIPTION } = Astro.props;
+const canonical = new URL(Astro.url.pathname, SITE_URL).href;
 ---
 
 <!doctype html>
@@ -14,30 +23,58 @@ const { title } = Astro.props;
     <head>
         <meta charset="UTF-8" />
         <meta
-            name="description"
-            content="Explore railway networks in 3D. Plan journeys and ride along real train routes from your browser."
-        />
-        <meta
             name="viewport"
             content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
         />
-        <link
-            rel="icon"
-            type="image/png"
-            href="/favicon-96x96.png"
-            sizes="96x96"
+        <title>{title}</title>
+        <meta name="description" content={description} />
+        <link rel="canonical" href={canonical} />
+        <meta
+            name="keywords"
+            content="train simulator, 3D train game, photorealistic train sim, Dutch trains, NS trains, Netherlands railway, train simulator browser, real trains, 3D map, railway simulator"
         />
+        <meta name="theme-color" content="#3473E6" />
+
+        <!-- Open Graph -->
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content={SITE_NAME} />
+        <meta property="og:title" content={title} />
+        <meta property="og:description" content={description} />
+        <meta property="og:url" content={canonical} />
+        <meta property="og:image" content={OG_IMAGE} />
+        <meta property="og:image:alt" content="A train driving through a photorealistic 3D map of the Netherlands" />
+        <meta property="og:locale" content="en_US" />
+
+        <!-- Twitter -->
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={title} />
+        <meta name="twitter:description" content={description} />
+        <meta name="twitter:image" content={OG_IMAGE} />
+
+        <!-- Icons -->
+        <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="shortcut icon" href="/favicon.ico" />
-        <link
-            rel="apple-touch-icon"
-            sizes="180x180"
-            href="/apple-touch-icon.png"
-        />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         <link rel="manifest" href="/site.webmanifest" />
 
         <link rel="preload" href="/logo.svg" as="image" />
-        <title>{title}</title>
+
+        <!-- Structured data -->
+        <script is:inline type="application/ld+json" set:html={JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "VideoGame",
+            "name": SITE_NAME,
+            "url": SITE_URL,
+            "description": DEFAULT_DESCRIPTION,
+            "applicationCategory": "Game",
+            "operatingSystem": "Web",
+            "genre": ["Simulation", "Train Simulator"],
+            "publisher": {
+                "@type": "Organization",
+                "name": "Terminarch Games"
+            }
+        })} />
     </head>
     <body>
         <div
