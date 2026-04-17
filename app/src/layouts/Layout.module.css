@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&display=swap');
 
-:global(html),
-:global(body) {
+html,
+body {
     margin: 0;
     padding: 0;
     width: 100%;
@@ -20,10 +20,10 @@
 }
 
 
-:global(input),
-:global(button),
-:global(textarea),
-:global(select) {
+input,
+button,
+textarea,
+select {
     font: inherit;
 }
 
@@ -39,7 +39,7 @@
     overflow-y: auto;
 }
 
-:global(:root) {
+:root {
     --panel-bg: rgb(30 31 36);
     --panel-shadow:
         rgba(50, 50, 93, 0.25) 0px 2px 5px -1px,
@@ -60,6 +60,6 @@
     --text-dim: #6b7280;
 }
 
-:global(*) {
+* {
     box-sizing: border-box;
 }
