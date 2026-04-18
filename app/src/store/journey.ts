@@ -202,6 +202,39 @@ export const trainPath = signal<Path | null>(null);
  *  Reactively updates when either routeData or trainPath changes.
  *  Uses actual path distance rather than haversine, so distances
  *  correctly reflect world_offset movements (e.g. station Z adjustments). */
+// Cumulative distances (meters) at each route point, for mapping train position → metadata index.
+const routeCumulativeMeters = computed<number[] | null>(() => {
+    const route = routeData.value;
+    const points = route?.geometry?.route;
+    if (!points || points.length < 2) return null;
+    const cum: number[] = new Array(points.length);
+    cum[0] = 0;
+    for (let i = 1; i < points.length; i++) {
+        const [lon1, lat1] = points[i - 1];
+        const [lon2, lat2] = points[i];
+        cum[i] = cum[i - 1] + haversineDistanceKm(lat1, lon1, lat2, lon2) * 1000;
+    }
+    return cum;
+});
+
+export const trackMaxSpeedKmh = computed<number | null>(() => {
+    const route = routeData.value;
+    const cum = routeCumulativeMeters.value;
+    const meta = route?.geometry?.metadata;
+    if (!route || !cum || !meta || cum.length < 2) return null;
+
+    const trainMeters = trainDistanceTraveled.value;
+    // Binary search for the route point at/before the train's current position.
+    let lo = 0;
+    let hi = cum.length - 1;
+    while (lo < hi) {
+        const mid = (lo + hi + 1) >>> 1;
+        if (cum[mid] <= trainMeters) lo = mid;
+        else hi = mid - 1;
+    }
+    return meta[lo]?.max_speed ?? null;
+});
+
 export const stopDistances = computed<number[]>(() => {
     const path = trainPath.value;
     const route = routeData.value;

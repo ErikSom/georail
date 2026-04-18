@@ -13,6 +13,7 @@ interface SpeedometerAnalogProps {
     speed: number; // in km/h
     maxSpeed: number; // in km/h
     unitSystem: 'metric' | 'imperial';
+    overLimit?: boolean;
 }
 
 function speedToAngle(speed: number, maxSpeed: number): number {
@@ -29,7 +30,7 @@ function polarToCartesian(cx: number, cy: number, radius: number, angleDeg: numb
     };
 }
 
-function SpeedometerAnalog({ speed, maxSpeed, unitSystem }: SpeedometerAnalogProps) {
+function SpeedometerAnalog({ speed, maxSpeed, unitSystem, overLimit }: SpeedometerAnalogProps) {
     const displaySpeed = formatSpeed(speed, unitSystem);
     const displayMaxSpeed = unitSystem === 'imperial'
         ? Math.round(maxSpeed * KMH_TO_MPH)
@@ -179,6 +180,7 @@ function SpeedometerAnalog({ speed, maxSpeed, unitSystem }: SpeedometerAnalogPro
                 x={cx}
                 y={cy + readoutYOffset + 16}
                 className={styles.analogValue}
+                style={overLimit ? { fill: '#ff6b5c' } : undefined}
             >
                 {displaySpeed}
             </text>

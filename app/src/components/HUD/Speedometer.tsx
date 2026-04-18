@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "preact/hooks";
 
 import { trainVelocityKmh, trainMaxSpeedKmh, updateTick } from "../../store/train";
+import { trackMaxSpeedKmh } from "../../store/journey";
 import { configs } from "../../store/globals";
 import { formatSpeed, getSpeedUnit } from "../../lib/utils/Units";
 
@@ -17,6 +18,7 @@ const STORAGE_KEY_MODE = 'georail_speedometer_mode';
 function Speedometer() {
     const [speed, setSpeed] = useState(0);
     const [maxSpeed, setMaxSpeed] = useState(120);
+    const [trackLimit, setTrackLimit] = useState<number | null>(null);
     const [unitSystem] = useState(configs.value.unitSystem);
     const [mode, setMode] = useState<SpeedometerMode>(() => {
         const stored = localStorage.getItem(STORAGE_KEY_MODE);
@@ -43,6 +45,7 @@ function Speedometer() {
         const unsubTick = updateTick.subscribe(() => {
             setSpeed(Math.abs(trainVelocityKmh.value));
             setMaxSpeed(trainMaxSpeedKmh.value + 20);
+            setTrackLimit(trackMaxSpeedKmh.value);
         });
 
         return () => {
@@ -139,6 +142,7 @@ function Speedometer() {
 
     const displaySpeed = formatSpeed(speed, unitSystem);
     const unit = getSpeedUnit(unitSystem);
+    const overLimit = trackLimit != null && speed > trackLimit + 1;
 
     return (
         <div
@@ -151,7 +155,7 @@ function Speedometer() {
         >
             {mode === 'digital' ? (
                 <>
-                    <span className={styles.speedValue}>{displaySpeed}</span>
+                    <span className={`${styles.speedValue} ${overLimit ? styles.overLimit : ''}`}>{displaySpeed}</span>
                     <span className={styles.speedUnit}>{unit}</span>
                 </>
             ) : (
@@ -159,8 +163,19 @@ function Speedometer() {
                     speed={speed}
                     maxSpeed={maxSpeed}
                     unitSystem={unitSystem}
+                    overLimit={overLimit}
                 />
             )}
+
+            {trackLimit != null && (() => {
+                const rounded = Math.round(trackLimit);
+                const isThreeDigit = rounded >= 100;
+                return (
+                    <div className={styles.speedLimitSign} aria-label={`Speed limit ${rounded} km/h`}>
+                        <span className={`${styles.speedLimitValue} ${isThreeDigit ? styles.speedLimitValueTight : ''}`}>{rounded}</span>
+                    </div>
+                );
+            })()}
 
             {showSelector && (
                 <div
