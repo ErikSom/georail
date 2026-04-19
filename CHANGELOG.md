@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.1 (2026-04-19)
+
+### Features
+
+* **Game:** filter for live departures 
+* **Game:** history + round trips 
+* **Game:** max speed indication 
+* **Game:** proper 3d-tiles loading state 
+
+### Bug Fixes
+
+* **Game:** early access notice
+
 ## 0.3.0 (2026-04-11)
 
 ### docs
