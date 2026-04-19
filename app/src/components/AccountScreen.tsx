@@ -202,6 +202,21 @@ export default function AccountScreen({ session, onLogout, onPremiumChange }: Pr
                     </>
                 ) : (
                     <>
+                        <div className={styles.earlyAccessBanner}>
+                            <span className={styles.earlyAccessTag}>Early Access</span>
+                            <p>
+                                GeoRail is in active development. Features, content, and pricing will evolve over time.
+                                Before subscribing, please read more about what the game is (and isn't) on our{' '}
+                                <a
+                                    href="https://discord.gg/JTZBKZfq2h"
+                                    target="_blank"
+                                    rel="noreferrer noopener"
+                                >
+                                    Discord
+                                </a>
+                                .
+                            </p>
+                        </div>
                         <p className={styles.subscribeText}>
                             Subscribe to get access to GeoRail and the premium Discord.
                         </p>

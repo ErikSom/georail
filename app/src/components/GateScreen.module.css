@@ -249,6 +249,45 @@
     line-height: 1.5;
 }
 
+.earlyAccessBanner {
+    padding: 14px 16px;
+    background: var(--menu-light);
+    border: 1px solid var(--menu-dim-04, rgba(0, 0, 0, 0.1));
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.earlyAccessBanner p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--menu-dark);
+    line-height: 1.5;
+}
+
+.earlyAccessBanner a {
+    color: var(--menu-accent);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.earlyAccessBanner a:hover {
+    text-decoration: underline;
+}
+
+.earlyAccessTag {
+    align-self: flex-start;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 3px 8px;
+    background: var(--menu-accent);
+    color: var(--menu-light);
+    border-radius: 6px;
+}
+
 /* ─── Connection Rows (Account page) ─────────────────────── */
 
 .connectionRow {
