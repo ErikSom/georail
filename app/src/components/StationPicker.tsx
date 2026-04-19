@@ -11,6 +11,7 @@ interface StationPickerProps {
     onSelectTrack: (track: string) => void;
     disabled?: boolean;
     label?: string;
+    stationOnly?: boolean;
 }
 
 const isTouchDevice = () => window.matchMedia('(pointer: coarse)').matches;
@@ -24,6 +25,7 @@ export default function StationPicker({
     onSelectTrack,
     disabled,
     label,
+    stationOnly,
 }: StationPickerProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -90,7 +92,7 @@ export default function StationPicker({
 
     const handleStationClick = (station: StationTrackInfo) => {
         onSelectStation(station.name);
-        if (station.tracks && station.tracks.length > 0) {
+        if (!stationOnly && station.tracks && station.tracks.length > 0) {
             setPickingTrack(true);
             setSearchQuery('');
         } else {

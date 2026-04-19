@@ -90,6 +90,7 @@ export default function TravelPicker() {
 
     // Regular tab state - single from station
     const [regularFrom, setRegularFrom] = useState<Stop>({ station: '', track: '', availableTracks: [] });
+    const [regularVia, setRegularVia] = useState<string>('');
     const REGULAR_STORAGE_KEY = 'travelPickerStopsRegular';
 
     // Route preview for minimap
@@ -312,7 +313,6 @@ export default function TravelPicker() {
             const response = await fetchStationDepartures(stationCode);
             if (response?.departures) {
                 setDepartures(response.departures);
-                console.log("Departures fetched:", response.departures);
             } else {
                 setError('Could not fetch departures. Please make sure you are logged in.');
             }
@@ -679,7 +679,7 @@ export default function TravelPicker() {
                     className={`${styles.tab} ${activeTab === 'regular' ? styles.activeTab : ''}`}
                     onClick={() => { setActiveTab('regular'); setMinimapReady(false); setPreviewRoute(null); setPreviewStopIndices([]); setSelectedDeparture(null); setExpandedDeparture(null); setExpandedJourney(null); setLoadingJourney(false); }}
                 >
-                    Regular
+                    Live Departures
                 </button>
                 <button
                     className={`${styles.tab} ${activeTab === 'custom' ? styles.activeTab : ''}`}
@@ -807,7 +807,35 @@ export default function TravelPicker() {
                                         onSelectTrack={(track) => updateRegularTrack(track)}
                                         disabled={loadingDepartures}
                                         label="From"
+                                        stationOnly
                                     />
+                                </div>
+                                <div className={styles.stopDivider} />
+                                <div className={styles.stopField}>
+                                    <label className={styles.viaLabel}>Via (optional)</label>
+                                    <div className={styles.viaInputWrapper}>
+                                        <input
+                                            type="text"
+                                            className={styles.viaInput}
+                                            placeholder="Filter by station name…"
+                                            value={regularVia}
+                                            onInput={(e) => setRegularVia((e.target as HTMLInputElement).value)}
+                                            disabled={loadingDepartures || !fromStation}
+                                        />
+                                        {regularVia && (
+                                            <button
+                                                className={styles.viaClearButton}
+                                                onClick={() => setRegularVia('')}
+                                                aria-label="Clear via filter"
+                                                type="button"
+                                            >
+                                                <svg viewBox="0 0 10 10" stroke="currentColor">
+                                                    <line x1="1" y1="1" x2="9" y2="9" />
+                                                    <line x1="9" y1="1" x2="1" y2="9" />
+                                                </svg>
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 
@@ -817,33 +845,45 @@ export default function TravelPicker() {
                                 <div className={styles.loading}>Loading departures...</div>
                             )}
 
-                            {!loadingDepartures && departures.length > 0 && (
-                                <div className={styles.departuresList}>
-                                    {departures.map((departure) => {
-                                        const destination = departure.direction || departure.routeStations[departure.routeStations.length - 1]?.mediumName || 'Unknown';
-                                        const track = departure.actualTrack || departure.plannedTrack;
-                                        return (
-                                            <button
-                                                key={departure.product.number + departure.plannedDateTime}
-                                                className={`${styles.departureItem} ${departure.cancelled ? styles.cancelled : ''}`}
-                                                onClick={() => !departure.cancelled && handleSelectDeparture(departure)}
-                                                disabled={departure.cancelled}
-                                            >
-                                                <div className={styles.departureContent}>
-                                                    <span className={styles.departureTime}>
-                                                        {formatTime(departure.plannedDateTime)}
-                                                    </span>
-                                                    <span className={styles.departureDestination}>
-                                                        {destination}
-                                                        {track && <span className={styles.timelineTrackBadge}>{track}</span>}
-                                                    </span>
-                                                </div>
-                                                <span className={styles.departureArrow}>›</span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            )}
+                            {!loadingDepartures && departures.length > 0 && (() => {
+                                const viaLower = regularVia.trim().toLowerCase();
+                                const filteredDepartures = viaLower
+                                    ? departures.filter(d =>
+                                        d.direction?.toLowerCase().includes(viaLower) ||
+                                        d.routeStations.some(rs => rs.mediumName?.toLowerCase().includes(viaLower))
+                                    )
+                                    : departures;
+                                if (filteredDepartures.length === 0) {
+                                    return <div className={styles.noDepartures}>No departures passing through {regularVia}</div>;
+                                }
+                                return (
+                                    <div className={styles.departuresList}>
+                                        {filteredDepartures.map((departure) => {
+                                            const destination = departure.direction || departure.routeStations[departure.routeStations.length - 1]?.mediumName || 'Unknown';
+                                            const track = departure.actualTrack || departure.plannedTrack;
+                                            return (
+                                                <button
+                                                    key={departure.product.number + departure.plannedDateTime}
+                                                    className={`${styles.departureItem} ${departure.cancelled ? styles.cancelled : ''}`}
+                                                    onClick={() => !departure.cancelled && handleSelectDeparture(departure)}
+                                                    disabled={departure.cancelled}
+                                                >
+                                                    <div className={styles.departureContent}>
+                                                        <span className={styles.departureTime}>
+                                                            {formatTime(departure.plannedDateTime)}
+                                                        </span>
+                                                        <span className={styles.departureDestination}>
+                                                            {destination}
+                                                            {track && <span className={styles.timelineTrackBadge}>{track}</span>}
+                                                        </span>
+                                                    </div>
+                                                    <span className={styles.departureArrow}>›</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })()}
 
                             {!loadingDepartures && fromStation && departures.length === 0 && !error && (
                                 <div className={styles.noDepartures}>No departures found</div>

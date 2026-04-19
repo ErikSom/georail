@@ -860,6 +860,74 @@
     transform: translateX(16px);
 }
 
+.viaLabel {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--menu-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.viaInputWrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.viaInput {
+    width: 100%;
+    padding: 10px 36px 10px 12px;
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--menu-dark);
+    background: var(--menu-light);
+    border: none;
+    border-radius: 12px;
+    outline: none;
+}
+
+.viaInput:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.viaInput::placeholder {
+    color: var(--menu-dim);
+    font-weight: 400;
+}
+
+.viaClearButton {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    background: var(--menu-dim-04, rgba(0, 0, 0, 0.1));
+    color: var(--menu-dark);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.viaClearButton svg {
+    stroke-width: 2px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    width: 8px;
+    height: 8px;
+    display: block;
+}
+
+.viaClearButton:hover {
+    background: var(--menu-dim, rgba(0, 0, 0, 0.2));
+}
+
 /* ─── Archive Tab ────────────────────────────────────────── */
 
 .archiveToggle {
