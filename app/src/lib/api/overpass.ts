@@ -36,6 +36,8 @@ export interface OverpassRouteResponse {
     osm_relation_id: number;
     relation_tags: OverpassRelationTags;
     ways: OverpassWay[];
+    // Ordered relation member list (with duplicates for terminal reversals).
+    itinerary: number[];
     stops: OverpassStop[];
 }
 

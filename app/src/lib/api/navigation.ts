@@ -38,6 +38,7 @@ export interface RouteData {
         metadata: RoutePointMetadata[]; // Metadata for each route point
         stop_indices: number[]; // Indices in route array where each stop is located
         editor?: EditorPoint[];
+        turnaround_indices?: number[]; // Route-point indices where train reverses direction (terminal stations).
     };
     properties: {
         stops: RouteStop[];

@@ -21,10 +21,12 @@ export interface GraphWay {
 export interface RouteGraph {
     nodes: Map<NodeId, GraphNode>;
     ways: Map<WayId, GraphWay>;
+    // Ordered relation members; duplicates in a row model terminal reversals.
+    itinerary: WayId[];
 }
 
 // ways.nodes[i] aligns with ways.geometry[i]; a node shared by ≥2 ways is a junction.
-export function buildGraph(ways: OverpassWay[]): RouteGraph {
+export function buildGraph(ways: OverpassWay[], itinerary: WayId[]): RouteGraph {
     const nodes = new Map<NodeId, GraphNode>();
     const graphWays = new Map<WayId, GraphWay>();
 
@@ -39,7 +41,11 @@ export function buildGraph(ways: OverpassWay[]): RouteGraph {
                 node = { id: nid, lat, lon, wayIds: new Set() };
                 nodes.set(nid, node);
             }
-            node.wayIds.add(way.id);
+            // Only endpoints participate in routing decisions — otherEndOfWay
+            // can only walk from endpoint nodes.
+            if (i === 0 || i === way.nodes.length - 1) {
+                node.wayIds.add(way.id);
+            }
         }
 
         graphWays.set(way.id, {
@@ -51,7 +57,11 @@ export function buildGraph(ways: OverpassWay[]): RouteGraph {
         });
     }
 
-    return { nodes, ways: graphWays };
+    let junctionCount = 0;
+    for (const node of nodes.values()) if (node.wayIds.size >= 2) junctionCount++;
+    console.log(`[graph] ${ways.length} ways, ${itinerary.length} itinerary steps, ${nodes.size} nodes, ${junctionCount} junctions`);
+
+    return { nodes, ways: graphWays, itinerary };
 }
 
 function haversine(lon1: number, lat1: number, lon2: number, lat2: number): number {

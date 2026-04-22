@@ -14,18 +14,33 @@ function pickRelation(elements) {
 }
 
 // Role comes from the relation membership (not the way itself).
-function extractWays(relation, waysById) {
-    const out = [];
+const PLATFORM_ROLES = new Set(['platform', 'platform_entry_only', 'platform_exit_only', 'stop', 'stop_entry_only', 'stop_exit_only']);
+const NON_TRACK_RAILWAY = new Set(['platform', 'platform_edge']);
+
+// Returns { ways, itinerary }: `ways` is deduped (unique geometry per id),
+// `itinerary` is the ordered list of way ids from the relation, INCLUDING
+// duplicates. Terminal stations model reversals as the same way listed twice
+// in sequence — the itinerary preserves that, ways dedupes for storage.
+function extractWaysAndItinerary(relation, waysById) {
+    const ways = [];
+    const itinerary = [];
     const seen = new Set();
+
     for (const m of relation.members) {
         if (m.type !== 'way') continue;
-        if (seen.has(m.ref)) continue;
-        seen.add(m.ref);
+
+        if (PLATFORM_ROLES.has(m.role)) continue;
 
         const way = waysById.get(m.ref);
         if (!way || !way.geometry || way.geometry.length < 2) continue;
+        if (NON_TRACK_RAILWAY.has(way.tags?.railway)) continue;
 
-        out.push({
+        itinerary.push(m.ref);
+
+        if (seen.has(m.ref)) continue;
+        seen.add(m.ref);
+
+        ways.push({
             id: m.ref,
             role: m.role || '',
             nodes: way.nodes || [],
@@ -39,7 +54,7 @@ function extractWays(relation, waysById) {
             },
         });
     }
-    return out;
+    return { ways, itinerary };
 }
 
 function extractStops(relation, nodesById) {
@@ -121,7 +136,7 @@ export const fetchOverpassRoute = async (req, res) => {
         else if (el.type === 'way') waysById.set(el.id, el);
     }
 
-    const ways = extractWays(relation, waysById);
+    const { ways, itinerary } = extractWaysAndItinerary(relation, waysById);
     const stops = extractStops(relation, nodesById);
 
     if (ways.length === 0) {
@@ -141,6 +156,7 @@ export const fetchOverpassRoute = async (req, res) => {
             network: relation.tags?.network || null,
         },
         ways,
+        itinerary,
         stops,
     });
 };

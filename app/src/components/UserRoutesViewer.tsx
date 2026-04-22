@@ -108,8 +108,23 @@ function buildRouteDataForSave(
         arrivalTime: 0,
         departureTime: 0,
     }));
+
+    // Consecutive same-way steps model a terminal reversal; the buffer is the last coord of step N.
+    const turnaround_indices: number[] = [];
+    let coordCursor = 0;
+    for (let i = 0; i < state.path.length; i++) {
+        const step = state.path[i];
+        const way = graph.ways.get(step.wayId);
+        if (!way) continue;
+        coordCursor += (i === 0 ? way.nodes.length : way.nodes.length - 1);
+        const nextStep = state.path[i + 1];
+        if (nextStep && nextStep.wayId === step.wayId && nextStep.fromNode === step.toNode) {
+            turnaround_indices.push(coordCursor - 1);
+        }
+    }
+
     return {
-        geometry: { route, metadata, stop_indices, editor },
+        geometry: { route, metadata, stop_indices, editor, turnaround_indices },
         properties: { stops },
     };
 }
@@ -267,6 +282,15 @@ function UserRoutesViewer() {
         };
         editorRef.current.loadUserRoute(routeData);
 
+        const stops = route.stops ?? [];
+        const stopIndices = route.geometry.stop_indices ?? [];
+        console.table(stops.map((s, i) => ({
+            index: stopIndices[i] ?? -1,
+            station: s.station,
+            code: s.code,
+            track: s.track ?? '—',
+        })));
+
         setEditingRouteId(route.id);
         setEditingRouteMeta(route);
         setPhase('edit');
@@ -417,7 +441,7 @@ function UserRoutesViewer() {
             const cleaned: OverpassRouteResponse = { ...resp, ways: uniqueWays, stops: uniqueStops };
             setRawRoute(cleaned);
 
-            const graph = buildGraph(cleaned.ways);
+            const graph = buildGraph(cleaned.ways, cleaned.itinerary);
             graphRef.current = graph;
 
             const snapped = new Map<number, NodeId>();
