@@ -2,9 +2,11 @@
 import AstroLayout from "../layouts/Layout.astro";
 import EditorViewer from "../components/EditorViewer.tsx";
 import Auth from "../components/Auth.tsx";
+import SplashOverlay from "../components/SplashOverlay.tsx";
 ---
 
 <AstroLayout title="GeoRail - Editor">
+    <SplashOverlay client:load ready={true} />
     <Auth client:load />
     <EditorViewer client:load />
 </AstroLayout>

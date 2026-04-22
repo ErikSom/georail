@@ -1,8 +1,10 @@
 ---
 import AstroLayout from "../layouts/Layout.astro";
 import Maps2D from "../components/HUD/Maps2D";
+import SplashOverlay from "../components/SplashOverlay.tsx";
 ---
 
 <AstroLayout title="GeoRail - Maps Test">
+  <SplashOverlay client:load ready={true} />
   <Maps2D client:load />
 </AstroLayout>

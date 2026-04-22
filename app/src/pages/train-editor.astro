@@ -1,8 +1,10 @@
 ---
 import AstroLayout from "../layouts/Layout.astro";
 import TrainEditorViewer from "../components/TrainEditorViewer.tsx";
+import SplashOverlay from "../components/SplashOverlay.tsx";
 ---
 
 <AstroLayout title="GeoRail - Train Editor">
+    <SplashOverlay client:load ready={true} />
     <TrainEditorViewer client:load />
 </AstroLayout>

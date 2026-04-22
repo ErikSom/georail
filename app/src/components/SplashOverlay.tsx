@@ -2,7 +2,7 @@ import { useState, useEffect } from 'preact/hooks';
 
 interface Props {
     ready: boolean;
-    onDone: () => void;
+    onDone?: () => void;
 }
 
 export default function SplashOverlay({ ready, onDone }: Props) {
@@ -46,7 +46,7 @@ export default function SplashOverlay({ ready, onDone }: Props) {
     }, [ready, minTimePassed]);
 
     useEffect(() => {
-        if (done) onDone();
+        if (done) onDone?.();
     }, [done]);
 
     return null;
