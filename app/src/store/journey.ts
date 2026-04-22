@@ -1,5 +1,6 @@
 import { signal, computed } from "@preact/signals";
 import type { RouteData, RouteStop } from "../lib/api/navigation";
+import { calculateStopTimes } from "../lib/api/navigation";
 import type Path from "../lib/utils/Path";
 import { trainDistanceTraveled, trainPathTotalLength, trainVelocityKmh, trainLength, resetTrain, trainDoorsOpen } from "./train";
 import { configs, scaledDeltaTime } from "./globals";
@@ -462,7 +463,17 @@ export function getProgressBetweenStops(fromStopIndex: number, toStopIndex: numb
     return Math.max(0, Math.min(1, distanceIntoSegment / segmentLength));
 }
 
-export function startJourney(route: RouteData, customStartTime?: number, isRoundTrip?: boolean): void {
+export interface UserRouteJourneyOptions {
+    id: string;
+    stationCoords: [number, number][];
+}
+
+export function startJourney(
+    route: RouteData,
+    customStartTime?: number,
+    isRoundTrip?: boolean,
+    userRoute?: UserRouteJourneyOptions,
+): void {
     routeData.value = route;
     journeyStartTime.value = customStartTime ?? Date.now();
     currentRouteIndex.value = 0;
@@ -497,13 +508,44 @@ export function startJourney(route: RouteData, customStartTime?: number, isRound
     const stationTracks = stopsArr.map(s => s.track || null);
     if (stationCodes.length >= 2) {
         const segmentDistances = computeSegmentDistances(route).map(d => Math.round(d * 100) / 100);
-        apiStartJourney(stationCodes, country.value, segmentDistances, stationTracks, isRoundTrip).then(result => {
+        const sessionOptions = userRoute ? {
+            isUserRoute: true,
+            userRouteId: userRoute.id,
+            stationCoords: userRoute.stationCoords,
+        } : undefined;
+        apiStartJourney(stationCodes, country.value, segmentDistances, stationTracks, isRoundTrip, sessionOptions).then(result => {
             if (result) {
                 journeySessionId.value = result.session_id;
                 alreadyVisitedStations.value = new Set(result.already_visited);
             }
         });
     }
+}
+
+// Derives station_coords from geometry since user-route stops aren't in `stations`.
+export function startUserRouteJourney(route: RouteData, userRouteId: string): void {
+    const stopsArr = route.properties?.stops ?? [];
+    const stopIndices = route.geometry.stop_indices ?? [];
+
+    const stationCoords: [number, number][] = stopsArr.map((_, i) => {
+        const ptIdx = stopIndices[i] ?? 0;
+        const pt = route.geometry.route[ptIdx];
+        return [pt[0], pt[1]];
+    });
+
+    const timedStops = calculateStopTimes(
+        stopsArr.map(s => s.station),
+        stopsArr.map(s => s.code),
+        stopsArr.map(s => s.track),
+        route.geometry,
+    );
+
+    const timedRoute: RouteData = {
+        geometry: route.geometry,
+        properties: { ...route.properties, stops: timedStops },
+    };
+
+    startJourney(timedRoute, undefined, false, { id: userRouteId, stationCoords });
 }
 
 export function getScheduleBasedStartTime(initialDwellMinutes: number): number {

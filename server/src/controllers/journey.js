@@ -18,7 +18,16 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 
 export const startJourneySession = async (req, res) => {
 	try {
-		const { station_codes, country, segment_distances, station_tracks, is_round_trip } = req.body;
+		const {
+			station_codes,
+			country,
+			segment_distances,
+			station_tracks,
+			is_round_trip,
+			is_user_route,
+			user_route_id,
+			station_coords: body_station_coords,
+		} = req.body;
 
 		if (!Array.isArray(station_codes) || station_codes.length < 2 || station_codes.length > MAX_STATIONS) {
 			return res.status(400).json({ error: 'Between 2 and 30 station codes required' });
@@ -36,29 +45,54 @@ export const startJourneySession = async (req, res) => {
 			.eq('user_id', req.userId)
 			.eq('completed', false);
 
-		const { data: coordRows, error: coordErr } = await supabase
-			.rpc('get_station_coords_batch', { codes: station_codes, tracks: station_tracks });
+		let station_coords;
+		let alreadyVisited = [];
+		const sessionCountry = country || 'NL';
 
-		if (coordErr || !coordRows) {
-			return res.status(500).json({ error: 'Could not fetch station coordinates' });
+		if (is_user_route) {
+			if (!Array.isArray(body_station_coords)
+				|| body_station_coords.length !== station_codes.length
+				|| !body_station_coords.every(c => Array.isArray(c) && c.length === 2
+					&& Number.isFinite(c[0]) && Number.isFinite(c[1]))) {
+				return res.status(400).json({ error: 'station_coords required for user routes ([[lon, lat], ...] matching station_codes length)' });
+			}
+			if (!user_route_id || typeof user_route_id !== 'string') {
+				return res.status(400).json({ error: 'user_route_id required when is_user_route is true' });
+			}
+			station_coords = body_station_coords;
+		} else {
+			const { data: coordRows, error: coordErr } = await supabase
+				.rpc('get_station_coords_batch', { codes: station_codes, tracks: station_tracks });
+
+			if (coordErr || !coordRows) {
+				return res.status(500).json({ error: 'Could not fetch station coordinates' });
+			}
+
+			const coordByCode = new Map();
+			for (const row of coordRows) {
+				coordByCode.set(row.code, [row.lon, row.lat]);
+			}
+
+			station_coords = coordRows.map(row => [row.lon, row.lat]);
+
+			const missingCodes = station_codes.filter(code => !coordByCode.has(code));
+			if (missingCodes.length > 0) {
+				console.warn('Journey start rejected: unknown stations', missingCodes);
+				return res.status(400).json({ error: `Unknown stations: ${missingCodes.join(', ')}` });
+			}
+
+			const { data: existingVisits } = await supabase
+				.from('user_station_visits')
+				.select('station_code')
+				.eq('user_id', req.userId)
+				.eq('country', sessionCountry)
+				.in('station_code', station_codes);
+
+			alreadyVisited = (existingVisits || []).map(v => v.station_code);
 		}
 
-		const coordByCode = new Map();
-		for (const row of coordRows) {
-			coordByCode.set(row.code, [row.lon, row.lat]);
-		}
-
-		const station_coords = coordRows.map(row => [row.lon, row.lat]);
-
-		const missingCodes = station_codes.filter(code => !coordByCode.has(code));
-		if (missingCodes.length > 0) {
-			console.warn('Journey start rejected: unknown stations', missingCodes);
-			return res.status(400).json({ error: `Unknown stations: ${missingCodes.join(', ')}` });
-		}
-
-		// Validate segment distances against straight-line (anti-cheat)
-		// Only check upper bound — lower bound triggers false positives due to
-		// station coords vs pgr vertex mismatch on short segments
+		// Detour check — only upper bound; trivial for user routes (client supplies
+		// both coords and distances), real anti-cheat here is in reportStationArrival.
 		for (let i = 0; i < segment_distances.length; i++) {
 			const [fromLon, fromLat] = station_coords[i];
 			const [toLon, toLat] = station_coords[i + 1];
@@ -68,17 +102,6 @@ export const startJourneySession = async (req, res) => {
 				return res.status(400).json({ error: 'Invalid segment distances' });
 			}
 		}
-
-		// Check which route stations the user has already visited
-		const sessionCountry = country || 'NL';
-		const { data: existingVisits } = await supabase
-			.from('user_station_visits')
-			.select('station_code')
-			.eq('user_id', req.userId)
-			.eq('country', sessionCountry)
-			.in('station_code', station_codes);
-
-		const alreadyVisited = (existingVisits || []).map(v => v.station_code);
 
 		const { data, error } = await supabase
 			.from('journey_sessions')
@@ -94,12 +117,23 @@ export const startJourneySession = async (req, res) => {
 				last_ping_at: new Date().toISOString(),
 				total_km_earned: 0,
 				completed: false,
+				is_user_route: !!is_user_route,
+				user_route_id: is_user_route ? user_route_id : null,
 			})
 			.select('id')
 			.single();
 
 		if (error) {
 			return res.status(500).json({ error: error.message });
+		}
+
+		// Non-blocking: an RPC failure here must not fail the session start.
+		if (is_user_route && user_route_id) {
+			supabase
+				.rpc('increment_user_route_plays', { route_id: user_route_id })
+				.then(({ error: rpcErr }) => {
+					if (rpcErr) console.warn('[user-routes] play-count RPC failed:', rpcErr.message);
+				});
 		}
 
 		res.set('Cache-Control', 'no-store');
@@ -172,28 +206,30 @@ export const reportStationArrival = async (req, res) => {
 			.update({ total_km: newTotalKm })
 			.eq('id', req.userId);
 
-		// Credit start station when arriving at station 1
+		// User-route "codes" are OSM node ids; skip to avoid polluting user_station_visits.
 		const sessionCountry = session.country || 'NL';
-		if (station_index === 1) {
+		if (!session.is_user_route) {
+			if (station_index === 1) {
+				await supabase
+					.from('user_station_visits')
+					.upsert({
+						user_id: req.userId,
+						station_code: session.station_codes[0],
+						country: sessionCountry,
+						first_visited_at: now.toISOString(),
+					}, { onConflict: 'user_id,station_code,country', ignoreDuplicates: true });
+			}
+
+			const toCode = session.station_codes[station_index];
 			await supabase
 				.from('user_station_visits')
 				.upsert({
 					user_id: req.userId,
-					station_code: session.station_codes[0],
+					station_code: toCode,
 					country: sessionCountry,
 					first_visited_at: now.toISOString(),
 				}, { onConflict: 'user_id,station_code,country', ignoreDuplicates: true });
 		}
-
-		const toCode = session.station_codes[station_index];
-		await supabase
-			.from('user_station_visits')
-			.upsert({
-				user_id: req.userId,
-				station_code: toCode,
-				country: sessionCountry,
-				first_visited_at: now.toISOString(),
-			}, { onConflict: 'user_id,station_code,country', ignoreDuplicates: true });
 
 		const { count: totalStationsVisited } = await supabase
 			.from('user_station_visits')

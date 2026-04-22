@@ -7,6 +7,9 @@ import ThreeViewer from './ThreeViewer';
 import BottomTabs, { type TabId } from './BottomTabs';
 import SplashOverlay from './SplashOverlay';
 import { appScreen } from '../store/app';
+import { startUserRouteJourney } from '../store/journey';
+import { fetchSharedUserRoute } from '../lib/api/userRoutes';
+import type { RouteData } from '../lib/api/navigation';
 
 function currentTab(): TabId {
     if (typeof window === 'undefined') return 'journey';
@@ -73,6 +76,35 @@ export default function App() {
         window.addEventListener('popstate', onPopState);
         return () => window.removeEventListener('popstate', onPopState);
     }, []);
+
+    useEffect(() => {
+        if (loading) return;
+        if (!session) return;
+        if (typeof window === 'undefined') return;
+        if (window.location.pathname !== '/route') return;
+        const routeId = new URLSearchParams(window.location.search).get('id');
+        if (!routeId) return;
+
+        let cancelled = false;
+        fetchSharedUserRoute(routeId)
+            .then(full => {
+                if (cancelled) return;
+                const routeData: RouteData = {
+                    geometry: full.geometry,
+                    properties: { stops: full.stops },
+                };
+                startUserRouteJourney(routeData, full.id);
+                appScreen.value = 'game';
+                // Strip the URL so exiting back to the menu doesn't linger on /route.
+                window.history.replaceState({}, '', '/');
+            })
+            .catch(err => {
+                console.warn('[route] failed to load shared route:', err);
+                window.history.replaceState({}, '', '/');
+            });
+
+        return () => { cancelled = true; };
+    }, [session, loading]);
 
     const openCredits = () => {
         setShowCredits(true);

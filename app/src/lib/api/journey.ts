@@ -31,15 +31,42 @@ export interface JourneyStartResponse {
     already_visited: string[];
 }
 
-export async function startJourneySession(stationCodes: string[], country: string, segmentDistances: number[], stationTracks: (string | null)[], isRoundTrip?: boolean): Promise<JourneyStartResponse | null> {
+export interface StartJourneySessionOptions {
+    isUserRoute?: boolean;
+    userRouteId?: string | null;
+    stationCoords?: [number, number][];
+}
+
+export async function startJourneySession(
+    stationCodes: string[],
+    country: string,
+    segmentDistances: number[],
+    stationTracks: (string | null)[],
+    isRoundTrip?: boolean,
+    options?: StartJourneySessionOptions,
+): Promise<JourneyStartResponse | null> {
     try {
         const headers = await getAuthHeaders();
         if (!headers) return null;
 
+        const body: Record<string, unknown> = {
+            station_codes: stationCodes,
+            country,
+            segment_distances: segmentDistances,
+            station_tracks: stationTracks,
+            is_round_trip: !!isRoundTrip,
+        };
+
+        if (options?.isUserRoute) {
+            body.is_user_route = true;
+            body.user_route_id = options.userRouteId ?? null;
+            if (options.stationCoords) body.station_coords = options.stationCoords;
+        }
+
         const response = await fetch(`${API_BASE}/journey/start`, {
             method: 'POST',
             headers,
-            body: JSON.stringify({ station_codes: stationCodes, country, segment_distances: segmentDistances, station_tracks: stationTracks, is_round_trip: !!isRoundTrip }),
+            body: JSON.stringify(body),
         });
 
         if (!response.ok) return null;
