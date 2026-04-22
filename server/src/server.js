@@ -29,7 +29,10 @@ initializeDiscordBot();
 app.use('/subscription/stripe/webhook', express.raw({ type: 'application/json' }));
 app.use('/subscription/patreon/webhook', express.raw({ type: 'application/json' }));
 
-// Limit body size - rejects during upload, not after
+// Larger limit on user-routes endpoints — stitched OSM geometries can exceed
+// 500KB. Mounted BEFORE the global parser so express.json's already-parsed
+// short-circuit skips the smaller limit.
+app.use('/user-routes', express.json({ limit: '10mb' }));
 app.use(express.json({ limit: '500kb' }));
 
 // ✅ 2. Refined CORS Middleware
