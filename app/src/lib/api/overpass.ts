@@ -20,6 +20,7 @@ export interface OverpassStop {
     lon: number;
     track: string | null;
     railway: string | null;
+    railway_ref: string | null;
 }
 
 export interface OverpassRelationTags {

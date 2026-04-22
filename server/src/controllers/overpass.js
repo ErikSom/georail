@@ -64,6 +64,8 @@ function extractStops(relation, nodesById) {
             lon: node.lon,
             track: node.tags?.['railway:track_ref'] || null,
             railway: node.tags?.railway || null,
+            // Official operator short-code (e.g. RTD, RK, ASD).
+            railway_ref: node.tags?.['railway:ref'] || node.tags?.['ref:NS'] || node.tags?.ref || null,
         });
     }
     return stops;

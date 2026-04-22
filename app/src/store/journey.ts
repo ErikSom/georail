@@ -522,6 +522,18 @@ export function startJourney(
     }
 }
 
+// Compact Transit HUD fallback for user routes whose saved `code` is still an
+// OSM node id (pre-dates the railway:ref plumbing). New saves already store the
+// proper short code, so shortCodeFromName() only runs for legacy rows.
+const STATION_NAME_NOISE = /\b(hauptbahnhof|hbf|bahnhof|bhf|station|centraal|central)\b/gi;
+const SHORT_CODE_PATTERN = /^[A-Z]{1,5}$/;
+
+function shortCodeFromName(name: string): string {
+    const cleaned = name.replace(STATION_NAME_NOISE, '').replace(/[()]/g, ' ').trim();
+    const letters = cleaned.replace(/[^A-Za-zÀ-ÿ]/g, '');
+    return letters.slice(0, 3).toUpperCase() || 'STA';
+}
+
 // Derives station_coords from geometry since user-route stops aren't in `stations`.
 export function startUserRouteJourney(route: RouteData, userRouteId: string): void {
     const stopsArr = route.properties?.stops ?? [];
@@ -533,9 +545,13 @@ export function startUserRouteJourney(route: RouteData, userRouteId: string): vo
         return [pt[0], pt[1]];
     });
 
+    const displayCodes = stopsArr.map(s =>
+        SHORT_CODE_PATTERN.test(s.code) ? s.code : shortCodeFromName(s.station)
+    );
+
     const timedStops = calculateStopTimes(
         stopsArr.map(s => s.station),
-        stopsArr.map(s => s.code),
+        displayCodes,
         stopsArr.map(s => s.track),
         route.geometry,
     );

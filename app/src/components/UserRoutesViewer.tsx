@@ -103,7 +103,7 @@ function buildRouteDataForSave(
     const editor = coords.map((_, i) => ({ segment_id: 0, index: i }));
     const stops = orderedStops.map(c => ({
         station: c.stop.name,
-        code: String(c.stop.osm_node_id),
+        code: c.stop.railway_ref?.toUpperCase() || String(c.stop.osm_node_id),
         track: c.stop.track,
         arrivalTime: 0,
         departureTime: 0,
