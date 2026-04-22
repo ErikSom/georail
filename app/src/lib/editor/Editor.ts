@@ -6,7 +6,20 @@ import {
     Raycaster,
     SRGBColorSpace,
     NeutralToneMapping,
+    Group,
+    Line,
+    LineBasicMaterial,
+    BufferGeometry,
+    Vector3,
+    Color,
+    Mesh,
+    SphereGeometry,
+    MeshBasicMaterial,
 } from 'three';
+import { Line2 } from 'three/addons/lines/Line2.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+import type { OverpassWay, OverpassStop } from '../api/overpass';
 import { MapViewer } from '../MapViewer';
 import { FlightControls } from '../utils/FlightControls';
 import { Input } from '../utils/Input';
@@ -27,6 +40,14 @@ export class Editor {
     private sky!: Sky;
     private routeEditor: RouteEditor | null = null;
     private raycaster = new Raycaster();
+    private wayPreviewGroup: Group | null = null;
+    private wayLines: Map<number, Line> = new Map();
+    private stopMarkers: Map<number, Mesh> = new Map();
+    private highlightGroup: Group | null = null;
+    private committedLine: Line2 | null = null;
+    private branchLines: Map<number, Line2> = new Map();
+    private lineMaterials: Set<LineMaterial> = new Set();
+    private chosenStopMarkers: Map<string, Mesh> = new Map();
 
     private rafId: number | null = null;
     private mountElement: HTMLDivElement;
@@ -228,6 +249,269 @@ export class Editor {
         }
     }
 
+    public showWayPreview(ways: OverpassWay[], stops: OverpassStop[], hiddenWayIds: Set<number> = new Set()): void {
+        if (ways.length === 0) return;
+
+        if (!this.mapViewer.initialized) {
+            const [lon, lat] = ways[0].geometry[0];
+            this.mapViewer.init(this.scene, this.camera, this.renderer, lat, lon, 0);
+        }
+
+        const firstStop = stops[0] || { lat: ways[0].geometry[0][1], lon: ways[0].geometry[0][0] };
+        this.relocateToPosition(firstStop.lat, firstStop.lon, 800);
+
+        this.clearWayPreview();
+
+        const group = new Group();
+        group.name = 'WayPreviewGroup';
+        group.renderOrder = 999;
+        this.scene.add(group);
+        this.wayPreviewGroup = group;
+
+        const LINE_ALTITUDE_M = 30;
+
+        for (let i = 0; i < ways.length; i++) {
+            const way = ways[i];
+            const positions: Vector3[] = [];
+            for (const [lon, lat] of way.geometry) {
+                const pos = this.mapViewer.latLonHeightToWorldPosition(lat, lon, LINE_ALTITUDE_M);
+                if (pos) positions.push(pos);
+            }
+            if (positions.length < 2) continue;
+
+            const geom = new BufferGeometry().setFromPoints(positions);
+            const color = new Color().setHSL((i * 0.137) % 1, 0.7, 0.55);
+            const material = new LineBasicMaterial({
+                color,
+                transparent: true,
+                opacity: hiddenWayIds.has(way.id) ? 0.08 : 1.0,
+                depthTest: false,
+            });
+            const line = new Line(geom, material);
+            line.renderOrder = 999;
+            line.userData.wayId = way.id;
+            group.add(line);
+            this.wayLines.set(way.id, line);
+        }
+
+        for (const stop of stops) {
+            const pos = this.mapViewer.latLonHeightToWorldPosition(stop.lat, stop.lon, LINE_ALTITUDE_M);
+            if (!pos) continue;
+            const marker = new Mesh(
+                new SphereGeometry(40, 16, 16),
+                new MeshBasicMaterial({ color: 0xff3b7d, depthTest: false })
+            );
+            marker.renderOrder = 1000;
+            marker.position.copy(pos);
+            marker.userData.stopId = stop.osm_node_id;
+            group.add(marker);
+            this.stopMarkers.set(stop.osm_node_id, marker);
+        }
+
+    }
+
+    // Dim instead of remove so the user still sees where the way was.
+    public setWayVisible(wayId: number, visible: boolean): void {
+        const line = this.wayLines.get(wayId);
+        if (!line) return;
+        const mat = line.material as LineBasicMaterial;
+        mat.opacity = visible ? 1.0 : 0.08;
+        mat.needsUpdate = true;
+    }
+
+    public clearWayPreview(): void {
+        if (!this.wayPreviewGroup) return;
+        this.wayPreviewGroup.traverse((obj) => {
+            const anyObj = obj as any;
+            if (anyObj.geometry?.dispose) anyObj.geometry.dispose();
+            if (anyObj.material?.dispose) anyObj.material.dispose();
+        });
+        this.scene.remove(this.wayPreviewGroup);
+        this.wayPreviewGroup = null;
+        this.wayLines.clear();
+        this.stopMarkers.clear();
+        this.clearHighlights();
+    }
+
+    public dimBaseNetwork(opacity: number = 0.25): void {
+        for (const line of this.wayLines.values()) {
+            const mat = line.material as LineBasicMaterial;
+            mat.opacity = opacity;
+            mat.needsUpdate = true;
+        }
+    }
+
+    public renderCommittedPath(coords: [number, number][]): void {
+        this.ensureHighlightGroup();
+        if (this.committedLine) {
+            this.highlightGroup!.remove(this.committedLine);
+            this.committedLine.geometry.dispose();
+            this.lineMaterials.delete(this.committedLine.material);
+            this.committedLine.material.dispose();
+            this.committedLine = null;
+        }
+        if (coords.length < 2) return;
+
+        const flat: number[] = [];
+        for (const [lon, lat] of coords) {
+            const p = this.mapViewer.latLonHeightToWorldPosition(lat, lon, 45);
+            if (p) flat.push(p.x, p.y, p.z);
+        }
+        if (flat.length < 6) return;
+
+        const geom = new LineGeometry();
+        geom.setPositions(flat);
+        const mat = new LineMaterial({
+            color: 0x22c55e,
+            linewidth: 6,
+            depthTest: false,
+            transparent: true,
+            opacity: 1.0,
+        });
+        mat.resolution.set(this.mountElement.clientWidth, this.mountElement.clientHeight);
+        this.lineMaterials.add(mat);
+
+        const line = new Line2(geom, mat);
+        line.computeLineDistances();
+        line.renderOrder = 1001;
+        this.highlightGroup!.add(line);
+        this.committedLine = line;
+    }
+
+    public renderBranchOptions(branches: { wayId: number; geometry: [number, number][]; color: number }[]): void {
+        this.ensureHighlightGroup();
+        for (const line of this.branchLines.values()) {
+            this.highlightGroup!.remove(line);
+            line.geometry.dispose();
+            this.lineMaterials.delete(line.material);
+            line.material.dispose();
+        }
+        this.branchLines.clear();
+
+        for (const b of branches) {
+            if (b.geometry.length < 2) continue;
+            const flat: number[] = [];
+            for (const [lon, lat] of b.geometry) {
+                const p = this.mapViewer.latLonHeightToWorldPosition(lat, lon, 55);
+                if (p) flat.push(p.x, p.y, p.z);
+            }
+            if (flat.length < 6) continue;
+
+            const geom = new LineGeometry();
+            geom.setPositions(flat);
+            const mat = new LineMaterial({
+                color: b.color,
+                linewidth: 8,
+                depthTest: false,
+                transparent: true,
+                opacity: 1.0,
+            });
+            mat.resolution.set(this.mountElement.clientWidth, this.mountElement.clientHeight);
+            this.lineMaterials.add(mat);
+
+            const line = new Line2(geom, mat);
+            line.computeLineDistances();
+            line.renderOrder = 1002;
+            line.userData.wayId = b.wayId;
+            this.highlightGroup!.add(line);
+            this.branchLines.set(b.wayId, line);
+        }
+    }
+
+    public clearHighlights(): void {
+        if (!this.highlightGroup) return;
+        this.highlightGroup.traverse((obj) => {
+            const anyObj = obj as any;
+            if (anyObj.geometry?.dispose) anyObj.geometry.dispose();
+            if (anyObj.material?.dispose) {
+                if (anyObj.material instanceof LineMaterial) this.lineMaterials.delete(anyObj.material);
+                anyObj.material.dispose();
+            }
+        });
+        this.scene.remove(this.highlightGroup);
+        this.highlightGroup = null;
+        this.committedLine = null;
+        this.branchLines.clear();
+        this.chosenStopMarkers.clear();
+    }
+
+    public renderChosenStops(stops: { key: string; lat: number; lon: number }[]): void {
+        this.ensureHighlightGroup();
+        for (const m of this.chosenStopMarkers.values()) {
+            this.highlightGroup!.remove(m);
+            (m.geometry as any).dispose?.();
+            (m.material as any).dispose?.();
+        }
+        this.chosenStopMarkers.clear();
+
+        for (const s of stops) {
+            const pos = this.mapViewer.latLonHeightToWorldPosition(s.lat, s.lon, 60);
+            if (!pos) continue;
+            const marker = new Mesh(
+                new SphereGeometry(45, 20, 20),
+                new MeshBasicMaterial({ color: 0x22c55e, depthTest: false })
+            );
+            marker.renderOrder = 1003;
+            marker.position.copy(pos);
+            marker.userData.stopKey = s.key;
+            this.highlightGroup!.add(marker);
+            this.chosenStopMarkers.set(s.key, marker);
+        }
+    }
+
+    // Pure camera move — NOT reorient. Reorient would invalidate all cached
+    // positions of the base network lines.
+    public focusLatLon(lat: number, lon: number, altitude: number = 800): void {
+        if (!this.mapViewer.initialized) return;
+        const worldPos = this.mapViewer.latLonHeightToWorldPosition(lat, lon, altitude);
+        if (!worldPos) return;
+        this.camera.position.copy(worldPos);
+        const lookAt = this.mapViewer.latLonHeightToWorldPosition(lat, lon, altitude - 50);
+        if (lookAt) this.camera.lookAt(lookAt);
+        this.camera.updateMatrixWorld();
+    }
+
+    private ensureHighlightGroup(): void {
+        if (this.highlightGroup) return;
+        const g = new Group();
+        g.name = 'HighlightGroup';
+        g.renderOrder = 1000;
+        this.scene.add(g);
+        this.highlightGroup = g;
+    }
+
+    public loadUserRoute(routeData: RouteData): void {
+        if (!routeData.geometry.route || routeData.geometry.route.length === 0) {
+            throw new Error('Route data has no geometry');
+        }
+
+        if (!this.mapViewer.initialized) {
+            const [lon, lat] = routeData.geometry.route[0];
+            this.mapViewer.init(this.scene, this.camera, this.renderer, lat, lon, 0);
+        }
+
+        const firstStopIdx = routeData.geometry.stop_indices?.[0] ?? 0;
+        const [lon, lat, , world_offset_y] = routeData.geometry.route[firstStopIdx];
+        const altitude = world_offset_y || 200;
+        this.relocateToPosition(lat, lon, altitude + 100);
+
+        if (!this.routeEditor) {
+            this.routeEditor = new RouteEditor(this.scene, this.camera, this.renderer.domElement, this.mapViewer, false);
+
+            this.routeEditor.onNodeSelected = (nodeData) => {
+                if (this.onNodeSelected) this.onNodeSelected(nodeData);
+            };
+            this.routeEditor.onNodesModified = (nodes) => {
+                if (this.onNodesModified) this.onNodesModified(nodes.length);
+            };
+            this.routeEditor.onNodeIndexChanged = (currentIndex, totalNodes) => {
+                if (this.onNodeIndexChanged) this.onNodeIndexChanged(currentIndex, totalNodes);
+            };
+        }
+
+        this.routeEditor.loadRoute(routeData);
+    }
+
     public getRouteEditor(): RouteEditor | null {
         return this.routeEditor;
     }
@@ -280,6 +564,7 @@ export class Editor {
         this.sky.cleanup();
         this.flightControls.cleanup();
         this.mapViewer.cleanup();
+        this.clearWayPreview();
         this.clearPatchRoute();
         Input.cleanup();
 
@@ -298,6 +583,10 @@ export class Editor {
         this.renderer.setSize(width, height);
         this.camera.updateProjectionMatrix();
         this.renderer.setPixelRatio(window.devicePixelRatio);
+
+        for (const mat of this.lineMaterials) {
+            mat.resolution.set(width, height);
+        }
     }
 
     private editorInputs(): void {

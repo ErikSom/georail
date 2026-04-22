@@ -8,6 +8,8 @@ import stationsRoutes from './routes/stations.js';
 import patchesRoutes from './routes/patches.js';
 import userRoutes from './routes/user.js';
 import subscriptionRoutes from './routes/subscription.js';
+import overpassRoutes from './routes/overpass.js';
+import userRoutesRouter from './routes/userRoutes.js';
 import { initializeDiscordBot } from './lib/discord-bot.js';
 
 const envFile = '.env';
@@ -65,6 +67,8 @@ app.use('/stations', stationsRoutes);
 app.use('/patches', patchesRoutes);
 app.use('/user', userRoutes);
 app.use('/subscription', subscriptionRoutes);
+app.use('/overpass', overpassRoutes);
+app.use('/user-routes', userRoutesRouter);
 
 // ✅ 4. Health Check & Root
 app.get('/health', (req, res) => res.status(200).send('OK'));
