@@ -142,8 +142,9 @@ export class RouteEditor {
         routeData.geometry.route.forEach((routePoint: number[], idx: number) => {
             const editorPoint = routeData.geometry.editor![idx];
 
-            // routePoint is [lon, lat, world_offset_x, world_offset_y, world_offset_z]
+            // routePoint is [lon, lat, world_offset_x, world_offset_y, world_offset_z, keynode?]
             const [lon, lat, world_offset_x, world_offset_y, world_offset_z] = routePoint;
+            const storedKeyNode = routePoint.length > 5 ? !!routePoint[5] : false;
             const { segment_id, index } = editorPoint;
 
             // Create unique key
@@ -170,14 +171,13 @@ export class RouteEditor {
                 return;
             }
 
-            // Create node data with cached geo coordinates
             const isStation = stationIndices.has(idx);
             const nodeData: NodeData = {
                 segment_id,
                 index,
                 world_offset: worldOffset.clone(),
                 originalWorldOffset: worldOffset.clone(),
-                isKeyNode: false, // Will be set by applyPatchData
+                isKeyNode: storedKeyNode,
                 isStationNode: isStation,
                 position: position.clone(),
                 originalPosition: originalPosition.clone(),
@@ -195,6 +195,8 @@ export class RouteEditor {
             if (isStation) {
                 nodeIndicator.setMode('station');
                 this.addStationBeams(nodeIndicator.mesh);
+            } else if (storedKeyNode) {
+                nodeIndicator.setMode('keyNode');
             }
 
             this.nodeIndicators.set(nodeKey, nodeIndicator);
@@ -355,7 +357,113 @@ export class RouteEditor {
                 nodeIndicator.setMode(mode);
             }
 
+            this.rebuildSegmentsAroundNode(nodeKey);
             this.notifyModification();
+        }
+    }
+
+    public autoHeightNode(nodeKey: string): boolean {
+        const nodeData = this.nodes.get(nodeKey);
+        const nodeIndicator = this.nodeIndicators.get(nodeKey);
+        if (!nodeData || !nodeIndicator || !nodeData.originalGeoCoords) return false;
+
+        const tilesGroup = (this.mapViewer as any).tiles?.group;
+        if (!tilesGroup) return false;
+
+        const origin = nodeData.position.clone();
+        origin.y += 100;
+        const direction = new Vector3(0, -1, 0);
+
+        const raycaster = new Raycaster(origin, direction, 0, 500);
+        const intersects = raycaster.intersectObject(tilesGroup, true);
+
+        const terrainHit = intersects[0];
+        if (!terrainHit) return false;
+
+        this.pushUndoState();
+
+        const dy = terrainHit.point.y - nodeData.originalPosition.y;
+        nodeData.world_offset.y = dy;
+
+        const newPos = applyENUOffset(nodeData.originalGeoCoords, nodeData.world_offset, this.mapViewer);
+        if (newPos) {
+            nodeData.position.copy(newPos);
+            nodeIndicator.mesh.position.copy(newPos);
+        }
+
+        if (!nodeData.isKeyNode) {
+            nodeData.isKeyNode = true;
+            if (this.selectedNode === nodeKey) {
+                nodeIndicator.setMode('selected');
+            } else {
+                nodeIndicator.setMode('keyNode');
+            }
+        }
+
+        this.interpolateBetweenKeyNodes(nodeKey);
+
+        if (this.onNodeSelected && nodeKey === this.selectedNode) {
+            this.onNodeSelected({
+                ...nodeData,
+                world_offset: nodeData.world_offset.clone(),
+            });
+        }
+        this.notifyModification();
+        return true;
+    }
+
+    // Lerps only the segments adjacent to `nodeKey` and extends to the route
+    // endpoints only when `nodeKey` is the first or last key — no full-route scan.
+    private rebuildSegmentsAroundNode(nodeKey: string): void {
+        const nodeKeys = Array.from(this.nodes.keys());
+        const idx = nodeKeys.indexOf(nodeKey);
+        if (idx === -1) return;
+
+        let prev = -1;
+        for (let i = idx - 1; i >= 0; i--) {
+            if (this.nodes.get(nodeKeys[i])?.isKeyNode) { prev = i; break; }
+        }
+        let next = -1;
+        for (let i = idx + 1; i < nodeKeys.length; i++) {
+            if (this.nodes.get(nodeKeys[i])?.isKeyNode) { next = i; break; }
+        }
+
+        const node = this.nodes.get(nodeKey);
+        if (!node) return;
+
+        if (node.isKeyNode) {
+            if (prev !== -1 && prev < idx - 1) this.lerpNodesBetween(prev, idx, nodeKeys);
+            if (next !== -1 && next > idx + 1) this.lerpNodesBetween(idx, next, nodeKeys);
+
+            if (prev === -1 && idx > 0) {
+                for (let i = 0; i < idx; i++) this.applyOffsetToNode(nodeKeys[i], node.world_offset);
+            }
+            if (next === -1 && idx < nodeKeys.length - 1) {
+                for (let i = idx + 1; i < nodeKeys.length; i++) this.applyOffsetToNode(nodeKeys[i], node.world_offset);
+            }
+            return;
+        }
+
+        if (prev !== -1 && next !== -1) {
+            this.lerpNodesBetween(prev, next, nodeKeys);
+        } else if (prev !== -1) {
+            const prevOffset = this.nodes.get(nodeKeys[prev])!.world_offset;
+            for (let i = prev + 1; i < nodeKeys.length; i++) this.applyOffsetToNode(nodeKeys[i], prevOffset);
+        } else if (next !== -1) {
+            const nextOffset = this.nodes.get(nodeKeys[next])!.world_offset;
+            for (let i = 0; i < next; i++) this.applyOffsetToNode(nodeKeys[i], nextOffset);
+        }
+    }
+
+    private applyOffsetToNode(nodeKey: string, offset: Vector3): void {
+        const nodeData = this.nodes.get(nodeKey);
+        const nodeIndicator = this.nodeIndicators.get(nodeKey);
+        if (!nodeData || !nodeIndicator || !nodeData.originalGeoCoords) return;
+        nodeData.world_offset.copy(offset);
+        const newPos = applyENUOffset(nodeData.originalGeoCoords, nodeData.world_offset, this.mapViewer);
+        if (newPos) {
+            nodeData.position.copy(newPos);
+            nodeIndicator.mesh.position.copy(newPos);
         }
     }
 
@@ -393,6 +501,10 @@ export class RouteEditor {
         });
     }
 
+    public getAllNodes(): NodeData[] {
+        return Array.from(this.nodes.values());
+    }
+
     public getNodeComparisons(): NodeComparison[] {
         const comparisons: NodeComparison[] = [];
 
@@ -415,10 +527,6 @@ export class RouteEditor {
         }
 
         return comparisons;
-    }
-
-    public getAllNodes(): NodeData[] {
-        return Array.from(this.nodes.values());
     }
 
     public selectNodeByIndex(index: number): void {
@@ -444,12 +552,15 @@ export class RouteEditor {
 
         if (!nodeData || !nodeIndicator) return;
 
+        const CAM_HEIGHT = 120; // meters above the node
+        const LOOK_AT_HEIGHT = 0; // node's ground level
+
         // Use geo coords to place camera correctly on the globe
         // MapViewer.update() handles reorientation automatically
         const geo = nodeData.originalGeoCoords;
         if (geo) {
-            const camPos = this.mapViewer.latLonHeightToWorldPosition(geo.lat, geo.lon, 30);
-            const lookAtPos = this.mapViewer.latLonHeightToWorldPosition(geo.lat, geo.lon, 5);
+            const camPos = this.mapViewer.latLonHeightToWorldPosition(geo.lat, geo.lon, CAM_HEIGHT);
+            const lookAtPos = this.mapViewer.latLonHeightToWorldPosition(geo.lat, geo.lon, LOOK_AT_HEIGHT);
 
             if (camPos && lookAtPos) {
                 this.camera.position.copy(camPos);
@@ -461,7 +572,7 @@ export class RouteEditor {
 
         // Fallback
         const targetPosition = nodeIndicator.mesh.position.clone();
-        this.camera.position.copy(targetPosition.clone().setY(targetPosition.y + 30));
+        this.camera.position.copy(targetPosition.clone().setY(targetPosition.y + CAM_HEIGHT));
         this.camera.lookAt(targetPosition);
         this.camera.updateMatrixWorld();
     }
@@ -574,41 +685,7 @@ export class RouteEditor {
     }
 
     private interpolateBetweenKeyNodes(changedNodeKey: string): void {
-        // Get ordered list of node keys
-        const nodeKeys = Array.from(this.nodes.keys());
-        const changedIndex = nodeKeys.indexOf(changedNodeKey);
-
-        if (changedIndex === -1) return;
-
-        // Find previous key node
-        let prevKeyIndex = -1;
-        for (let i = changedIndex - 1; i >= 0; i--) {
-            const node = this.nodes.get(nodeKeys[i]);
-            if (node?.isKeyNode) {
-                prevKeyIndex = i;
-                break;
-            }
-        }
-
-        // Find next key node
-        let nextKeyIndex = -1;
-        for (let i = changedIndex + 1; i < nodeKeys.length; i++) {
-            const node = this.nodes.get(nodeKeys[i]);
-            if (node?.isKeyNode) {
-                nextKeyIndex = i;
-                break;
-            }
-        }
-
-        // Interpolate nodes between previous key node and this one
-        if (prevKeyIndex !== -1 && prevKeyIndex < changedIndex - 1) {
-            this.lerpNodesBetween(prevKeyIndex, changedIndex, nodeKeys);
-        }
-
-        // Interpolate nodes between this one and next key node
-        if (nextKeyIndex !== -1 && nextKeyIndex > changedIndex + 1) {
-            this.lerpNodesBetween(changedIndex, nextKeyIndex, nodeKeys);
-        }
+        this.rebuildSegmentsAroundNode(changedNodeKey);
     }
 
     private lerpNodesBetween(startIndex: number, endIndex: number, nodeKeys: string[]): void {
