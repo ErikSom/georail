@@ -22,7 +22,7 @@ function parseMaxSpeedKmh(tag: string | null | undefined): number | null {
 }
 
 function routeUrl(routeId: string): string {
-    return `/route?id=${encodeURIComponent(routeId)}`;
+    return `/?route=${encodeURIComponent(routeId)}`;
 }
 
 function shareUrl(routeId: string): string {

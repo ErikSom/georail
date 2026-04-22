@@ -81,8 +81,7 @@ export default function App() {
         if (loading) return;
         if (!session) return;
         if (typeof window === 'undefined') return;
-        if (window.location.pathname !== '/route') return;
-        const routeId = new URLSearchParams(window.location.search).get('id');
+        const routeId = new URLSearchParams(window.location.search).get('route');
         if (!routeId) return;
 
         let cancelled = false;
@@ -95,12 +94,12 @@ export default function App() {
                 };
                 startUserRouteJourney(routeData, full.id);
                 appScreen.value = 'game';
-                // Strip the URL so exiting back to the menu doesn't linger on /route.
-                window.history.replaceState({}, '', '/');
+                // Strip the query so exiting back to the menu doesn't re-trigger.
+                window.history.replaceState({}, '', window.location.pathname);
             })
             .catch(err => {
                 console.warn('[route] failed to load shared route:', err);
-                window.history.replaceState({}, '', '/');
+                window.history.replaceState({}, '', window.location.pathname);
             });
 
         return () => { cancelled = true; };
