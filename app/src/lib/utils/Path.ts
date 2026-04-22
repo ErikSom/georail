@@ -37,6 +37,9 @@ export default class Path {
     private lastIndex = 0;
     private pathDebugIndicators: NodeIndicator[] = [];
 
+    // Sorted arc-length distances of sub-path boundaries (terminal buffers).
+    private segmentBoundaries: Float64Array = new Float64Array(0);
+
     constructor(points: Vector3[]) {
         this.points = points;
         const loopingEpsilon = 1e-5;
@@ -44,6 +47,47 @@ export default class Path {
             this.looping = true;
         }
         this.precompute();
+    }
+
+    public setSegmentBoundaries(pointIndices: number[]): void {
+        if (!pointIndices || pointIndices.length === 0) {
+            this.segmentBoundaries = new Float64Array(0);
+            return;
+        }
+        const distances: number[] = [];
+        for (const pi of pointIndices) {
+            const d = this.getDistanceAtPointIndex(pi);
+            if (Number.isFinite(d) && d > 0 && d < this.totalLength) distances.push(d);
+        }
+        distances.sort((a, b) => a - b);
+        this.segmentBoundaries = Float64Array.from(distances);
+    }
+
+    public getSegmentCount(): number {
+        return this.segmentBoundaries.length + 1;
+    }
+
+    public getSegmentIndexAt(distance: number): number {
+        const arr = this.segmentBoundaries;
+        for (let i = 0; i < arr.length; i++) {
+            // Boundary-equal distance belongs to the earlier segment (stop is at the approach end).
+            if (distance <= arr[i]) return i;
+        }
+        return arr.length;
+    }
+
+    public getSegmentBounds(index: number): { startGlobal: number; endGlobal: number } {
+        const arr = this.segmentBoundaries;
+        const startGlobal = index === 0 ? 0 : arr[index - 1];
+        const endGlobal = index < arr.length ? arr[index] : this.totalLength;
+        return { startGlobal, endGlobal };
+    }
+
+    /** Global arc-length distance at segment boundary `index` (0-based). */
+    public getSegmentBoundaryDistance(index: number): number {
+        const arr = this.segmentBoundaries;
+        if (index < 0 || index >= arr.length) return this.totalLength;
+        return arr[index];
     }
 
     private precompute(): void {

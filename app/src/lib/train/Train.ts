@@ -8,6 +8,8 @@ import * as EssentialsPlugin from '@tweakpane/plugin-essentials';
 import { TrainPhysics, type IPhysicsTarget } from './TrainPhysics';
 import { getFolderKey } from './TrainUiUtils';
 import { TrainAudio } from './TrainAudio';
+import { trainDoorsOpen } from '../../store/train';
+import { stopDistances, stopStatuses } from '../../store/journey';
 import { type ConsistCar } from '../../store/train';
 
 export class Train implements IPhysicsTarget {
@@ -127,19 +129,84 @@ export class Train implements IPhysicsTarget {
         this.pane?.refresh();
     }
 
+    private currentSegmentIndex = 0;
+
     public setPath(path: Path): void {
         if (this.path) {
             this.path.cleanup();
         }
 
         this.path = path;
-        const halfTrain = this.getTotalLength() / 2;
-        this.physics.setBounds(-halfTrain, path.getTotalLength() + halfTrain);
+        this.currentSegmentIndex = 0;
+        this.applySegmentBounds();
 
         if (this.debug) {
             this.path?.drawDebugPath(this.group.parent as Scene);
             this.createDebugUI();
         }
+    }
+
+    public getCurrentSegmentIndex(): number {
+        return this.currentSegmentIndex;
+    }
+
+    // Pops the train to the start of the next sub-path (same physical spot at
+    // a terminal buffer, different node ids). Velocity stays zero.
+    public advanceToNextSegment(): boolean {
+        if (!this.path) return false;
+        const next = this.currentSegmentIndex + 1;
+        if (next >= this.path.getSegmentCount()) return false;
+
+        this.currentSegmentIndex = next;
+        this.applySegmentBounds();
+
+        const bounds = this.path.getSegmentBounds(next);
+        const halfTrain = this.getTotalLength() / 2;
+        this.distanceTraveled = bounds.startGlobal + halfTrain;
+        this.positionOnPath();
+        return true;
+    }
+
+    private maybeAdvanceSegment(): void {
+        if (!this.path) return;
+        const nextIdx = this.currentSegmentIndex + 1;
+        if (nextIdx >= this.path.getSegmentCount()) return;
+
+        const bounds = this.path.getSegmentBounds(this.currentSegmentIndex);
+        const halfTrain = this.getTotalLength() / 2;
+        const atMaxBound = this.distanceTraveled >= bounds.endGlobal - halfTrain - 0.5;
+        if (!atMaxBound) return;
+
+        if (Math.abs(this.physics.getVelocity()) > 0.05) return;
+        if (trainDoorsOpen.value) return;
+
+        // Only auto-advance after the player has actually arrived at the
+        // turnaround station (otherwise they'd skip an unserved stop).
+        const boundaryKm = bounds.endGlobal / 1000;
+        const distances = stopDistances.value;
+        const statuses = stopStatuses.value;
+        let bufferStopArrived = false;
+        for (let i = 0; i < distances.length; i++) {
+            if (Math.abs(distances[i] - boundaryKm) < 0.1) {
+                bufferStopArrived = !!statuses[i]?.arrived;
+                break;
+            }
+        }
+        if (!bufferStopArrived) return;
+
+        this.advanceToNextSegment();
+    }
+
+    private applySegmentBounds(): void {
+        if (!this.path) return;
+        const bounds = this.path.getSegmentBounds(this.currentSegmentIndex);
+        const halfTrain = this.getTotalLength() / 2;
+        // First/last sub-paths keep the original overshoot; mid-route boundaries are hard stops.
+        const isFirst = this.currentSegmentIndex === 0;
+        const isLast = this.currentSegmentIndex === this.path.getSegmentCount() - 1;
+        const min = isFirst ? bounds.startGlobal - halfTrain : bounds.startGlobal + halfTrain;
+        const max = isLast ? bounds.endGlobal + halfTrain : bounds.endGlobal - halfTrain;
+        this.physics.setBounds(min, max);
     }
 
     public getPath(): Path | null {
@@ -718,6 +785,8 @@ export class Train implements IPhysicsTarget {
         // Calculate distance delta for wheel rotation
         const distanceDelta = this.distanceTraveled - this.previousDistanceTraveled;
         this.previousDistanceTraveled = this.distanceTraveled;
+
+        this.maybeAdvanceSegment();
 
         // Update position on path based on physics-driven distanceTraveled
         if (this.path && this.path.points.length > 0) {

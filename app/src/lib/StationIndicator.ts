@@ -227,8 +227,10 @@ export class StationIndicator {
         const path = this.path;
         const stopDistanceM = distances[index] * 1000;
         const halfZoneM = this.zoneLengthM / 2;
-        const zoneStartM = stopDistanceM - halfZoneM;
-        const zoneEndM = stopDistanceM + halfZoneM;
+        const segIdx = path.getSegmentIndexAt(stopDistanceM);
+        const segBounds = path.getSegmentBounds(segIdx);
+        const zoneStartM = Math.max(segBounds.startGlobal, stopDistanceM - halfZoneM);
+        const zoneEndM = Math.min(segBounds.endGlobal, stopDistanceM + halfZoneM);
 
         const centerPos = path.getPointAtDistance(stopDistanceM);
         const startPos = path.getPointAtDistance(zoneStartM);

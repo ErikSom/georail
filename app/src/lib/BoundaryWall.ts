@@ -105,13 +105,16 @@ export class BoundaryWall {
         endDir: Vector3,
         totalLength: number,
         trainLength: number,
+        minBound?: number,
+        maxBound?: number,
     ) {
         this.group = new Group();
         this.group.name = 'BoundaryWalls';
 
         const halfTrain = trainLength / 2;
-        this.minBound = -halfTrain;
-        this.maxBound = totalLength + halfTrain;
+        // Explicit bounds for hard mid-route stops; defaults allow overshoot.
+        this.minBound = minBound ?? -halfTrain;
+        this.maxBound = maxBound ?? totalLength + halfTrain;
 
         const geometry = new PlaneGeometry(WALL_WIDTH, WALL_HEIGHT);
         const wallColor = new Color(1.0, 0.10, 0.05); // Danger red

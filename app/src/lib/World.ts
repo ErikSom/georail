@@ -281,6 +281,9 @@ export class World {
             }
 
             const path = new Path(pathPoints);
+            if (routeData.geometry.turnaround_indices?.length) {
+                path.setSegmentBoundaries(routeData.geometry.turnaround_indices);
+            }
             this.train.setPath(path);
 
             // Position train at first station, not at path start
@@ -295,15 +298,7 @@ export class World {
             // Store path so journey store can reactively compute stop distances
             trainPath.value = path;
 
-            this.boundaryWall = new BoundaryWall(
-                path.getStartPoint(),
-                path.getEndPoint(),
-                path.getStartDirection(),
-                path.getEndDirection(),
-                path.getTotalLength(),
-                this.train.getTotalLength(),
-            );
-            this.scene.add(this.boundaryWall.group);
+            this.rebuildBoundaryWall(path);
 
             updateTrainState();
             this.stationIndicator = new StationIndicator();
@@ -330,18 +325,7 @@ export class World {
         this.gameCamera.applyTransform(deltaMatrix);
 
         // Rebuild boundary walls (cheap — just 2 meshes from path endpoints)
-        if (this.boundaryWall) {
-            this.boundaryWall.group.parent?.remove(this.boundaryWall.group);
-            this.boundaryWall = new BoundaryWall(
-                path.getStartPoint(),
-                path.getEndPoint(),
-                path.getStartDirection(),
-                path.getEndDirection(),
-                path.getTotalLength(),
-                this.train.getTotalLength(),
-            );
-            this.scene.add(this.boundaryWall.group);
-        }
+        if (this.boundaryWall) this.rebuildBoundaryWall(path);
 
         // Rebuild station indicator for current stop
         if (this.stationIndicator) {
@@ -350,6 +334,52 @@ export class World {
             this.stationIndicator.createIndicators(path);
             this.scene.add(this.stationIndicator.group);
         }
+    }
+
+    private activeWallSegmentIndex = -1;
+
+    private rebuildBoundaryWall(path: Path): void {
+        if (this.boundaryWall) {
+            this.boundaryWall.group.parent?.remove(this.boundaryWall.group);
+            this.boundaryWall.dispose();
+            this.boundaryWall = null;
+        }
+
+        const segIdx = this.train.getCurrentSegmentIndex();
+        const bounds = path.getSegmentBounds(segIdx);
+        const halfTrain = this.train.getTotalLength() / 2;
+        const lastSeg = path.getSegmentCount() - 1;
+
+        // First/last sub-paths overshoot at the route extremes; mid-route boundaries are hard stops.
+        const minBound = segIdx === 0 ? bounds.startGlobal - halfTrain : bounds.startGlobal + halfTrain;
+        const maxBound = segIdx === lastSeg ? bounds.endGlobal + halfTrain : bounds.endGlobal - halfTrain;
+
+        const eps = 0.1;
+        const rawStart = path.getPointAtDistance(bounds.startGlobal).clone();
+        const startAhead = path.getPointAtDistance(bounds.startGlobal + eps);
+        const startDir = startAhead.clone().sub(rawStart).normalize();
+        const rawEnd = path.getPointAtDistance(bounds.endGlobal).clone();
+        const endBehind = path.getPointAtDistance(bounds.endGlobal - eps);
+        const endDir = rawEnd.clone().sub(endBehind).normalize();
+
+        // BoundaryWall offsets by halfTrain on soft ends; counter-offset for hard mid-route boundaries.
+        const hardStart = segIdx !== 0;
+        const hardEnd = segIdx !== lastSeg;
+        const startPoint = hardStart ? rawStart.clone().addScaledVector(startDir, halfTrain) : rawStart;
+        const endPoint = hardEnd ? rawEnd.clone().addScaledVector(endDir, -halfTrain) : rawEnd;
+
+        this.boundaryWall = new BoundaryWall(
+            startPoint,
+            endPoint,
+            startDir,
+            endDir,
+            bounds.endGlobal - bounds.startGlobal,
+            this.train.getTotalLength(),
+            minBound,
+            maxBound,
+        );
+        this.scene.add(this.boundaryWall.group);
+        this.activeWallSegmentIndex = segIdx;
     }
 
     private handleInput(): void {
@@ -396,7 +426,10 @@ export class World {
             this.gameCamera.update(deltaTime, this.train);
         }
 
-        if (this.boundaryWall) {
+        if (this.boundaryWall && trainPath.value) {
+            if (this.train.getCurrentSegmentIndex() !== this.activeWallSegmentIndex) {
+                this.rebuildBoundaryWall(trainPath.value);
+            }
             this.boundaryWall.update(
                 this.train.distanceTraveled,
                 this.train.getPower(),
