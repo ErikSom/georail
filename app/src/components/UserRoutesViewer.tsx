@@ -368,6 +368,7 @@ function UserRoutesViewer() {
             metadata: orig.metadata,
             stop_indices: orig.stop_indices,
             editor: orig.editor,
+            turnaround_indices: orig.turnaround_indices,
         };
 
         setSaving(true);
