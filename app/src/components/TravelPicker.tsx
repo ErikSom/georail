@@ -4,7 +4,7 @@ import { fetchJourneyRoute, calculateStopTimes, type RouteData, type RouteStop, 
 import { fetchJourneyHistory, fetchFavoriteRoutes, toggleFavorite, type JourneyHistoryEntry, type FavoriteRoute } from '../lib/api/journey';
 import { configs, country, gameConditions, setGameCondition, type GameConditions } from '../store/globals';
 import { appScreen } from '../store/app';
-import { startJourney } from '../store/journey';
+import { startJourney, hasActiveSession, resumeJourney, discardSession, refreshActiveSession, type ActiveSession } from '../store/journey';
 import StationPicker from './StationPicker';
 import RouteMinimap from './RouteMinimap';
 import TimePicker from './TimePicker';
@@ -117,6 +117,53 @@ export default function TravelPicker() {
     // Conditions panel
     const [showConditions, setShowConditions] = useState(false);
     const conditions = gameConditions.value;
+
+    const handleResumeEntry = async (entry: JourneyHistoryEntry) => {
+        const nameMap = new Map<string, string>();
+        for (const s of stations) nameMap.set(s.code.toUpperCase(), s.name);
+
+        const session: ActiveSession = {
+            id: entry.id,
+            station_codes: entry.station_codes,
+            station_tracks: entry.station_tracks,
+            station_coords: entry.station_coords ?? [],
+            segment_distances: entry.segment_distances ?? [],
+            last_station_index: entry.last_station_index,
+            total_km_earned: entry.total_km_earned,
+            is_user_route: entry.is_user_route,
+            user_route_id: entry.user_route_id,
+            is_round_trip: entry.is_round_trip,
+            country: entry.country,
+            started_at: entry.started_at,
+        };
+
+        const ok = await resumeJourney(session, nameMap);
+        if (ok) {
+            appScreen.value = 'game';
+        } else {
+            // Route no longer loadable (e.g. user_route deleted) — drop the stale session.
+            await discardSession(entry.id);
+            setHistory(prev => prev.map(h => h.id === entry.id ? { ...h, completed: true } : h));
+            refreshActiveSession();
+        }
+    };
+
+    const handleDiscardEntry = async (entry: JourneyHistoryEntry) => {
+        const ok = await discardSession(entry.id);
+        if (ok) {
+            setHistory(prev => prev.map(h => h.id === entry.id ? { ...h, completed: true } : h));
+            refreshActiveSession();
+        }
+    };
+
+    const handleStartOver = async (entry: JourneyHistoryEntry) => {
+        // Drop the in-progress session, then load its stops into Custom so the
+        // user can tweak/confirm before hitting Go.
+        await discardSession(entry.id);
+        setHistory(prev => prev.map(h => h.id === entry.id ? { ...h, completed: true } : h));
+        refreshActiveSession();
+        loadRouteIntoCustom(entry.station_codes, entry.is_round_trip, entry.station_tracks);
+    };
 
     const canSubmit = customStops.every(s => s.station) && !fetchingRoute;
     const fromStation = regularFrom.station || '';
@@ -693,6 +740,7 @@ export default function TravelPicker() {
                     onClick={() => { setActiveTab('archive'); setMinimapReady(false); setPreviewRoute(null); setPreviewStopIndices([]); }}
                 >
                     Archive
+                    {hasActiveSession.value && <span className={styles.tabBadge} />}
                 </button>
                 <div
                     className={styles.tabIndicator}
@@ -919,8 +967,9 @@ export default function TravelPicker() {
                                 <div className={styles.archiveList}>
                                     {history.map(entry => {
                                         const isExpanded = expandedArchiveId === entry.id;
+                                        const inProgress = entry.completed === false;
                                         return (
-                                            <div key={entry.id} className={`${styles.archiveItem} ${isExpanded ? styles.archiveExpanded : ''}`}>
+                                            <div key={entry.id} className={`${styles.archiveItem} ${isExpanded ? styles.archiveExpanded : ''} ${inProgress ? styles.archiveInProgress : ''}`}>
                                                 <div
                                                     className={styles.archiveItemHeader}
                                                     onClick={() => setExpandedArchiveId(isExpanded ? null : entry.id)}
@@ -929,10 +978,15 @@ export default function TravelPicker() {
                                                         <span className={styles.archiveRoute}>
                                                             {resolveStationName(entry.station_codes[0])} → {resolveStationName(entry.station_codes[entry.station_codes.length - 1])}
                                                             {entry.is_round_trip && <span className={styles.roundTripBadge}>Round trip</span>}
+                                                            {inProgress && <span className={styles.inProgressBadge}>In progress</span>}
                                                         </span>
                                                         <span className={styles.archiveMeta}>
                                                             <span>{formatDate(entry.started_at)}</span>
-                                                            <span>{entry.station_codes.length} stops</span>
+                                                            <span>
+                                                                {inProgress
+                                                                    ? `${entry.last_station_index + 1} of ${entry.station_codes.length} stops`
+                                                                    : `${entry.station_codes.length} stops`}
+                                                            </span>
                                                             <span>{entry.total_km} km</span>
                                                         </span>
                                                     </div>
@@ -950,8 +1004,9 @@ export default function TravelPicker() {
                                                                 const isFirst = idx === 0;
                                                                 const isLast = idx === entry.station_codes.length - 1;
                                                                 const track = entry.station_tracks?.[idx];
+                                                                const isReached = inProgress && idx <= entry.last_station_index;
                                                                 return (
-                                                                    <div key={idx} className={`${styles.timelineStop} ${isFirst ? styles.origin : ''} ${isLast ? styles.destination : ''}`}>
+                                                                    <div key={idx} className={`${styles.timelineStop} ${isFirst ? styles.origin : ''} ${isLast ? styles.destination : ''} ${isReached ? styles.timelineStopReached : ''}`}>
                                                                         <div className={styles.timelineTrack}>
                                                                             <div className={`${styles.timelineDot} ${isFirst ? styles.origin : ''} ${isLast ? styles.destination : ''}`} />
                                                                         </div>
@@ -966,12 +1021,36 @@ export default function TravelPicker() {
                                                             })}
                                                         </div>
                                                         <div className={styles.archiveActions}>
-                                                            <button
-                                                                className={styles.driveButton}
-                                                                onClick={() => loadRouteIntoCustom(entry.station_codes, entry.is_round_trip, entry.station_tracks)}
-                                                            >
-                                                                Drive this route
-                                                            </button>
+                                                            {inProgress ? (
+                                                                <>
+                                                                    <button
+                                                                        className={styles.driveButton}
+                                                                        onClick={() => handleResumeEntry(entry)}
+                                                                    >
+                                                                        Continue
+                                                                    </button>
+                                                                    <button
+                                                                        className={styles.driveButtonSecondary}
+                                                                        onClick={() => handleStartOver(entry)}
+                                                                    >
+                                                                        Start over
+                                                                    </button>
+                                                                    <button
+                                                                        className={styles.driveButtonGhost}
+                                                                        onClick={() => handleDiscardEntry(entry)}
+                                                                        title="Discard this in-progress trip"
+                                                                    >
+                                                                        Discard
+                                                                    </button>
+                                                                </>
+                                                            ) : (
+                                                                <button
+                                                                    className={styles.driveButton}
+                                                                    onClick={() => loadRouteIntoCustom(entry.station_codes, entry.is_round_trip, entry.station_tracks)}
+                                                                >
+                                                                    Drive this route
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 )}
@@ -1182,7 +1261,7 @@ export default function TravelPicker() {
                         {/* Go button */}
                         <button
                             className={styles.goButton}
-                            onClick={handleGo}
+                            onClick={() => handleGo()}
                             disabled={!canSubmit}
                         >
                             {fetchingRoute ? 'Loading route...' : 'Go'}
@@ -1190,6 +1269,7 @@ export default function TravelPicker() {
                     </>
                 )}
             </div>
+
         </div>
     );
 }

@@ -31,6 +31,25 @@ export interface JourneyStartResponse {
     already_visited: string[];
 }
 
+export interface ActiveSession {
+    id: string;
+    station_codes: string[];
+    station_tracks: (string | null)[] | null;
+    station_coords: [number, number][];
+    segment_distances: number[];
+    last_station_index: number;
+    total_km_earned?: number;
+    is_user_route: boolean;
+    user_route_id: string | null;
+    is_round_trip: boolean;
+    country: string;
+    started_at: string;
+}
+
+export type StartJourneyResult =
+    | { kind: 'ok'; session_id: string; already_visited: string[] }
+    | { kind: 'error' };
+
 export interface StartJourneySessionOptions {
     isUserRoute?: boolean;
     userRouteId?: string | null;
@@ -44,10 +63,10 @@ export async function startJourneySession(
     stationTracks: (string | null)[],
     isRoundTrip?: boolean,
     options?: StartJourneySessionOptions,
-): Promise<JourneyStartResponse | null> {
+): Promise<StartJourneyResult> {
     try {
         const headers = await getAuthHeaders();
-        if (!headers) return null;
+        if (!headers) return { kind: 'error' };
 
         const body: Record<string, unknown> = {
             station_codes: stationCodes,
@@ -69,11 +88,44 @@ export async function startJourneySession(
             body: JSON.stringify(body),
         });
 
-        if (!response.ok) return null;
-        return await response.json();
+        if (!response.ok) return { kind: 'error' };
+        const payload = await response.json();
+        return { kind: 'ok', session_id: payload.session_id, already_visited: payload.already_visited };
     } catch (err) {
         console.error('Failed to start journey session:', err);
+        return { kind: 'error' };
+    }
+}
+
+export async function fetchActiveJourneySession(): Promise<ActiveSession | null> {
+    try {
+        const headers = await getAuthHeaders();
+        if (!headers) return null;
+
+        const response = await fetch(`${API_BASE}/journey/active`, { headers });
+        if (!response.ok) return null;
+        const payload = await response.json();
+        return payload?.active_session ?? null;
+    } catch (err) {
+        console.error('Failed to fetch active journey session:', err);
         return null;
+    }
+}
+
+export async function discardActiveJourneySession(sessionId: string): Promise<boolean> {
+    try {
+        const headers = await getAuthHeaders();
+        if (!headers) return false;
+
+        const response = await fetch(`${API_BASE}/journey/discard`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ session_id: sessionId }),
+        });
+        return response.ok;
+    } catch (err) {
+        console.error('Failed to discard journey session:', err);
+        return false;
     }
 }
 
@@ -103,6 +155,12 @@ export interface JourneyHistoryEntry {
     id: string;
     station_codes: string[];
     station_tracks: (string | null)[] | null;
+    station_coords: [number, number][] | null;
+    segment_distances: number[] | null;
+    last_station_index: number;
+    completed: boolean;
+    is_user_route: boolean;
+    user_route_id: string | null;
     total_km: number;
     total_km_earned: number;
     started_at: string;

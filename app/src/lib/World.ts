@@ -36,7 +36,7 @@ import { getPerformanceConfig, type PerformanceConfig } from './utils/Performanc
 import type { Tiles3DAttributionCredits } from '../components/HUD/Tiles3DAttribution';
 import { Pane } from 'tweakpane';
 import { audioListener, timeScale, scaledDeltaTime, gameConditions, ATMOSPHERE_COLOR } from '../store/globals';
-import { trainPath } from '../store/journey';
+import { trainPath, resumeCheckpointStopIndex } from '../store/journey';
 import { gameReady } from '../store/app';
 import { DitherOverlay } from './train/DitherOverlay';
 
@@ -286,12 +286,18 @@ export class World {
             }
             this.train.setPath(path);
 
-            // Position train at first station, not at path start
-            // The path may have extra nodes before the first station as padding
+            // Position train at first station (or at resume checkpoint, if any).
+            // The path may have extra nodes before the first station as padding.
             const stopIndices = routeData.geometry.stop_indices;
-            if (stopIndices && stopIndices.length > 0 && stopIndices[0] > 0) {
-                this.train.distanceTraveled = path.getDistanceAtPointIndex(stopIndices[0]);
+            const resumeIdx = resumeCheckpointStopIndex.value;
+            const startStopIdx = (resumeIdx !== null && resumeIdx >= 0 && resumeIdx < (stopIndices?.length ?? 0))
+                ? resumeIdx
+                : 0;
+            if (stopIndices && stopIndices.length > 0 && stopIndices[startStopIdx] > 0) {
+                this.train.distanceTraveled = path.getDistanceAtPointIndex(stopIndices[startStopIdx]);
             }
+            // Consume the checkpoint so a subsequent fresh journey starts at stop 0.
+            if (resumeIdx !== null) resumeCheckpointStopIndex.value = null;
 
             this.train.positionOnPath();
 

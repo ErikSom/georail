@@ -1,10 +1,12 @@
 import { signal, computed } from "@preact/signals";
 import type { RouteData, RouteStop } from "../lib/api/navigation";
-import { calculateStopTimes } from "../lib/api/navigation";
+import { calculateStopTimes, fetchJourneyRoute } from "../lib/api/navigation";
 import type Path from "../lib/utils/Path";
 import { trainDistanceTraveled, trainPathTotalLength, trainVelocityKmh, trainLength, resetTrain, trainDoorsOpen } from "./train";
 import { configs, scaledDeltaTime } from "./globals";
-import { startJourneySession as apiStartJourney, reportStationArrival, type StationArrivalResponse } from "../lib/api/journey";
+import { startJourneySession as apiStartJourney, reportStationArrival, type StationArrivalResponse, type ActiveSession, fetchActiveJourneySession, discardActiveJourneySession as apiDiscardActiveSession } from "../lib/api/journey";
+export type { ActiveSession } from "../lib/api/journey";
+import { fetchSharedUserRoute } from "../lib/api/userRoutes";
 import { country } from "./globals";
 
 export const routeData = signal<RouteData | null>(null);
@@ -32,6 +34,23 @@ export const journeyPhase = signal<'forward' | 'return'>('forward');
 export const turnaroundStopIndex = signal<number | null>(null);
 const pendingStationPings = new Set<number>();
 
+// Populated at boot by App.tsx so the Archive tab can badge itself. We allow
+// multiple in-flight sessions per user — any incomplete session counts. The
+// full active list is visible in the Archive history (in-progress rows).
+export const hasActiveSession = signal<boolean>(false);
+
+// Signals to World.ts that the train should start at the checkpoint stop's
+// path position, not at stop 0. Cleared after the path is built.
+export const resumeCheckpointStopIndex = signal<number | null>(null);
+
+export async function refreshActiveSession(): Promise<void> {
+    hasActiveSession.value = (await fetchActiveJourneySession()) !== null;
+}
+
+export async function discardSession(sessionId: string): Promise<boolean> {
+    return await apiDiscardActiveSession(sessionId);
+}
+
 function pingStationArrival(stationIndex: number): void {
     const sessionId = journeySessionId.value;
     if (!sessionId || pendingStationPings.has(stationIndex)) return;
@@ -44,6 +63,8 @@ function pingStationArrival(stationIndex: number): void {
             stationArrivalResults.value = [...stationArrivalResults.value, result];
             if (result.is_complete) {
                 journeyCompleted.value = true;
+                // After completion, re-probe — the user may still have other in-flight trips.
+                refreshActiveSession();
             }
         }
     });
@@ -514,9 +535,10 @@ export function startJourney(
             stationCoords: userRoute.stationCoords,
         } : undefined;
         apiStartJourney(stationCodes, country.value, segmentDistances, stationTracks, isRoundTrip, sessionOptions).then(result => {
-            if (result) {
+            if (result.kind === 'ok') {
                 journeySessionId.value = result.session_id;
                 alreadyVisitedStations.value = new Set(result.already_visited);
+                hasActiveSession.value = true;
             }
         });
     }
@@ -564,6 +586,132 @@ export function startUserRouteJourney(route: RouteData, userRouteId: string): vo
     startJourney(timedRoute, undefined, false, { id: userRouteId, stationCoords });
 }
 
+// Rebuilds a RouteData from an active session and hydrates all journey signals
+// to the checkpoint state so the game resumes cleanly at the last visited stop.
+// Returns false if the route can no longer be loaded (e.g. user_route deleted) —
+// caller should offer a "discard and start over" option.
+export async function resumeJourney(
+    session: ActiveSession,
+    stationNameByCode?: Map<string, string>,
+): Promise<boolean> {
+    try {
+        let resumedRoute: RouteData;
+
+        if (session.is_user_route) {
+            if (!session.user_route_id) return false;
+            const route = await fetchSharedUserRoute(session.user_route_id).catch(() => null);
+            if (!route) return false;
+
+            const displayCodes = route.stops.map(s =>
+                SHORT_CODE_PATTERN.test(s.code) ? s.code : shortCodeFromName(s.station)
+            );
+            const timedStops = calculateStopTimes(
+                route.stops.map(s => s.station),
+                displayCodes,
+                route.stops.map(s => s.track),
+                route.geometry,
+            );
+            resumedRoute = { geometry: route.geometry, properties: { stops: timedStops } };
+        } else {
+            // Curated route: session.station_codes may be mirrored for round trips.
+            // Refetch geometry for the forward leg only, then mirror stop_indices.
+            const keep = session.is_round_trip && session.station_codes.length >= 3
+                ? Math.ceil(session.station_codes.length / 2)
+                : session.station_codes.length;
+
+            const forwardStops: { code: string; track?: string }[] = [];
+            for (let i = 0; i < keep; i++) {
+                forwardStops.push({
+                    code: session.station_codes[i],
+                    track: session.station_tracks?.[i] || undefined,
+                });
+            }
+
+            const journeyData = await fetchJourneyRoute(forwardStops);
+
+            if (session.is_round_trip) {
+                const forwardStopIndices = journeyData.geometry.stop_indices;
+                const returnStopIndices = [...forwardStopIndices].slice(0, -1).reverse();
+                journeyData.geometry.stop_indices = [...forwardStopIndices, ...returnStopIndices];
+            }
+
+            const stopNames = session.station_codes.map(code =>
+                stationNameByCode?.get(code) ?? stationNameByCode?.get(code.toUpperCase()) ?? code
+            );
+            const timedStops = calculateStopTimes(
+                stopNames,
+                session.station_codes,
+                (session.station_tracks ?? session.station_codes.map(() => null)) as (string | null)[],
+                journeyData.geometry,
+            );
+            resumedRoute = { geometry: journeyData.geometry, properties: { stops: timedStops, startTime: Date.now() } };
+        }
+
+        const stopsArr = resumedRoute.properties.stops;
+        const lastIdx = Math.min(session.last_station_index, stopsArr.length - 1);
+
+        // Reset first, then apply resume overrides. Order matters: resetTrain()
+        // zeros trainDistanceTraveled, but World.ts will pick up the checkpoint
+        // signal when it builds the path and place the train at the right spot.
+        resetJourney();
+
+        routeData.value = resumedRoute;
+        journeyStartTime.value = Date.now();
+        journeySessionId.value = session.id;
+        journeyCompleted.value = false;
+        currentRouteIndex.value = 0;
+
+        elapsedMinutes.value = stopsArr[lastIdx]?.arrivalTime ?? 0;
+
+        stopStatuses.value = stopsArr.map((stop, i) => {
+            if (i < lastIdx) {
+                return {
+                    arrived: true,
+                    departed: true,
+                    actualArrivalTime: stop.arrivalTime,
+                    actualDepartureTime: stop.departureTime,
+                    arrivalDelta: 0,
+                    departureDelta: 0,
+                };
+            }
+            if (i === lastIdx) {
+                return {
+                    arrived: true,
+                    departed: false,
+                    actualArrivalTime: stop.arrivalTime,
+                    actualDepartureTime: null,
+                    arrivalDelta: 0,
+                    departureDelta: null,
+                };
+            }
+            return {
+                arrived: false,
+                departed: false,
+                actualArrivalTime: null,
+                actualDepartureTime: null,
+                arrivalDelta: null,
+                departureDelta: null,
+            };
+        });
+
+        const turnaroundIdx = (session.is_round_trip && stopsArr.length >= 3)
+            ? Math.floor((stopsArr.length - 1) / 2)
+            : null;
+        turnaroundStopIndex.value = turnaroundIdx;
+        journeyPhase.value = (turnaroundIdx !== null && lastIdx >= turnaroundIdx) ? 'return' : 'forward';
+
+        // Pre-seed so no stale "already visited" ping fires for 0..lastIdx.
+        for (let i = 0; i <= lastIdx; i++) pendingStationPings.add(i);
+
+        resumeCheckpointStopIndex.value = lastIdx;
+
+        return true;
+    } catch (err) {
+        console.error('Failed to resume journey:', err);
+        return false;
+    }
+}
+
 export function getScheduleBasedStartTime(initialDwellMinutes: number): number {
     const now = new Date();
     const minutes = now.getMinutes();
@@ -588,6 +736,7 @@ export function resetJourney(): void {
     pendingStationPings.clear();
     journeyPhase.value = 'forward';
     turnaroundStopIndex.value = null;
+    resumeCheckpointStopIndex.value = null;
     resetTrain();
 }
 

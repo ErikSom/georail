@@ -7,7 +7,7 @@ import ThreeViewer from './ThreeViewer';
 import BottomTabs, { type TabId } from './BottomTabs';
 import SplashOverlay from './SplashOverlay';
 import { appScreen } from '../store/app';
-import { startUserRouteJourney } from '../store/journey';
+import { startUserRouteJourney, refreshActiveSession } from '../store/journey';
 import { fetchSharedUserRoute } from '../lib/api/userRoutes';
 import type { RouteData } from '../lib/api/navigation';
 
@@ -76,6 +76,13 @@ export default function App() {
         window.addEventListener('popstate', onPopState);
         return () => window.removeEventListener('popstate', onPopState);
     }, []);
+
+    // Probe for an in-flight journey once the user is signed in so the Archive
+    // tab can badge itself.
+    useEffect(() => {
+        if (loading || !session) return;
+        refreshActiveSession();
+    }, [session, loading]);
 
     useEffect(() => {
         if (loading) return;

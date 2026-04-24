@@ -183,6 +183,16 @@ export const updateUserRoute = async (req, res) => {
 
     if (error || !data) return res.status(404).json({ error: error?.message || 'Route not found.' });
 
+    // If the route shape changed, any in-flight session on this route is now stale —
+    // drop it so resume can't walk into a reshuffled stop array.
+    if (update.stops !== undefined || update.geometry !== undefined) {
+        await supabase
+            .from('journey_sessions')
+            .update({ completed: true })
+            .eq('user_route_id', id)
+            .eq('completed', false);
+    }
+
     res.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
     res.json(data);
 };

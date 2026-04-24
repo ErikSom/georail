@@ -39,11 +39,9 @@ export const startJourneySession = async (req, res) => {
 			return res.status(400).json({ error: 'segment_distances must have N-1 positive numbers' });
 		}
 
-		await supabase
-			.from('journey_sessions')
-			.update({ completed: true })
-			.eq('user_id', req.userId)
-			.eq('completed', false);
+		// Multi-session: we don't touch existing incomplete sessions. User can have
+		// several parallel trips waiting. The in-progress badge in the Archive's
+		// history list surfaces each one so they can Continue or Start over.
 
 		let station_coords;
 		let alreadyVisited = [];
@@ -140,6 +138,47 @@ export const startJourneySession = async (req, res) => {
 		res.json({ session_id: data.id, already_visited: alreadyVisited });
 	} catch (err) {
 		console.error('Journey start error:', err);
+		res.status(500).json({ error: 'Server error' });
+	}
+};
+
+export const getActiveJourneySession = async (req, res) => {
+	try {
+		const { data: session } = await supabase
+			.from('journey_sessions')
+			.select('id, station_codes, station_tracks, station_coords, segment_distances, last_station_index, total_km_earned, is_user_route, user_route_id, is_round_trip, country, started_at')
+			.eq('user_id', req.userId)
+			.eq('completed', false)
+			.order('started_at', { ascending: false })
+			.limit(1)
+			.maybeSingle();
+
+		res.set('Cache-Control', 'no-store');
+		res.json({ active_session: session || null });
+	} catch (err) {
+		console.error('Get active journey error:', err);
+		res.status(500).json({ error: 'Server error' });
+	}
+};
+
+export const discardActiveJourneySession = async (req, res) => {
+	try {
+		const { session_id } = req.body;
+		if (!session_id || typeof session_id !== 'string') {
+			return res.status(400).json({ error: 'session_id required' });
+		}
+
+		await supabase
+			.from('journey_sessions')
+			.update({ completed: true })
+			.eq('id', session_id)
+			.eq('user_id', req.userId)
+			.eq('completed', false);
+
+		res.set('Cache-Control', 'no-store');
+		res.json({ ok: true });
+	} catch (err) {
+		console.error('Discard active journey error:', err);
 		res.status(500).json({ error: 'Server error' });
 	}
 };
@@ -312,7 +351,7 @@ export const getJourneyHistory = async (req, res) => {
 
 		const { data: sessions } = await supabase
 			.from('journey_sessions')
-			.select('id, station_codes, station_tracks, segment_distances, total_km_earned, started_at, country, is_round_trip')
+			.select('id, station_codes, station_tracks, station_coords, segment_distances, total_km_earned, last_station_index, completed, is_user_route, user_route_id, started_at, country, is_round_trip')
 			.eq('user_id', req.userId)
 			.eq('country', filterCountry)
 			.order('started_at', { ascending: false })
@@ -335,6 +374,12 @@ export const getJourneyHistory = async (req, res) => {
 				id: s.id,
 				station_codes: s.station_codes,
 				station_tracks: s.station_tracks || null,
+				station_coords: s.station_coords || null,
+				segment_distances: s.segment_distances || null,
+				last_station_index: s.last_station_index,
+				completed: s.completed,
+				is_user_route: s.is_user_route,
+				user_route_id: s.user_route_id,
 				total_km,
 				total_km_earned: Math.round(s.total_km_earned * 100) / 100,
 				started_at: s.started_at,
