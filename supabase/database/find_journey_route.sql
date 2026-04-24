@@ -108,6 +108,17 @@ BEGIN
         LIMIT 1;
       END IF;
 
+      -- Last-resort fallback: station-level row (ref IS NULL) for stations that
+      -- OSM only maps as a single point rather than per-platform stops. The
+      -- user's track preference can't be honoured, but the journey still runs.
+      IF start_coords IS NULL THEN
+        SELECT ARRAY[ST_X(geom), ST_Y(geom)] INTO start_coords
+        FROM stations
+        WHERE code = current_stop->>'code'
+          AND ref IS NULL
+        LIMIT 1;
+      END IF;
+
       IF start_coords IS NULL THEN
         RETURN json_build_object('error', format('Station not found: %s', current_stop->>'code'));
       END IF;
@@ -141,6 +152,15 @@ BEGIN
       FROM stations
       WHERE code = next_stop->>'code'
         AND ref ~ track_regex
+      LIMIT 1;
+    END IF;
+
+    -- Station-level fallback (see note on start lookup above).
+    IF end_coords IS NULL THEN
+      SELECT ARRAY[ST_X(geom), ST_Y(geom)] INTO end_coords
+      FROM stations
+      WHERE code = next_stop->>'code'
+        AND ref IS NULL
       LIMIT 1;
     END IF;
 

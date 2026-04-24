@@ -7,10 +7,11 @@ LANGUAGE sql
 SECURITY DEFINER
 SET search_path = public, extensions
 AS $$
-  INSERT INTO stations (name, ref, properties, geom, country)
+  INSERT INTO stations (name, ref, code, properties, geom, country)
   SELECT
     s->>'name',
     s->>'ref',
+    s->>'code',
     (s->>'properties')::jsonb,
     ST_GeomFromGeoJSON(s->'geom_geojson'),
     p_country
