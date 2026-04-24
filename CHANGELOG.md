@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.2 (2026-04-24)
+
+### Features
+
+* **editor:** auto height and key node improvements 
+* **Game:** pause & resume journeys from the archive 
+* **Game:** sub-path segmentation with hard stops at terminal buffers 
+* **hud:** f3 debug panel with station jump 
+* **stations:** restore missing stations and platform detail 
+* **user-routes:** drive and share with play counts 
+* **user-routes:** itinerary-driven traversal for terminal reversals 
+* **user-routes:** osm-backed path editor with save and edit 
+
+### Bug Fixes
+
+* **user-routes:** preserve turnaround_indices on edit save
+
 ## 0.3.1 (2026-04-19)
 
 ### Features
