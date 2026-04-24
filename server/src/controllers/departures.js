@@ -31,7 +31,7 @@ export const getStationDepartures = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('NS API Error:', error.message);
+        console.error('NS API Error:', error.message, `(station=${station})`);
         const status = error.response?.status || 500;
         const message = error.response?.data?.message || 'Failed to fetch departures';
         res.status(status).json({ error: message });
