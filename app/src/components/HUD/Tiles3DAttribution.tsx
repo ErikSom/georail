@@ -29,7 +29,7 @@ function Tiles3DAttribution({ attribution, showMap2DAttribution }: Tiles3DAttrib
             {/* big screen attribution */}
             <div className={styles.attribution}>
                 <div className={styles.logoContainer}>
-                    <img src="icons/googlemaps.svg" alt="Google Maps" className={styles.googlemaps} />
+                    <img src="/icons/googlemaps.svg" alt="Google Maps" className={styles.googlemaps} />
                     {attribution?.latLonStr || 'Loading ...'}
                 </div>
                 {attribution?.source}
@@ -42,7 +42,7 @@ function Tiles3DAttribution({ attribution, showMap2DAttribution }: Tiles3DAttrib
                 role="button"
                 aria-label="Toggle map data sources"
             >
-                <img src="icons/googlemaps.svg" alt="Google Maps" className={styles.googlemaps} />
+                <img src="/icons/googlemaps.svg" alt="Google Maps" className={styles.googlemaps} />
                 Data Sources
             </button>
 

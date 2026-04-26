@@ -562,7 +562,7 @@ function Transit() {
                                     {/* Distance */}
                                     <div className={styles.stopMeta}>
                                         {isPast ? (
-                                            <InlineSVG src="icons/circle-check.svg" className={styles.checkmark} />
+                                            <InlineSVG src="/icons/circle-check.svg" className={styles.checkmark} />
                                         ) : isAtStation ? (
                                             <span className={styles.distance}>0 m</span>
                                         ) : (

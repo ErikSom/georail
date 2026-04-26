@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 (2026-04-26)
+
+### Features
+
+* **Game:** persisted metric/imperial unit toggle 
+* **i18n:** EN/NL multi-language routing with persisted preference 
+* **i18n:** localize app screens to English and Dutch
+
 ## 0.3.2 (2026-04-24)
 
 ### Features
