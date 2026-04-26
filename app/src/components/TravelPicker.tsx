@@ -741,8 +741,10 @@ export default function TravelPicker() {
                     className={`${styles.tab} ${activeTab === 'archive' ? styles.activeTab : ''}`}
                     onClick={() => { setActiveTab('archive'); setMinimapReady(false); setPreviewRoute(null); setPreviewStopIndices([]); }}
                 >
-                    {t('travel.tabs.archive')}
-                    {hasActiveSession.value && <span className={styles.tabBadge} />}
+                    <span className={styles.tabLabel}>
+                        {t('travel.tabs.archive')}
+                        {hasActiveSession.value && <span className={styles.tabBadge} />}
+                    </span>
                 </button>
                 <div
                     className={styles.tabIndicator}

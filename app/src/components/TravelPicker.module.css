@@ -64,10 +64,15 @@
     background: var(--menu-light-03);
 }
 
+.tabLabel {
+    position: relative;
+    display: inline-block;
+}
+
 .tabBadge {
     position: absolute;
-    top: 6px;
-    right: 32px;
+    top: -2px;
+    right: -10px;
     width: 8px;
     height: 8px;
     border-radius: 50%;
