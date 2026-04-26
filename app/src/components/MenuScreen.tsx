@@ -6,6 +6,7 @@ import TravelPicker from './TravelPicker';
 import GateScreen from './GateScreen';
 import AccountScreen from './AccountScreen';
 import CreditsScreen from './CreditsScreen';
+import { t } from '../i18n';
 import styles from './MenuScreen.module.css';
 
 interface Props {
@@ -72,7 +73,7 @@ export default function MenuScreen({ session, profile, checking, activeTab, reco
                 &copy; 2025 Terminarch Games &middot; v{__APP_VERSION__}
                 {' · '}
                 <button className={styles.creditsLink} onClick={onOpenCredits}>
-                    Credits
+                    {t('menu.footer.credits')}
                 </button>
             </footer>
         </div>

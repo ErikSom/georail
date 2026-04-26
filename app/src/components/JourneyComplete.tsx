@@ -5,9 +5,11 @@ import {
     stopDistances,
     stops,
     alreadyVisitedStations,
+    formatDistanceKm,
 } from '../store/journey';
 import { computeLevel, getLevelInfo } from '../lib/levels';
 import { clearProfileCache } from '../lib/api/profile';
+import { t } from '../i18n';
 import styles from './JourneyComplete.module.css';
 
 interface JourneyCompleteProps {
@@ -92,18 +94,18 @@ export default function JourneyComplete({ onDismiss }: JourneyCompleteProps) {
     return (
         <div className={styles.overlay}>
             <div className={styles.container}>
-                <h1 className={styles.title}>Journey Complete</h1>
+                <h1 className={styles.title}>{t('journeyComplete.title')}</h1>
 
                 {/* Journey distance */}
                 <div className={styles.stat}>
-                    <span className={styles.statLabel}>Distance</span>
+                    <span className={styles.statLabel}>{t('journeyComplete.distance')}</span>
                     <span className={styles.statValue}>
-                        {journeyDistanceKm.toFixed(1)} km
+                        {formatDistanceKm(journeyDistanceKm)}
                     </span>
                 </div>
 
                 <div className={styles.stat}>
-                    <span className={styles.statLabel}>Stops</span>
+                    <span className={styles.statLabel}>{t('journeyComplete.stops')}</span>
                     <span className={styles.statValue}>
                         {stopsArr.length}
                     </span>
@@ -111,12 +113,12 @@ export default function JourneyComplete({ onDismiss }: JourneyCompleteProps) {
 
                 {/* KM counter animation */}
                 <div className={styles.kmSection}>
-                    <div className={styles.kmLabel}>Total Kilometers</div>
+                    <div className={styles.kmLabel}>{t('journeyComplete.totalKilometers')}</div>
                     <div className={styles.kmValue}>
-                        {animatedKm.toFixed(1)} km
+                        {formatDistanceKm(animatedKm)}
                     </div>
                     <div className={styles.kmAdded}>
-                        +{journeyKmEarned.toFixed(1)} km
+                        +{formatDistanceKm(journeyKmEarned)}
                     </div>
                 </div>
 
@@ -124,10 +126,10 @@ export default function JourneyComplete({ onDismiss }: JourneyCompleteProps) {
                 <div className={styles.levelSection}>
                     <div className={styles.levelHeader}>
                         <span className={styles.levelLabel}>
-                            Level {currentAnimLevel}
+                            {t('journeyComplete.level', { n: currentAnimLevel })}
                         </span>
                         <span className={styles.levelProgress}>
-                            {currentAnimLevelInfo.progressKm.toFixed(0)} / {currentAnimLevelInfo.bracketKm.toFixed(0)} km
+                            {formatDistanceKm(currentAnimLevelInfo.progressKm)} / {formatDistanceKm(currentAnimLevelInfo.bracketKm)}
                         </span>
                     </div>
                     <div className={styles.progressBar}>
@@ -141,19 +143,19 @@ export default function JourneyComplete({ onDismiss }: JourneyCompleteProps) {
                 {/* Level up animation */}
                 {showLevelUp && (
                     <div className={styles.levelUp}>
-                        Level Up! You are now Level {levelAfter}
+                        {t('journeyComplete.levelUp', { n: levelAfter })}
                     </div>
                 )}
 
                 {/* Stations */}
                 <div className={styles.stationsSection}>
                     <div className={styles.stationCount}>
-                        Stations Visited: {totalStationsVisited}
+                        {t('journeyComplete.stationsVisited', { n: totalStationsVisited })}
                     </div>
                     {newStations.length > 0 && (
                         <div className={styles.newStations}>
                             <div className={styles.newStationsLabel}>
-                                Newly Unlocked
+                                {t('journeyComplete.newlyUnlocked')}
                             </div>
                             <div className={styles.stationList}>
                                 {newStations.map(s => (
@@ -168,7 +170,7 @@ export default function JourneyComplete({ onDismiss }: JourneyCompleteProps) {
 
                 {/* Dismiss button */}
                 <button className={styles.doneButton} onClick={handleDismiss}>
-                    Continue
+                    {t('journeyComplete.continue')}
                 </button>
             </div>
         </div>

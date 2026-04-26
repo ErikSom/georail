@@ -2,12 +2,13 @@ import { useState, useEffect, useRef } from 'preact/hooks';
 import IconButton from './IconButton';
 import InlineSVG from '../InlineSVG';
 import { hudSettings, setHudSetting, masterVolume, setMasterVolume, type HudSettings } from '../../store/globals';
+import { t } from '../../i18n';
 import styles from './GameMenu.module.css';
 
-const TOGGLES: { key: keyof HudSettings; label: string }[] = [
-    { key: 'showMap2D', label: 'Map' },
-    { key: 'showSpeedometer', label: 'Speedometer' },
-    { key: 'showTransit', label: 'Transit' },
+const TOGGLE_KEYS: { key: keyof HudSettings; labelKey: string }[] = [
+    { key: 'showMap2D', labelKey: 'hud.menu.toggles.showMap2D' },
+    { key: 'showSpeedometer', labelKey: 'hud.menu.toggles.showSpeedometer' },
+    { key: 'showTransit', labelKey: 'hud.menu.toggles.showTransit' },
 ];
 
 function volumeIcon(volume: number): string {
@@ -43,16 +44,16 @@ function GameMenu({ onExit }: Props) {
             <IconButton
                 icon="/icons/settings.svg"
                 onClick={() => setIsOpen(!isOpen)}
-                ariaLabel="Game menu"
+                ariaLabel={t('hud.menu.open')}
                 iconSize={24}
             />
 
             <div className={`${styles.panel} ${isOpen ? styles.panelOpen : ''}`}>
                 <div className={styles.section}>
-                    <div className={styles.sectionTitle}>Widgets</div>
-                    {TOGGLES.map(({ key, label }) => (
+                    <div className={styles.sectionTitle}>{t('hud.menu.widgets')}</div>
+                    {TOGGLE_KEYS.map(({ key, labelKey }) => (
                         <label key={key} className={styles.row}>
-                            <span className={styles.label}>{label}</span>
+                            <span className={styles.label}>{t(labelKey)}</span>
                             <span className={styles.switch}>
                                 <input
                                     type="checkbox"
@@ -66,7 +67,7 @@ function GameMenu({ onExit }: Props) {
                 </div>
 
                 <div className={styles.section}>
-                    <div className={styles.sectionTitle}>Volume</div>
+                    <div className={styles.sectionTitle}>{t('hud.menu.volume')}</div>
                     <div className={styles.volumeRow}>
                         <span className={styles.volumeIcon}>
                             <InlineSVG src={volumeIcon(volume)} width={20} height={20} />
@@ -80,13 +81,13 @@ function GameMenu({ onExit }: Props) {
                             onInput={(e) => setMasterVolume(parseFloat((e.target as HTMLInputElement).value))}
                             className={styles.slider}
                             style={{ '--fill': `${volume * 100}%` } as Record<string, string>}
-                            aria-label="Master volume"
+                            aria-label={t('hud.menu.masterVolume')}
                         />
                     </div>
                 </div>
 
                 <button className={styles.exitButton} onClick={onExit}>
-                    Exit to menu
+                    {t('hud.menu.exit')}
                 </button>
             </div>
         </div>

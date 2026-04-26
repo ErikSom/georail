@@ -4,10 +4,11 @@ import { fetchJourneyRoute, calculateStopTimes, type RouteData, type RouteStop, 
 import { fetchJourneyHistory, fetchFavoriteRoutes, toggleFavorite, type JourneyHistoryEntry, type FavoriteRoute } from '../lib/api/journey';
 import { configs, country, gameConditions, setGameCondition, type GameConditions } from '../store/globals';
 import { appScreen } from '../store/app';
-import { startJourney, hasActiveSession, resumeJourney, discardSession, refreshActiveSession, type ActiveSession } from '../store/journey';
+import { startJourney, hasActiveSession, resumeJourney, discardSession, refreshActiveSession, formatDistanceKm, type ActiveSession } from '../store/journey';
 import StationPicker from './StationPicker';
 import RouteMinimap from './RouteMinimap';
 import TimePicker from './TimePicker';
+import { t, locale } from '../i18n';
 import styles from './TravelPicker.module.css';
 
 type TabType = 'regular' | 'custom' | 'archive';
@@ -30,9 +31,9 @@ function StopRow({ index, stops, stations, onUpdate, onRemove, canRemove, disabl
     disabled: boolean;
 }) {
     const getStopLabel = (index: number): string => {
-        if (index === 0) return 'From';
-        if (index === stops.length - 1) return 'To';
-        return `Stop ${index}`;
+        if (index === 0) return t('travel.stop.from');
+        if (index === stops.length - 1) return t('travel.stop.to');
+        return t('travel.stop.intermediate', { n: index });
     };
 
     const stop = stops[index];
@@ -58,7 +59,7 @@ function StopRow({ index, stops, stations, onUpdate, onRemove, canRemove, disabl
                             className={styles.removeStopButton}
                             onClick={() => onRemove(index)}
                             disabled={disabled}
-                            title="Remove stop"
+                            title={t('travel.stop.remove')}
                         >
                             ×
                         </button>
@@ -285,7 +286,7 @@ export default function TravelPicker() {
                 }));
             }
         } catch (err) {
-            setArchiveError(err instanceof Error ? err.message : 'Failed to update favorite');
+            setArchiveError(err instanceof Error ? err.message : t('travel.errors.favoriteFailed'));
         }
     };
 
@@ -315,7 +316,8 @@ export default function TravelPicker() {
 
     const formatDate = (dateStr: string) => {
         const d = new Date(dateStr);
-        return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+        const dateLocale = locale.value === 'nl' ? 'nl-NL' : 'en-US';
+        return d.toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', year: 'numeric' });
     };
 
     // Custom stop management functions
@@ -361,10 +363,10 @@ export default function TravelPicker() {
             if (response?.departures) {
                 setDepartures(response.departures);
             } else {
-                setError('Could not fetch departures. Please make sure you are logged in.');
+                setError(t('travel.errors.fetchDepartures'));
             }
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to fetch departures');
+            setError(err instanceof Error ? err.message : t('travel.errors.fetchDeparturesGeneric'));
         } finally {
             setLoadingDepartures(false);
         }
@@ -421,7 +423,7 @@ export default function TravelPicker() {
                 }
             }
         } catch (err) {
-            setError('Failed to load stations. Please try again.');
+            setError(t('travel.errors.loadStations'));
             console.error(err);
         } finally {
             setLoading(false);
@@ -432,7 +434,7 @@ export default function TravelPicker() {
         // Validate all stops have stations
         const emptyStops = customStops.filter(s => !s.station);
         if (emptyStops.length > 0) {
-            setError('Please select all stations');
+            setError(t('travel.errors.selectAllStations'));
             return;
         }
 
@@ -446,7 +448,7 @@ export default function TravelPicker() {
         }).filter(s => s.code);
 
         if (forwardJourneyStops.length < 2) {
-            setError('Could not find station codes');
+            setError(t('travel.errors.noStationCodes'));
             return;
         }
 
@@ -497,7 +499,7 @@ export default function TravelPicker() {
             startJourney(routeData, routeData.properties.startTime, returnToStart);
             appScreen.value = 'game';
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to fetch route');
+            setError(err instanceof Error ? err.message : t('travel.errors.fetchRoute'));
             console.error(err);
         } finally {
             setFetchingRoute(false);
@@ -521,7 +523,7 @@ export default function TravelPicker() {
         if (!stationName) return;
 
         if (!stationData?.code) {
-            setError('Station code not found');
+            setError(t('travel.errors.stationCodeNotFound'));
             return;
         }
 
@@ -552,7 +554,7 @@ export default function TravelPicker() {
                 setExpandedJourney(journey);
             }
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to fetch journey details');
+            setError(err instanceof Error ? err.message : t('travel.errors.fetchJourney'));
         } finally {
             setLoadingJourney(false);
         }
@@ -634,7 +636,7 @@ export default function TravelPicker() {
             }
 
             if (journeyStops.length < 2) {
-                setError('Not enough stations found in our database');
+                setError(t('travel.errors.notEnoughStations'));
                 return;
             }
 
@@ -702,7 +704,7 @@ export default function TravelPicker() {
                 startJourney(routeData, routeData.properties.startTime);
                 appScreen.value = 'game';
             } catch (err) {
-                setError(err instanceof Error ? err.message : 'Failed to fetch route');
+                setError(err instanceof Error ? err.message : t('travel.errors.fetchRoute'));
                 console.error('Failed to fetch journey route:', err);
             } finally {
                 setFetchingRoute(false);
@@ -718,7 +720,7 @@ export default function TravelPicker() {
 
     return (
         <div className={styles.container}>
-            <h1 className={styles.title}>Plan Journey</h1>
+            <h1 className={styles.title}>{t('travel.title')}</h1>
 
             {/* Tabs */}
             <div className={styles.tabs}>
@@ -726,20 +728,20 @@ export default function TravelPicker() {
                     className={`${styles.tab} ${activeTab === 'regular' ? styles.activeTab : ''}`}
                     onClick={() => { setActiveTab('regular'); setMinimapReady(false); setPreviewRoute(null); setPreviewStopIndices([]); setSelectedDeparture(null); setExpandedDeparture(null); setExpandedJourney(null); setLoadingJourney(false); }}
                 >
-                    Live Departures
+                    {t('travel.tabs.regular')}
                 </button>
                 <button
                     className={`${styles.tab} ${activeTab === 'custom' ? styles.activeTab : ''}`}
                     onClick={() => { setActiveTab('custom'); setMinimapReady(false); }}
                 >
-                    Custom
+                    {t('travel.tabs.custom')}
                 </button>
 
                 <button
                     className={`${styles.tab} ${activeTab === 'archive' ? styles.activeTab : ''}`}
                     onClick={() => { setActiveTab('archive'); setMinimapReady(false); setPreviewRoute(null); setPreviewStopIndices([]); }}
                 >
-                    Archive
+                    {t('travel.tabs.archive')}
                     {hasActiveSession.value && <span className={styles.tabBadge} />}
                 </button>
                 <div
@@ -751,7 +753,7 @@ export default function TravelPicker() {
             {/* Content */}
             <div className={styles.content}>
                 {loading ? (
-                    <div className={styles.loading}>Loading stations...</div>
+                    <div className={styles.loading}>{t('travel.loading.stations')}</div>
                 ) : activeTab === 'regular' ? (
                     /* Regular Tab Content */
                     selectedDeparture ? (
@@ -764,7 +766,7 @@ export default function TravelPicker() {
                                     </div>
 
                                     {loadingJourney && (
-                                        <div className={styles.loadingStops}>Loading stops...</div>
+                                        <div className={styles.loadingStops}>{t('travel.loading.stops')}</div>
                                     )}
 
                                     {!loadingJourney && expandedJourney && (() => {
@@ -837,7 +839,7 @@ export default function TravelPicker() {
                                     onClick={() => handleDepartureGo()}
                                     disabled={fetchingRoute || loadingJourney || !expandedJourney}
                                 >
-                                    {fetchingRoute ? 'Loading route...' : 'Go'}
+                                    {fetchingRoute ? t('travel.loading.route') : t('travel.go')}
                                 </button>
                             </div>
                         </>
@@ -854,18 +856,18 @@ export default function TravelPicker() {
                                         onSelectStation={(name) => handleRegularStationSelect(name)}
                                         onSelectTrack={(track) => updateRegularTrack(track)}
                                         disabled={loadingDepartures}
-                                        label="From"
+                                        label={t('travel.stop.from')}
                                         stationOnly
                                     />
                                 </div>
                                 <div className={styles.stopDivider} />
                                 <div className={styles.stopField}>
-                                    <label className={styles.viaLabel}>Via (optional)</label>
+                                    <label className={styles.viaLabel}>{t('travel.regular.viaLabel')}</label>
                                     <div className={styles.viaInputWrapper}>
                                         <input
                                             type="text"
                                             className={styles.viaInput}
-                                            placeholder="Filter by station name…"
+                                            placeholder={t('travel.regular.viaPlaceholder')}
                                             value={regularVia}
                                             onInput={(e) => setRegularVia((e.target as HTMLInputElement).value)}
                                             disabled={loadingDepartures || !fromStation}
@@ -874,7 +876,7 @@ export default function TravelPicker() {
                                             <button
                                                 className={styles.viaClearButton}
                                                 onClick={() => setRegularVia('')}
-                                                aria-label="Clear via filter"
+                                                aria-label={t('travel.regular.viaClear')}
                                                 type="button"
                                             >
                                                 <svg viewBox="0 0 10 10" stroke="currentColor">
@@ -890,7 +892,7 @@ export default function TravelPicker() {
                             {error && <div className={styles.error}>{error}</div>}
 
                             {loadingDepartures && (
-                                <div className={styles.loading}>Loading departures...</div>
+                                <div className={styles.loading}>{t('travel.loading.departures')}</div>
                             )}
 
                             {!loadingDepartures && departures.length > 0 && (() => {
@@ -902,7 +904,7 @@ export default function TravelPicker() {
                                     )
                                     : departures;
                                 if (filteredDepartures.length === 0) {
-                                    return <div className={styles.noDepartures}>No departures passing through {regularVia}</div>;
+                                    return <div className={styles.noDepartures}>{t('travel.regular.noDeparturesVia', { via: regularVia })}</div>;
                                 }
                                 return (
                                     <div className={styles.departuresList}>
@@ -934,7 +936,7 @@ export default function TravelPicker() {
                             })()}
 
                             {!loadingDepartures && fromStation && departures.length === 0 && !error && (
-                                <div className={styles.noDepartures}>No departures found</div>
+                                <div className={styles.noDepartures}>{t('travel.regular.noDepartures')}</div>
                             )}
                         </>
                     )
@@ -946,23 +948,23 @@ export default function TravelPicker() {
                                 className={`${styles.archiveToggleButton} ${archiveView === 'history' ? styles.archiveToggleButtonActive : ''}`}
                                 onClick={() => setArchiveView('history')}
                             >
-                                History
+                                {t('travel.archive.history')}
                             </button>
                             <button
                                 className={`${styles.archiveToggleButton} ${archiveView === 'favorites' ? styles.archiveToggleButtonActive : ''}`}
                                 onClick={() => setArchiveView('favorites')}
                             >
-                                Starred
+                                {t('travel.archive.starred')}
                             </button>
                         </div>
 
                         {archiveError && <div className={styles.error}>{archiveError}</div>}
 
                         {loadingArchive ? (
-                            <div className={styles.loading}>Loading...</div>
+                            <div className={styles.loading}>{t('travel.loading.generic')}</div>
                         ) : archiveView === 'history' ? (
                             history.length === 0 ? (
-                                <div className={styles.archiveEmpty}>No journeys yet</div>
+                                <div className={styles.archiveEmpty}>{t('travel.archive.noJourneys')}</div>
                             ) : (
                                 <div className={styles.archiveList}>
                                     {history.map(entry => {
@@ -979,17 +981,17 @@ export default function TravelPicker() {
                                                             <span className={styles.archiveRoute}>
                                                                 {resolveStationName(entry.station_codes[0])} → {resolveStationName(entry.station_codes[entry.station_codes.length - 1])}
                                                             </span>
-                                                            {entry.is_round_trip && <span className={styles.roundTripBadge}>Round trip</span>}
-                                                            {inProgress && <span className={styles.inProgressBadge}>In progress</span>}
+                                                            {entry.is_round_trip && <span className={styles.roundTripBadge}>{t('travel.archive.roundTrip')}</span>}
+                                                            {inProgress && <span className={styles.inProgressBadge}>{t('travel.archive.inProgress')}</span>}
                                                         </div>
                                                         <span className={styles.archiveMeta}>
                                                             <span>{formatDate(entry.started_at)}</span>
                                                             <span>
                                                                 {inProgress
-                                                                    ? `${entry.last_station_index + 1} of ${entry.station_codes.length} stops`
-                                                                    : `${entry.station_codes.length} stops`}
+                                                                    ? t('travel.archive.progressStops', { current: entry.last_station_index + 1, total: entry.station_codes.length })
+                                                                    : t('travel.archive.totalStops', { n: entry.station_codes.length })}
                                                             </span>
-                                                            <span>{entry.total_km} km</span>
+                                                            <span>{formatDistanceKm(entry.total_km)}</span>
                                                         </span>
                                                     </div>
                                                     <button
@@ -1029,20 +1031,20 @@ export default function TravelPicker() {
                                                                         className={styles.driveButton}
                                                                         onClick={() => handleResumeEntry(entry)}
                                                                     >
-                                                                        Continue
+                                                                        {t('travel.archive.continue')}
                                                                     </button>
                                                                     <button
                                                                         className={styles.driveButtonSecondary}
                                                                         onClick={() => handleStartOver(entry)}
                                                                     >
-                                                                        Start over
+                                                                        {t('travel.archive.startOver')}
                                                                     </button>
                                                                     <button
                                                                         className={styles.driveButtonGhost}
                                                                         onClick={() => handleDiscardEntry(entry)}
-                                                                        title="Discard this in-progress trip"
+                                                                        title={t('travel.archive.discardTitle')}
                                                                     >
-                                                                        Discard
+                                                                        {t('travel.archive.discard')}
                                                                     </button>
                                                                 </>
                                                             ) : (
@@ -1050,7 +1052,7 @@ export default function TravelPicker() {
                                                                     className={styles.driveButton}
                                                                     onClick={() => loadRouteIntoCustom(entry.station_codes, entry.is_round_trip, entry.station_tracks)}
                                                                 >
-                                                                    Drive this route
+                                                                    {t('travel.archive.driveRoute')}
                                                                 </button>
                                                             )}
                                                         </div>
@@ -1063,7 +1065,7 @@ export default function TravelPicker() {
                             )
                         ) : (
                             favorites.length === 0 ? (
-                                <div className={styles.archiveEmpty}>No starred routes</div>
+                                <div className={styles.archiveEmpty}>{t('travel.archive.noFavorites')}</div>
                             ) : (
                                 <div className={styles.archiveList}>
                                     {favorites.map(fav => {
@@ -1077,11 +1079,11 @@ export default function TravelPicker() {
                                                     <div className={styles.archiveItemContent}>
                                                         <span className={styles.archiveRoute}>
                                                             {(fav.station_names?.[0] || resolveStationName(fav.station_codes[0]))} → {(fav.station_names?.[fav.station_names.length - 1] || resolveStationName(fav.station_codes[fav.station_codes.length - 1]))}
-                                                            {fav.is_round_trip && <span className={styles.roundTripBadge}>Round trip</span>}
+                                                            {fav.is_round_trip && <span className={styles.roundTripBadge}>{t('travel.archive.roundTrip')}</span>}
                                                         </span>
                                                         <span className={styles.archiveMeta}>
-                                                            <span>{fav.station_codes.length} stops</span>
-                                                            {fav.total_km && <span>{Math.round(fav.total_km * 100) / 100} km</span>}
+                                                            <span>{t('travel.archive.totalStops', { n: fav.station_codes.length })}</span>
+                                                            {fav.total_km && <span>{formatDistanceKm(Math.round(fav.total_km * 100) / 100)}</span>}
                                                         </span>
                                                     </div>
                                                     <button
@@ -1171,7 +1173,7 @@ export default function TravelPicker() {
                                 onClick={addStop}
                                 disabled={fetchingRoute}
                             >
-                                + Add Stop
+                                {t('travel.custom.addStop')}
                             </button>
                         )}
 
@@ -1181,14 +1183,14 @@ export default function TravelPicker() {
                                 className={styles.optionCard}
                                 onClick={() => !fetchingRoute && setReturnToStart(prev => !prev)}
                             >
-                                <span className={styles.optionLabel}>Round trip</span>
+                                <span className={styles.optionLabel}>{t('travel.custom.roundTrip')}</span>
                                 <div className={`${styles.returnToggleSwitch} ${returnToStart ? styles.returnToggleSwitchOn : ''}`} />
                             </div>
                             <div
                                 className={`${styles.optionCard} ${showConditions ? styles.optionCardActive : ''}`}
                                 onClick={() => setShowConditions(prev => !prev)}
                             >
-                                <span className={styles.optionLabel}>Conditions</span>
+                                <span className={styles.optionLabel}>{t('travel.custom.conditions')}</span>
                                 <span className={styles.optionArrow}>{showConditions ? '▾' : '▸'}</span>
                             </div>
                         </div>
@@ -1198,12 +1200,12 @@ export default function TravelPicker() {
                             <div className={styles.conditionsPanel}>
                                 <div className={styles.conditionSection}>
                                     <div className={styles.conditionHeader}>
-                                        <span className={styles.conditionLabel}>Time of day</span>
+                                        <span className={styles.conditionLabel}>{t('travel.custom.timeOfDay')}</span>
                                         <button
                                             className={`${styles.conditionPill} ${conditions.timeOfDay < 0 ? styles.conditionPillActive : ''}`}
                                             onClick={() => setGameCondition('timeOfDay', -1)}
                                         >
-                                            Auto
+                                            {t('travel.custom.auto')}
                                         </button>
                                     </div>
                                     {conditions.timeOfDay >= 0 ? (
@@ -1215,19 +1217,19 @@ export default function TravelPicker() {
                                     ) : (
                                         <div className={styles.timePresets}>
                                             {([
-                                                ['Dawn', 600],
-                                                ['Morning', 900],
-                                                ['Noon', 1200],
-                                                ['Afternoon', 1500],
-                                                ['Sunset', 1900],
-                                                ['Night', 2200],
-                                            ] as const).map(([label, value]) => (
+                                                ['dawn', 600],
+                                                ['morning', 900],
+                                                ['noon', 1200],
+                                                ['afternoon', 1500],
+                                                ['sunset', 1900],
+                                                ['night', 2200],
+                                            ] as const).map(([key, value]) => (
                                                 <button
-                                                    key={label}
+                                                    key={key}
                                                     className={styles.timePresetButton}
                                                     onClick={() => setGameCondition('timeOfDay', value)}
                                                 >
-                                                    {label}
+                                                    {t(`travel.custom.presets.${key}`)}
                                                 </button>
                                             ))}
                                         </div>
@@ -1235,21 +1237,15 @@ export default function TravelPicker() {
                                 </div>
 
                                 <div className={styles.conditionSection}>
-                                    <span className={styles.conditionLabel}>Weather</span>
+                                    <span className={styles.conditionLabel}>{t('travel.custom.weather')}</span>
                                     <div className={styles.weatherOptions}>
-                                        {([
-                                            ['clear', 'Clear'],
-                                            ['cloudy', 'Cloudy'],
-                                            ['overcast', 'Overcast'],
-                                            ['rain', 'Rain'],
-                                            ['heavy-rain', 'Storm'],
-                                        ] as [GameConditions['weather'], string][]).map(([value, label]) => (
+                                        {(['clear', 'cloudy', 'overcast', 'rain', 'heavy-rain'] as GameConditions['weather'][]).map((value) => (
                                             <button
                                                 key={value}
                                                 className={`${styles.weatherButton} ${conditions.weather === value ? styles.weatherButtonActive : ''}`}
                                                 onClick={() => setGameCondition('weather', value)}
                                             >
-                                                {label}
+                                                {t(`travel.custom.weatherOptions.${value}`)}
                                             </button>
                                         ))}
                                     </div>
@@ -1266,7 +1262,7 @@ export default function TravelPicker() {
                             onClick={() => handleGo()}
                             disabled={!canSubmit}
                         >
-                            {fetchingRoute ? 'Loading route...' : 'Go'}
+                            {fetchingRoute ? t('travel.loading.route') : t('travel.go')}
                         </button>
                     </>
                 )}

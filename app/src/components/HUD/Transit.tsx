@@ -19,6 +19,7 @@ import {
 } from '../../store/journey';
 import { updateTick, trainDistanceTraveled } from '../../store/train';
 import { isSmallScreen } from '../../store/globals';
+import { t } from '../../i18n';
 import styles from './Transit.module.css';
 import InlineSVG from '../InlineSVG';
 
@@ -508,7 +509,7 @@ function Transit() {
 
                                                 return (
                                                     <div className={styles.scheduleRow}>
-                                                        <span className={styles.scheduleLabel}>Arr</span>
+                                                        <span className={styles.scheduleLabel}>{t('hud.transit.arr')}</span>
                                                         <span className={`${styles.scheduleTime} ${hasDelay ? styles[delayStatus] : ''}`}>
                                                             {formatClockTime(predictedArrTime)}
                                                         </span>
@@ -543,7 +544,7 @@ function Transit() {
 
                                                 return (
                                                     <div className={styles.scheduleRow}>
-                                                        <span className={styles.scheduleLabel}>Dep</span>
+                                                        <span className={styles.scheduleLabel}>{t('hud.transit.dep')}</span>
                                                         <span className={`${styles.scheduleTime} ${hasDelay ? styles[delayStatus] : ''}`}>
                                                             {formatClockTime(predictedDepTime)}
                                                         </span>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'preact/hooks';
 import { supabase } from '../lib/Supabase';
 import TrainSpinner from './TrainSpinner';
+import { t } from '../i18n';
 import styles from './GateScreen.module.css';
 
 interface Props {
@@ -44,7 +45,7 @@ export default function GateScreen({ checking, recoveryMode = false, onRecoveryC
             if (error) {
                 setErrorMessage(error.message);
             } else {
-                setSuccessMessage('Check your email to confirm your account.');
+                setSuccessMessage(t('gate.success.checkEmailConfirm'));
             }
         } else if (mode === 'forgot') {
             const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -53,7 +54,7 @@ export default function GateScreen({ checking, recoveryMode = false, onRecoveryC
             if (error) {
                 setErrorMessage(error.message);
             } else {
-                setSuccessMessage('Check your email for a reset link.');
+                setSuccessMessage(t('gate.success.checkEmailReset'));
             }
         } else if (mode === 'reset') {
             const { error } = await supabase.auth.updateUser({ password });
@@ -72,29 +73,15 @@ export default function GateScreen({ checking, recoveryMode = false, onRecoveryC
             <div className={styles.container}>
                 <div className={styles.content}>
                     <TrainSpinner />
-                    <p className={styles.loadingText}>Departing shortly...</p>
+                    <p className={styles.loadingText}>{t('gate.loading')}</p>
                 </div>
             </div>
         );
     }
 
-    const title =
-        mode === 'login' ? 'Welcome' :
-        mode === 'signup' ? 'Create Account' :
-        mode === 'forgot' ? 'Reset Password' :
-        'Set New Password';
-
-    const submitLabel =
-        mode === 'login' ? 'Login' :
-        mode === 'signup' ? 'Sign Up' :
-        mode === 'forgot' ? 'Send Reset Link' :
-        'Update Password';
-
-    const loadingLabel =
-        mode === 'login' ? 'Logging in...' :
-        mode === 'signup' ? 'Creating account...' :
-        mode === 'forgot' ? 'Sending...' :
-        'Updating...';
+    const title = t(`gate.title.${mode}`);
+    const submitLabel = t(`gate.submit.${mode}`);
+    const loadingLabel = t(`gate.submitLoading.${mode}`);
 
     const showEmail = mode !== 'reset';
     const showPassword = mode !== 'forgot';
@@ -107,7 +94,7 @@ export default function GateScreen({ checking, recoveryMode = false, onRecoveryC
                     <>
                         <div className={styles.successBanner}>{successMessage}</div>
                         <button className={styles.secondaryBtn} onClick={() => switchMode('login')}>
-                            Back to Login
+                            {t('gate.links.backToLogin')}
                         </button>
                     </>
                 ) : (
@@ -115,21 +102,21 @@ export default function GateScreen({ checking, recoveryMode = false, onRecoveryC
                         <form onSubmit={handleSubmit} className={styles.form}>
                             {showEmail && (
                                 <div className={styles.inputGroup}>
-                                    <label className={styles.inputLabel}>Email</label>
+                                    <label className={styles.inputLabel}>{t('gate.fields.email')}</label>
                                     <input
                                         type="email"
                                         value={email}
                                         onInput={(e) => setEmail((e.target as HTMLInputElement).value)}
                                         required
                                         className={styles.input}
-                                        placeholder="your@email.com"
+                                        placeholder={t('gate.fields.emailPlaceholder')}
                                     />
                                 </div>
                             )}
                             {showPassword && (
                                 <div className={styles.inputGroup}>
                                     <label className={styles.inputLabel}>
-                                        {mode === 'reset' ? 'New Password' : 'Password'}
+                                        {mode === 'reset' ? t('gate.fields.newPassword') : t('gate.fields.password')}
                                     </label>
                                     <input
                                         type="password"
@@ -138,7 +125,7 @@ export default function GateScreen({ checking, recoveryMode = false, onRecoveryC
                                         required
                                         minLength={mode === 'login' ? undefined : 6}
                                         className={styles.input}
-                                        placeholder="Min. 6 characters"
+                                        placeholder={t('gate.fields.passwordPlaceholder')}
                                     />
                                 </div>
                             )}
@@ -154,38 +141,38 @@ export default function GateScreen({ checking, recoveryMode = false, onRecoveryC
                                     className={styles.linkBtn}
                                     onClick={() => switchMode('forgot')}
                                 >
-                                    Forgot password?
+                                    {t('gate.links.forgotPassword')}
                                 </button>
-                                <div className={styles.divider}>or</div>
+                                <div className={styles.divider}>{t('gate.or')}</div>
                                 <button
                                     className={styles.secondaryBtn}
                                     onClick={() => switchMode('signup')}
                                 >
-                                    Create Account
+                                    {t('gate.links.createAccount')}
                                 </button>
                             </>
                         )}
 
                         {mode === 'signup' && (
                             <>
-                                <div className={styles.divider}>or</div>
+                                <div className={styles.divider}>{t('gate.or')}</div>
                                 <button
                                     className={styles.secondaryBtn}
                                     onClick={() => switchMode('login')}
                                 >
-                                    Back to Login
+                                    {t('gate.links.backToLogin')}
                                 </button>
                             </>
                         )}
 
                         {mode === 'forgot' && (
                             <>
-                                <div className={styles.divider}>or</div>
+                                <div className={styles.divider}>{t('gate.or')}</div>
                                 <button
                                     className={styles.secondaryBtn}
                                     onClick={() => switchMode('login')}
                                 >
-                                    Back to Login
+                                    {t('gate.links.backToLogin')}
                                 </button>
                             </>
                         )}
