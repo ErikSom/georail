@@ -67,21 +67,33 @@
 .tabBadge {
     position: absolute;
     top: 6px;
-    right: 10px;
+    right: 32px;
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: #ff6b35;
-    box-shadow: 0 0 0 2px var(--menu-light);
+    background: var(--menu-warning);
 }
 
 .archiveInProgress {
-    border: 2px solid #ff6b35;
+    border: 2px solid var(--menu-warning);
+}
+
+.archiveRouteRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.archiveRouteRow .archiveRoute {
+    flex: 1;
+    min-width: 0;
 }
 
 .inProgressBadge {
+    flex-shrink: 0;
     display: inline-block;
-    background: #ff6b35;
+    background: var(--menu-warning);
     color: white;
     border-radius: 999px;
     padding: 2px 8px;
@@ -89,8 +101,6 @@
     font-weight: 600;
     letter-spacing: 0.3px;
     text-transform: uppercase;
-    margin-left: 8px;
-    vertical-align: 2px;
 }
 
 .timelineStopReached {

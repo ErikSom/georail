@@ -975,11 +975,13 @@ export default function TravelPicker() {
                                                     onClick={() => setExpandedArchiveId(isExpanded ? null : entry.id)}
                                                 >
                                                     <div className={styles.archiveItemContent}>
-                                                        <span className={styles.archiveRoute}>
-                                                            {resolveStationName(entry.station_codes[0])} → {resolveStationName(entry.station_codes[entry.station_codes.length - 1])}
+                                                        <div className={styles.archiveRouteRow}>
+                                                            <span className={styles.archiveRoute}>
+                                                                {resolveStationName(entry.station_codes[0])} → {resolveStationName(entry.station_codes[entry.station_codes.length - 1])}
+                                                            </span>
                                                             {entry.is_round_trip && <span className={styles.roundTripBadge}>Round trip</span>}
                                                             {inProgress && <span className={styles.inProgressBadge}>In progress</span>}
-                                                        </span>
+                                                        </div>
                                                         <span className={styles.archiveMeta}>
                                                             <span>{formatDate(entry.started_at)}</span>
                                                             <span>
