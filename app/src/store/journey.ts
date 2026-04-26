@@ -756,11 +756,30 @@ export function formatRelativeTime(minutes: number): string {
     return `${mins}m ${secs}s`;
 }
 
+const KM_TO_MILE = 0.62137;
+const M_TO_FT = 3.28084;
+
 export function formatDistance(km: number): string {
     const sign = km < 0 ? '-' : '';
     const absKm = Math.abs(km);
+    if (configs.value.unitSystem === 'imperial') {
+        const miles = absKm * KM_TO_MILE;
+        if (miles < 0.1) {
+            return `${sign}${Math.round(absKm * 1000 * M_TO_FT)} ft`;
+        }
+        return `${sign}${miles.toFixed(1)} mi`;
+    }
     if (absKm < 1) {
         return `${sign}${Math.round(absKm * 1000)} m`;
+    }
+    return `${sign}${absKm.toFixed(1)} km`;
+}
+
+export function formatDistanceKm(km: number): string {
+    const sign = km < 0 ? '-' : '';
+    const absKm = Math.abs(km);
+    if (configs.value.unitSystem === 'imperial') {
+        return `${sign}${(absKm * KM_TO_MILE).toFixed(1)} mi`;
     }
     return `${sign}${absKm.toFixed(1)} km`;
 }

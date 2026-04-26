@@ -19,7 +19,7 @@ function Speedometer() {
     const [speed, setSpeed] = useState(0);
     const [maxSpeed, setMaxSpeed] = useState(120);
     const [trackLimit, setTrackLimit] = useState<number | null>(null);
-    const [unitSystem] = useState(configs.value.unitSystem);
+    const unitSystem = configs.value.unitSystem;
     const [mode, setMode] = useState<SpeedometerMode>(() => {
         const stored = localStorage.getItem(STORAGE_KEY_MODE);
         if (stored === 'analog' || stored === 'digital') return stored;
@@ -168,11 +168,11 @@ function Speedometer() {
             )}
 
             {trackLimit != null && (() => {
-                const rounded = Math.round(trackLimit);
-                const isThreeDigit = rounded >= 100;
+                const limitDisplay = formatSpeed(trackLimit, unitSystem);
+                const isThreeDigit = limitDisplay >= 100;
                 return (
-                    <div className={styles.speedLimitSign} aria-label={`Speed limit ${rounded} km/h`}>
-                        <span className={`${styles.speedLimitValue} ${isThreeDigit ? styles.speedLimitValueTight : ''}`}>{rounded}</span>
+                    <div className={styles.speedLimitSign} aria-label={`Speed limit ${limitDisplay} ${unit}`}>
+                        <span className={`${styles.speedLimitValue} ${isThreeDigit ? styles.speedLimitValueTight : ''}`}>{limitDisplay}</span>
                     </div>
                 );
             })()}

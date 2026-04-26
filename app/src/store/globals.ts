@@ -76,13 +76,20 @@ interface Configs {
     // Station stop detection - zone is centered on station, length = train length + this leniency
     stationStopLeniencyM: number;  // Extra meters added to train length for stop zone (default: 15m)
 }
+export type UnitSystem = 'metric' | 'imperial';
+
 export const configs = signal<Configs>({
-    unitSystem: 'metric',
+    unitSystem: loadData<UnitSystem>('unitSystem', 'metric'),
     initialDwellTime: 1,
     minStopDwellTime: 1,
     maxStopDwellTime: 6,
     stationStopLeniencyM: 15,
 });
+
+export function setUnitSystem(value: UnitSystem) {
+    configs.value = { ...configs.value, unitSystem: value };
+    saveData('unitSystem', value);
+}
 
 // Game conditions — set in TravelPicker, consumed by World/Sky/Rain on journey start
 export interface GameConditions {
