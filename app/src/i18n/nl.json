@@ -89,7 +89,8 @@
         "searchStations": "Stations zoeken...",
         "selectStation": "Selecteer station",
         "selectTrack": "Selecteer spoor",
-        "anyTrack": "Elk spoor"
+        "anyTrack": "Elk spoor",
+        "noStations": "Geen stations gevonden"
     },
     "settings": {
         "language": "Taal",
@@ -134,7 +135,8 @@
             "mapDataSources": "Kaartbronnen",
             "toggle": "Kaartbronnen tonen",
             "close": "Kaartbronnen sluiten"
-        }
+        },
+        "loading": "Vertrekt zo dadelijk..."
     },
     "journeyComplete": {
         "title": "Reis voltooid",

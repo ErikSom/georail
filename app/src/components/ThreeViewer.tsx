@@ -13,6 +13,7 @@ import Speedometer from './HUD/Speedometer';
 import { routeData, resetJourney, journeyCompleted } from '../store/journey';
 import { appScreen, gameReady } from '../store/app';
 import { hudSettings } from '../store/globals';
+import { t } from '../i18n';
 
 function ThreeViewer() {
     const mountRef = useRef<HTMLDivElement | null>(null);
@@ -71,7 +72,7 @@ function ThreeViewer() {
 
             <div className={`${styles.loadingOverlay} ${ready ? styles.loadingOverlayHidden : ''}`}>
                 <TrainSpinner />
-                <p className={styles.loadingText}>Departing shortly...</p>
+                <p className={styles.loadingText}>{t('hud.loading')}</p>
             </div>
 
             {!showComplete && ready && (

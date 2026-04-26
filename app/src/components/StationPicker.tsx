@@ -170,7 +170,7 @@ export default function StationPicker({
                     )
                 })}
                 {filteredStations.length === 0 && (
-                    <div className={styles.noResults}>No stations found</div>
+                    <div className={styles.noResults}>{t('travel.noStations')}</div>
                 )}
             </div>
         </>

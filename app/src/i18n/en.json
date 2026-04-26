@@ -89,7 +89,8 @@
         "searchStations": "Search stations...",
         "selectStation": "Select station",
         "selectTrack": "Select track",
-        "anyTrack": "Any track"
+        "anyTrack": "Any track",
+        "noStations": "No stations found"
     },
     "settings": {
         "language": "Language",
@@ -134,7 +135,8 @@
             "mapDataSources": "Map Data Sources",
             "toggle": "Toggle map data sources",
             "close": "Close map data sources"
-        }
+        },
+        "loading": "Departing shortly..."
     },
     "journeyComplete": {
         "title": "Journey Complete",
