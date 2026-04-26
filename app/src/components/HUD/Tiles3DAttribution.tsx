@@ -1,4 +1,5 @@
 import { useState } from 'preact/hooks';
+import { t } from '../../i18n';
 import styles from './Tiles3DAttribution.module.css';
 
 export type Tiles3DAttributionCredits = {
@@ -30,7 +31,7 @@ function Tiles3DAttribution({ attribution, showMap2DAttribution }: Tiles3DAttrib
             <div className={styles.attribution}>
                 <div className={styles.logoContainer}>
                     <img src="/icons/googlemaps.svg" alt="Google Maps" className={styles.googlemaps} />
-                    {attribution?.latLonStr || 'Loading ...'}
+                    {attribution?.latLonStr || t('hud.attribution.loading')}
                 </div>
                 {attribution?.source}
                 {showMap2DAttribution && <Map2DAttribution />}
@@ -40,18 +41,18 @@ function Tiles3DAttribution({ attribution, showMap2DAttribution }: Tiles3DAttrib
             <button className={`${styles.attribution} ${styles.attribution_mobile}`}
                 onClick={() => setShowSources(!showSources)}
                 role="button"
-                aria-label="Toggle map data sources"
+                aria-label={t('hud.attribution.toggle')}
             >
                 <img src="/icons/googlemaps.svg" alt="Google Maps" className={styles.googlemaps} />
-                Data Sources
+                {t('hud.attribution.dataSources')}
             </button>
 
             {showSources && (
-                <div className={styles.attribution__overlay} onClick={() => setShowSources(false)} role="button" aria-label="Close map data sources">
-                    <h3>Map Data Sources</h3>
+                <div className={styles.attribution__overlay} onClick={() => setShowSources(false)} role="button" aria-label={t('hud.attribution.close')}>
+                    <h3>{t('hud.attribution.mapDataSources')}</h3>
                     {attribution?.source ?
                         (<>{attribution?.latLonStr}{'\n'}{attribution?.source}{showMap2DAttribution && <Map2DAttribution />}</>) :
-                        (<>Loading location and data sources...</>)
+                        (<>{t('hud.attribution.loadingFull')}</>)
                     }
                 </div>
             )

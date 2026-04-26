@@ -4,6 +4,7 @@ import { trainVelocityKmh, trainMaxSpeedKmh, updateTick } from "../../store/trai
 import { trackMaxSpeedKmh } from "../../store/journey";
 import { configs } from "../../store/globals";
 import { formatSpeed, getSpeedUnit } from "../../lib/utils/Units";
+import { t } from "../../i18n";
 
 import { isSmallScreen, screenWidth } from '../../store/globals';
 import { useTransformable } from '../../hooks/useTransformable';
@@ -186,13 +187,13 @@ function Speedometer() {
                         className={`${styles.modeButton} ${mode === 'digital' ? styles.active : ''}`}
                         onClick={() => handleModeSelect('digital')}
                     >
-                        Digital
+                        {t('hud.speedometer.digital')}
                     </button>
                     <button
                         className={`${styles.modeButton} ${mode === 'analog' ? styles.active : ''}`}
                         onClick={() => handleModeSelect('analog')}
                     >
-                        Analog
+                        {t('hud.speedometer.analog')}
                     </button>
                 </div>
             )}

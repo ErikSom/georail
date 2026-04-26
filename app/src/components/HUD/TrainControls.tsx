@@ -4,6 +4,7 @@ import BipolarDial from './BipolarDial';
 import IconButton from './IconButton';
 import { Input } from '../../lib/utils/Input';
 import { trainPower, trainPowerPercent, trainVelocityKmh, trainDoorsOpen, trainHeadlightsOn, trainInstance, trainBraking, trainDirection, updateTick, deltaTimeMs } from '../../store/train';
+import { t } from '../../i18n';
 
 function TrainControls() {
     const [isOpen, setIsOpen] = useState(true);
@@ -173,7 +174,7 @@ function TrainControls() {
                     icon="/icons/controls.svg"
                     className={styles.toggleButton}
                     onClick={() => setIsOpen(true)}
-                    ariaLabel="Toggle train controls"
+                    ariaLabel={t('hud.controls.toggle')}
                     iconSize={24}
                 />
             }
@@ -188,19 +189,19 @@ function TrainControls() {
                         size={220}
                         braking={trainBraking.value}
                     />
-                    <IconButton toggle on={trainHeadlightsOn.value} icon="/icons/lightbulb.svg" className={styles.lightIcon} onClick={handleHeadlights} ariaLabel="Toggle headlights" />
-                    <IconButton toggle on={trainDoorsOpen.value} icon={trainDoorsOpen.value ? "/icons/doors-open.svg" : "/icons/doors-close.svg"} className={`${styles.doorIcon} ${doorError ? styles.doorError : ''}`} onClick={handleDoorToggle} ariaLabel="Toggle doors" />
-                    <IconButton icon="/icons/stop.svg" className={styles.stopIcon} onClick={handleStop} ariaLabel="Emergency stop" />
-                    <IconButton icon="/icons/horn.svg" className={styles.hornIcon} onShortPress={handleHornLow} onLongPress={handleHornHigh} ariaLabel="Sound horn" />
+                    <IconButton toggle on={trainHeadlightsOn.value} icon="/icons/lightbulb.svg" className={styles.lightIcon} onClick={handleHeadlights} ariaLabel={t('hud.controls.headlights')} />
+                    <IconButton toggle on={trainDoorsOpen.value} icon={trainDoorsOpen.value ? "/icons/doors-open.svg" : "/icons/doors-close.svg"} className={`${styles.doorIcon} ${doorError ? styles.doorError : ''}`} onClick={handleDoorToggle} ariaLabel={t('hud.controls.doors')} />
+                    <IconButton icon="/icons/stop.svg" className={styles.stopIcon} onClick={handleStop} ariaLabel={t('hud.controls.stop')} />
+                    <IconButton icon="/icons/horn.svg" className={styles.hornIcon} onShortPress={handleHornLow} onLongPress={handleHornHigh} ariaLabel={t('hud.controls.horn')} />
                     <IconButton
                         toggle
                         on={trainDirection.value === -1}
                         icon={trainDirection.value === 1 ? "/icons/forward.svg" : "/icons/backward.svg"}
                         className={`${styles.directionIcon} ${directionError ? styles.doorError : ''}`}
                         onClick={handleDirectionToggle}
-                        ariaLabel="Toggle direction"
+                        ariaLabel={t('hud.controls.direction')}
                     />
-                    <IconButton icon="/icons/controls-off.svg" className={styles.closeControls} onClick={() => setIsOpen(false)} ariaLabel="Close train controls" />
+                    <IconButton icon="/icons/controls-off.svg" className={styles.closeControls} onClick={() => setIsOpen(false)} ariaLabel={t('hud.controls.close')} />
                 </div>
             </div>
         </>

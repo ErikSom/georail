@@ -85,7 +85,11 @@
                 "heavy-rain": "Storm"
             }
         },
-        "go": "Go"
+        "go": "Go",
+        "searchStations": "Search stations...",
+        "selectStation": "Select station",
+        "selectTrack": "Select track",
+        "anyTrack": "Any track"
     },
     "settings": {
         "language": "Language",
@@ -109,6 +113,27 @@
         "transit": {
             "arr": "Arr",
             "dep": "Dep"
+        },
+        "speedometer": {
+            "digital": "Digital",
+            "analog": "Analog"
+        },
+        "controls": {
+            "toggle": "Toggle train controls",
+            "close": "Close train controls",
+            "headlights": "Toggle headlights",
+            "doors": "Toggle doors",
+            "stop": "Emergency stop",
+            "horn": "Sound horn",
+            "direction": "Toggle direction"
+        },
+        "attribution": {
+            "loading": "Loading ...",
+            "loadingFull": "Loading location and data sources...",
+            "dataSources": "Data Sources",
+            "mapDataSources": "Map Data Sources",
+            "toggle": "Toggle map data sources",
+            "close": "Close map data sources"
         }
     },
     "journeyComplete": {
@@ -209,7 +234,7 @@
     "credits": {
         "title": "Credits",
         "back": "Back",
-        "intro": "A tabletop-style train simulator built on Google's photorealistic 3D tiles, following real-world rail networks. Starting in the Netherlands and expanding from there.",
+        "intro": "A Model Railroad Simulator built on Google's photorealistic 3D tiles, following real-world rail networks. Starting in the Netherlands and expanding from there.",
         "copyright": "© 2025 Terminarch Games",
         "sections": {
             "team": "Team",

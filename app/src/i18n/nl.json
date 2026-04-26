@@ -85,7 +85,11 @@
                 "heavy-rain": "Storm"
             }
         },
-        "go": "Start"
+        "go": "Start",
+        "searchStations": "Stations zoeken...",
+        "selectStation": "Selecteer station",
+        "selectTrack": "Selecteer spoor",
+        "anyTrack": "Elk spoor"
     },
     "settings": {
         "language": "Taal",
@@ -109,6 +113,27 @@
         "transit": {
             "arr": "Aank",
             "dep": "Vert"
+        },
+        "speedometer": {
+            "digital": "Digitaal",
+            "analog": "Analoog"
+        },
+        "controls": {
+            "toggle": "Treinbediening tonen",
+            "close": "Treinbediening sluiten",
+            "headlights": "Koplampen aan/uit",
+            "doors": "Deuren aan/uit",
+            "stop": "Noodstop",
+            "horn": "Toeter",
+            "direction": "Rijrichting omdraaien"
+        },
+        "attribution": {
+            "loading": "Laden ...",
+            "loadingFull": "Locatie en bronnen laden...",
+            "dataSources": "Bronnen",
+            "mapDataSources": "Kaartbronnen",
+            "toggle": "Kaartbronnen tonen",
+            "close": "Kaartbronnen sluiten"
         }
     },
     "journeyComplete": {
@@ -209,7 +234,7 @@
     "credits": {
         "title": "Credits",
         "back": "Terug",
-        "intro": "Een tabletop-treinsimulator gebouwd op Google's fotorealistische 3D-tegels, die echte spoornetwerken volgt. We beginnen in Nederland en breiden van daaruit uit.",
+        "intro": "Een Modelspoor-simulator gebouwd op Google's fotorealistische 3D-tegels, die echte spoornetwerken volgt. We beginnen in Nederland en breiden van daaruit uit.",
         "copyright": "© 2025 Terminarch Games",
         "sections": {
             "team": "Team",

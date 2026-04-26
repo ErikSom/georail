@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'preact/hooks';
+import { createPortal } from 'preact/compat';
 import type { StationTrackInfo } from '../lib/api/station';
+import { t } from '../i18n';
 import styles from './StationPicker.module.css';
 
 interface StationPickerProps {
@@ -131,7 +133,7 @@ export default function StationPicker({
         <div className={styles.trackPicker}>
             <div className={styles.trackList}>
                 <button className={styles.trackOption} onClick={() => handleTrackClick('')}>
-                    Any track
+                    {t('travel.anyTrack')}
                 </button>
                 {[...availableTracks].sort((a, b) => {
                     const numA = parseInt(a), numB = parseInt(b);
@@ -152,7 +154,7 @@ export default function StationPicker({
                 className={styles.searchInput}
                 value={searchQuery}
                 onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
-                placeholder="Search stations..."
+                placeholder={t('travel.searchStations')}
             />
             <div key={searchQuery} className={`${mobileMode ? styles.mobileResultsList : styles.resultsList} thinScroll`}>
                 {filteredStations.map(station => {
@@ -174,23 +176,30 @@ export default function StationPicker({
         </>
     );
 
-    // Mobile mode: fixed overlay at top of screen
+    // Mobile mode: fixed overlay at top of screen.
+    // Portal to <body> so it escapes the MenuScreen stacking context (z-index: 1)
+    // and actually paints above the floating language selector.
     if (mobileMode) {
         return (
             <div ref={containerRef} className={styles.container}>
-                <div className={styles.mobileBackdrop} onClick={close} />
-                <div
-                    className={styles.mobileOverlay}
-                    style={viewportHeight ? { maxHeight: `${viewportHeight - 16}px` } : undefined}
-                >
-                    <div className={styles.mobileHeader}>
-                        <span className={styles.mobileTitle}>
-                            {pickingTrack ? 'Select track' : label ? `${label} — Select station` : 'Select station'}
-                        </span>
-                        <button className={styles.mobileClose} onClick={close}>✕</button>
-                    </div>
-                    {pickerContent}
-                </div>
+                {typeof document !== 'undefined' && createPortal(
+                    <>
+                        <div className={styles.mobileBackdrop} onClick={close} />
+                        <div
+                            className={styles.mobileOverlay}
+                            style={viewportHeight ? { maxHeight: `${viewportHeight - 16}px` } : undefined}
+                        >
+                            <div className={styles.mobileHeader}>
+                                <span className={styles.mobileTitle}>
+                                    {pickingTrack ? t('travel.selectTrack') : label ? `${label} — ${t('travel.selectStation')}` : t('travel.selectStation')}
+                                </span>
+                                <button className={styles.mobileClose} onClick={close}>✕</button>
+                            </div>
+                            {pickerContent}
+                        </div>
+                    </>,
+                    document.body,
+                )}
             </div>
         );
     }

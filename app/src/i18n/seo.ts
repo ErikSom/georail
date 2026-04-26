@@ -16,7 +16,7 @@ export const seo: Record<Locale, Record<"home" | "account" | "credits" | "userRo
         home: {
             title: "GeoRail — Drive real trains on photorealistic 3D maps",
             description:
-                "A tabletop-style train simulator on Google's photorealistic 3D tiles. Drive real Dutch trains on real tracks — with more countries coming.",
+                "A Model Railroad Simulator on Google's photorealistic 3D tiles. Drive real Dutch trains on real tracks — with more countries coming.",
             keywords: DEFAULT_KEYWORDS_EN,
         },
         account: {
@@ -39,7 +39,7 @@ export const seo: Record<Locale, Record<"home" | "account" | "credits" | "userRo
         home: {
             title: "GeoRail — Bestuur echte treinen op fotorealistische 3D-kaarten",
             description:
-                "Een tabletop-treinsimulator op Google's fotorealistische 3D-tegels. Bestuur echte Nederlandse treinen op echte sporen — meer landen volgen.",
+                "Een Modelspoor-simulator op Google's fotorealistische 3D-tegels. Bestuur echte Nederlandse treinen op echte sporen — meer landen volgen.",
             keywords: DEFAULT_KEYWORDS_NL,
         },
         account: {
