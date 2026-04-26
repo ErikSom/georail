@@ -73,9 +73,18 @@ const createObfuscator = (isSecureMode) => {
 
 export default defineConfig({
   site: 'https://georail.app',
+  i18n: {
+    defaultLocale: 'en',
+    locales: ['en', 'nl'],
+    routing: { prefixDefaultLocale: false },
+  },
   integrations: [
     preact(),
     sitemap({
+      i18n: {
+        defaultLocale: 'en',
+        locales: { en: 'en-US', nl: 'nl-NL' },
+      },
       filter: (page) => !page.includes('/editor') && !page.includes('/train-editor') && !page.includes('/maps-test'),
     }),
   ],

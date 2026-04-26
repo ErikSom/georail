@@ -1,0 +1,12 @@
+---
+import AstroLayout from "../../layouts/Layout.astro";
+import UserRoutesViewer from "../../components/UserRoutesViewer.tsx";
+import Auth from "../../components/Auth.tsx";
+import SplashOverlay from "../../components/SplashOverlay.tsx";
+---
+
+<AstroLayout lang="nl" seoKey="userRoutes">
+    <SplashOverlay client:load ready={true} />
+    <Auth client:load />
+    <UserRoutesViewer client:load />
+</AstroLayout>

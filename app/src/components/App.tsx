@@ -6,19 +6,21 @@ import MenuScreen from './MenuScreen';
 import ThreeViewer from './ThreeViewer';
 import BottomTabs, { type TabId } from './BottomTabs';
 import SplashOverlay from './SplashOverlay';
+import LanguageSelector from './LanguageSelector';
 import { appScreen } from '../store/app';
 import { startUserRouteJourney, refreshActiveSession } from '../store/journey';
 import { fetchSharedUserRoute } from '../lib/api/userRoutes';
 import type { RouteData } from '../lib/api/navigation';
+import { stripLocale, withLocale, locale, detectLocaleFromPath } from '../i18n';
 
 function currentTab(): TabId {
     if (typeof window === 'undefined') return 'journey';
-    return window.location.pathname === '/account' ? 'account' : 'journey';
+    return stripLocale(window.location.pathname) === '/account' ? 'account' : 'journey';
 }
 
 function isCreditsRoute(): boolean {
     if (typeof window === 'undefined') return false;
-    return window.location.pathname === '/credits';
+    return stripLocale(window.location.pathname) === '/credits';
 }
 
 export default function App() {
@@ -70,6 +72,7 @@ export default function App() {
 
     useEffect(() => {
         const onPopState = () => {
+            locale.value = detectLocaleFromPath();
             setTab(currentTab());
             setShowCredits(isCreditsRoute());
         };
@@ -114,15 +117,17 @@ export default function App() {
 
     const openCredits = () => {
         setShowCredits(true);
-        if (window.location.pathname !== '/credits') {
-            window.history.pushState({}, '', '/credits');
+        const target = withLocale('/credits', locale.value);
+        if (window.location.pathname !== target) {
+            window.history.pushState({}, '', target);
         }
     };
 
     const closeCredits = () => {
         setShowCredits(false);
-        if (window.location.pathname === '/credits') {
-            window.history.pushState({}, '', tab === 'account' ? '/account' : '/');
+        if (stripLocale(window.location.pathname) === '/credits') {
+            const target = withLocale(tab === 'account' ? '/account' : '/', locale.value);
+            window.history.pushState({}, '', target);
         }
     };
 
@@ -131,7 +136,7 @@ export default function App() {
     const navigate = (to: TabId) => {
         if (to === 'journey' && !isPremium) return;
         setTab(to);
-        const path = to === 'account' ? '/account' : '/';
+        const path = withLocale(to === 'account' ? '/account' : '/', locale.value);
         if (window.location.pathname !== path) {
             window.history.pushState({}, '', path);
         }
@@ -161,6 +166,7 @@ export default function App() {
     return (
         <>
             {showSplash && <SplashOverlay ready={!loading} onDone={() => setShowSplash(false)} />}
+            <LanguageSelector floating />
             <MenuScreen
                 session={session}
                 profile={profile}

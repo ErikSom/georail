@@ -1,38 +1,81 @@
 ---
 import "./Layout.module.css";
 import "../styles/palette.css";
+import { LOCALES, DEFAULT_LOCALE, stripLocale, withLocale, type Locale } from "../i18n";
+import { seo } from "../i18n/seo";
 
 interface Props {
+    lang?: Locale;
     title?: string;
     description?: string;
+    keywords?: string;
+    seoKey?: keyof (typeof seo)["en"];
 }
 
 const SITE_NAME = "GeoRail";
 const SITE_URL = "https://georail.app";
-const DEFAULT_TITLE = "GeoRail — Drive real trains on photorealistic 3D maps";
-const DEFAULT_DESCRIPTION =
-    "A tabletop-style train simulator on Google's photorealistic 3D tiles. Drive real Dutch trains on real tracks — with more countries coming.";
 const OG_IMAGE = `${SITE_URL}/og-image.png`;
 
-const { title = DEFAULT_TITLE, description = DEFAULT_DESCRIPTION } = Astro.props;
-const canonical = new URL(Astro.url.pathname, SITE_URL).href;
+const { lang = DEFAULT_LOCALE, seoKey } = Astro.props;
+const fallback = seoKey ? seo[lang][seoKey] : seo[lang].home;
+const title = Astro.props.title ?? fallback.title;
+const description = Astro.props.description ?? fallback.description;
+const keywords = Astro.props.keywords ?? fallback.keywords;
+
+const basePath = stripLocale(Astro.url.pathname);
+const altUrls = LOCALES.map((l) => ({
+    hreflang: l,
+    href: new URL(withLocale(basePath, l), SITE_URL).href,
+}));
+const canonical = altUrls.find((a) => a.hreflang === lang)!.href;
+const xDefaultHref = altUrls.find((a) => a.hreflang === DEFAULT_LOCALE)!.href;
+
+const OG_LOCALES: Record<Locale, string> = { en: "en_US", nl: "nl_NL" };
+const ogLocale = OG_LOCALES[lang];
+const ogAlternateLocales = LOCALES.filter((l) => l !== lang).map((l) => OG_LOCALES[l]);
+
+const NON_DEFAULT_LOCALES = LOCALES.filter((l) => l !== DEFAULT_LOCALE);
+const PAIRED_PATHS = ["/", "/account", "/account/", "/credits", "/credits/", "/user-routes", "/user-routes/"];
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang={lang}>
     <head>
         <meta charset="UTF-8" />
         <meta
             name="viewport"
             content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
         />
+        <script is:inline define:vars={{ LOCALE_PREFIXES: NON_DEFAULT_LOCALES, PAIRED_PATHS }}>
+            (function () {
+                try {
+                    var p = location.pathname;
+                    for (var i = 0; i < LOCALE_PREFIXES.length; i++) {
+                        var prefix = '/' + LOCALE_PREFIXES[i];
+                        if (p === prefix || p.indexOf(prefix + '/') === 0) return;
+                    }
+                    if (PAIRED_PATHS.indexOf(p) === -1) return;
+                    var saved = localStorage.getItem('locale');
+                    var pref = null;
+                    if (saved && LOCALE_PREFIXES.indexOf(saved) !== -1) {
+                        pref = saved;
+                    } else if (!saved && navigator.language) {
+                        var browserLang = navigator.language.toLowerCase().slice(0, 2);
+                        if (LOCALE_PREFIXES.indexOf(browserLang) !== -1) pref = browserLang;
+                    }
+                    if (pref) {
+                        var target = '/' + pref + (p === '/' ? '/' : p);
+                        location.replace(target + location.search + location.hash);
+                    }
+                } catch (e) { }
+            })();
+        </script>
         <title>{title}</title>
         <meta name="description" content={description} />
         <link rel="canonical" href={canonical} />
-        <meta
-            name="keywords"
-            content="train simulator, 3D train game, photorealistic train sim, Dutch trains, NS trains, Netherlands railway, train simulator browser, real trains, 3D map, railway simulator"
-        />
+        {altUrls.map((a) => <link rel="alternate" hreflang={a.hreflang} href={a.href} />)}
+        <link rel="alternate" hreflang="x-default" href={xDefaultHref} />
+        <meta name="keywords" content={keywords} />
         <meta name="theme-color" content="#3473E6" />
 
         <!-- Open Graph -->
@@ -43,7 +86,8 @@ const canonical = new URL(Astro.url.pathname, SITE_URL).href;
         <meta property="og:url" content={canonical} />
         <meta property="og:image" content={OG_IMAGE} />
         <meta property="og:image:alt" content="A train driving through a photorealistic 3D map of the Netherlands" />
-        <meta property="og:locale" content="en_US" />
+        <meta property="og:locale" content={ogLocale} />
+        {ogAlternateLocales.map((l) => <meta property="og:locale:alternate" content={l} />)}
 
         <!-- Twitter -->
         <meta name="twitter:card" content="summary_large_image" />
@@ -66,14 +110,15 @@ const canonical = new URL(Astro.url.pathname, SITE_URL).href;
             "@type": "VideoGame",
             "name": SITE_NAME,
             "url": SITE_URL,
-            "description": DEFAULT_DESCRIPTION,
+            "description": seo[lang].home.description,
             "applicationCategory": "Game",
             "operatingSystem": "Web",
             "genre": ["Simulation", "Train Simulator"],
             "publisher": {
                 "@type": "Organization",
                 "name": "Terminarch Games"
-            }
+            },
+            "inLanguage": lang
         })} />
     </head>
     <body>

@@ -1,0 +1,238 @@
+{
+    "menu": {
+        "footer": {
+            "credits": "Credits"
+        }
+    },
+    "tabs": {
+        "journey": "Journey",
+        "account": "Account"
+    },
+    "travel": {
+        "title": "Plan Journey",
+        "tabs": {
+            "regular": "Live",
+            "custom": "Create",
+            "archive": "Archive"
+        },
+        "stop": {
+            "from": "From",
+            "to": "To",
+            "intermediate": "Stop {n}",
+            "remove": "Remove stop"
+        },
+        "loading": {
+            "stations": "Loading stations...",
+            "stops": "Loading stops...",
+            "departures": "Loading departures...",
+            "route": "Loading route...",
+            "generic": "Loading..."
+        },
+        "errors": {
+            "fetchDepartures": "Could not fetch departures. Please make sure you are logged in.",
+            "fetchDeparturesGeneric": "Failed to fetch departures",
+            "loadStations": "Failed to load stations. Please try again.",
+            "selectAllStations": "Please select all stations",
+            "noStationCodes": "Could not find station codes",
+            "fetchRoute": "Failed to fetch route",
+            "fetchJourney": "Failed to fetch journey details",
+            "notEnoughStations": "Not enough stations found in our database",
+            "favoriteFailed": "Failed to update favorite",
+            "stationCodeNotFound": "Station code not found"
+        },
+        "regular": {
+            "viaLabel": "Via (optional)",
+            "viaPlaceholder": "Filter by station name…",
+            "viaClear": "Clear via filter",
+            "noDeparturesVia": "No departures passing through {via}",
+            "noDepartures": "No departures found"
+        },
+        "archive": {
+            "history": "History",
+            "starred": "Starred",
+            "noJourneys": "No journeys yet",
+            "noFavorites": "No starred routes",
+            "roundTrip": "Round trip",
+            "inProgress": "In progress",
+            "progressStops": "{current} of {total} stops",
+            "totalStops": "{n} stops",
+            "continue": "Continue",
+            "startOver": "Start over",
+            "discard": "Discard",
+            "discardTitle": "Discard this in-progress trip",
+            "driveRoute": "Drive this route"
+        },
+        "custom": {
+            "addStop": "+ Add Stop",
+            "roundTrip": "Round trip",
+            "conditions": "Conditions",
+            "timeOfDay": "Time of day",
+            "auto": "Auto",
+            "weather": "Weather",
+            "presets": {
+                "dawn": "Dawn",
+                "morning": "Morning",
+                "noon": "Noon",
+                "afternoon": "Afternoon",
+                "sunset": "Sunset",
+                "night": "Night"
+            },
+            "weatherOptions": {
+                "clear": "Clear",
+                "cloudy": "Cloudy",
+                "overcast": "Overcast",
+                "rain": "Rain",
+                "heavy-rain": "Storm"
+            }
+        },
+        "go": "Go"
+    },
+    "settings": {
+        "language": "Language",
+        "units": "Units",
+        "metric": "Metric",
+        "imperial": "Imperial"
+    },
+    "hud": {
+        "menu": {
+            "open": "Game menu",
+            "widgets": "Widgets",
+            "volume": "Volume",
+            "masterVolume": "Master volume",
+            "exit": "Exit to menu",
+            "toggles": {
+                "showMap2D": "Map",
+                "showSpeedometer": "Speedometer",
+                "showTransit": "Transit"
+            }
+        },
+        "transit": {
+            "arr": "Arr",
+            "dep": "Dep"
+        }
+    },
+    "journeyComplete": {
+        "title": "Journey Complete",
+        "distance": "Distance",
+        "stops": "Stops",
+        "totalKilometers": "Total Kilometers",
+        "level": "Level {n}",
+        "levelUp": "Level Up! You are now Level {n}",
+        "stationsVisited": "Stations Visited: {n}",
+        "newlyUnlocked": "Newly Unlocked",
+        "continue": "Continue"
+    },
+    "account": {
+        "title": "Account",
+        "loading": "Departing shortly...",
+        "logout": "Logout",
+        "premium": {
+            "stripe": "Premium — via Stripe",
+            "patreon": "Premium — via Patreon",
+            "vip": "VIP — First class",
+            "gift": "Gift — Enjoy the ride!",
+            "influencer": "Influencer — All aboard",
+            "fallback": "Premium",
+            "renewsSuffix": " — renews {date}",
+            "manageSubscription": "Manage Subscription",
+            "manageSubscriptionLoading": "Opening...",
+            "connectionsDivider": "connections"
+        },
+        "connections": {
+            "connected": "Connected",
+            "connect": "Connect",
+            "connecting": "Connecting..."
+        },
+        "subscribe": {
+            "earlyAccessTag": "Early Access",
+            "earlyAccessBefore": "GeoRail is in active development. Features, content, and pricing will evolve over time. Before subscribing, please read more about what the game is (and isn't) on our ",
+            "earlyAccessAfter": ".",
+            "discordLinkText": "Discord",
+            "callToAction": "Subscribe to get access to GeoRail and the premium Discord.",
+            "subscribe": "Subscribe",
+            "subscribeLoading": "Redirecting...",
+            "or": "or",
+            "subscribePatreon": "Subscribe on Patreon",
+            "subscribePatreonLoading": "Redirecting..."
+        },
+        "messages": {
+            "stripeSuccess": "Subscription activated! It may take a moment to update.",
+            "discordLinked": "Discord account connected!",
+            "patreonSuccess": "Patreon linked and premium activated!",
+            "patreonNotPatron": "Your Patreon account is linked but you are not an active patron.",
+            "discordError": "Failed to connect Discord. Please try again.",
+            "patreonError": "Failed to connect Patreon. Please try again.",
+            "checkoutFailed": "Failed to start checkout.",
+            "portalFailed": "Failed to open subscription management.",
+            "discordStartFailed": "Failed to start Discord connection.",
+            "patreonStartFailed": "Failed to start Patreon connection."
+        }
+    },
+    "gate": {
+        "loading": "Departing shortly...",
+        "title": {
+            "login": "Welcome",
+            "signup": "Create Account",
+            "forgot": "Reset Password",
+            "reset": "Set New Password"
+        },
+        "submit": {
+            "login": "Login",
+            "signup": "Sign Up",
+            "forgot": "Send Reset Link",
+            "reset": "Update Password"
+        },
+        "submitLoading": {
+            "login": "Logging in...",
+            "signup": "Creating account...",
+            "forgot": "Sending...",
+            "reset": "Updating..."
+        },
+        "fields": {
+            "email": "Email",
+            "emailPlaceholder": "your@email.com",
+            "password": "Password",
+            "newPassword": "New Password",
+            "passwordPlaceholder": "Min. 6 characters"
+        },
+        "links": {
+            "forgotPassword": "Forgot password?",
+            "createAccount": "Create Account",
+            "backToLogin": "Back to Login"
+        },
+        "or": "or",
+        "success": {
+            "checkEmailConfirm": "Check your email to confirm your account.",
+            "checkEmailReset": "Check your email for a reset link."
+        }
+    },
+    "credits": {
+        "title": "Credits",
+        "back": "Back",
+        "intro": "A tabletop-style train simulator built on Google's photorealistic 3D tiles, following real-world rail networks. Starting in the Netherlands and expanding from there.",
+        "copyright": "© 2025 Terminarch Games",
+        "sections": {
+            "team": "Team",
+            "tiles3d": "3D Map Tiles",
+            "map2d": "2D Map",
+            "railData": "Rail & Station Data",
+            "departures": "Departures",
+            "builtWith": "Built with"
+        },
+        "team": {
+            "programmingLabel": "Programming",
+            "trainModelsLabel": "Train Models",
+            "playtestingLabel": "Playtesting"
+        },
+        "map2d": {
+            "renderingBy": "Rendering by"
+        },
+        "railData": {
+            "osmSuffix": "contributors",
+            "routingPoweredBy": "Routing powered by"
+        },
+        "departures": {
+            "liveFromPrefix": "Live departures and journey data from"
+        }
+    }
+}

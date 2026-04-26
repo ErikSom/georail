@@ -1,0 +1,238 @@
+{
+    "menu": {
+        "footer": {
+            "credits": "Credits"
+        }
+    },
+    "tabs": {
+        "journey": "Reis",
+        "account": "Account"
+    },
+    "travel": {
+        "title": "Reis plannen",
+        "tabs": {
+            "regular": "Live",
+            "custom": "Maak",
+            "archive": "Archief"
+        },
+        "stop": {
+            "from": "Van",
+            "to": "Naar",
+            "intermediate": "Stop {n}",
+            "remove": "Stop verwijderen"
+        },
+        "loading": {
+            "stations": "Stations laden...",
+            "stops": "Stops laden...",
+            "departures": "Vertrektijden laden...",
+            "route": "Route laden...",
+            "generic": "Laden..."
+        },
+        "errors": {
+            "fetchDepartures": "Vertrektijden ophalen mislukt. Controleer of je bent ingelogd.",
+            "fetchDeparturesGeneric": "Vertrektijden ophalen mislukt",
+            "loadStations": "Stations laden mislukt. Probeer het opnieuw.",
+            "selectAllStations": "Selecteer alle stations",
+            "noStationCodes": "Stationscodes niet gevonden",
+            "fetchRoute": "Route ophalen mislukt",
+            "fetchJourney": "Reisdetails ophalen mislukt",
+            "notEnoughStations": "Niet genoeg stations gevonden in onze database",
+            "favoriteFailed": "Favoriet bijwerken mislukt",
+            "stationCodeNotFound": "Stationscode niet gevonden"
+        },
+        "regular": {
+            "viaLabel": "Via (optioneel)",
+            "viaPlaceholder": "Filter op stationnaam…",
+            "viaClear": "Via-filter wissen",
+            "noDeparturesVia": "Geen vertrektijden via {via}",
+            "noDepartures": "Geen vertrektijden gevonden"
+        },
+        "archive": {
+            "history": "Geschiedenis",
+            "starred": "Favorieten",
+            "noJourneys": "Nog geen reizen",
+            "noFavorites": "Geen favoriete routes",
+            "roundTrip": "Retour",
+            "inProgress": "Bezig",
+            "progressStops": "{current} van {total} stops",
+            "totalStops": "{n} stops",
+            "continue": "Doorgaan",
+            "startOver": "Opnieuw beginnen",
+            "discard": "Verwijderen",
+            "discardTitle": "Deze lopende reis verwijderen",
+            "driveRoute": "Rijd deze route"
+        },
+        "custom": {
+            "addStop": "+ Stop toevoegen",
+            "roundTrip": "Retour",
+            "conditions": "Condities",
+            "timeOfDay": "Tijdstip",
+            "auto": "Automatisch",
+            "weather": "Weer",
+            "presets": {
+                "dawn": "Dageraad",
+                "morning": "Ochtend",
+                "noon": "Middag",
+                "afternoon": "Namiddag",
+                "sunset": "Zonsondergang",
+                "night": "Nacht"
+            },
+            "weatherOptions": {
+                "clear": "Helder",
+                "cloudy": "Bewolkt",
+                "overcast": "Zwaar bewolkt",
+                "rain": "Regen",
+                "heavy-rain": "Storm"
+            }
+        },
+        "go": "Start"
+    },
+    "settings": {
+        "language": "Taal",
+        "units": "Eenheden",
+        "metric": "Metrisch",
+        "imperial": "Imperiaal"
+    },
+    "hud": {
+        "menu": {
+            "open": "Spelmenu",
+            "widgets": "Widgets",
+            "volume": "Volume",
+            "masterVolume": "Hoofdvolume",
+            "exit": "Terug naar menu",
+            "toggles": {
+                "showMap2D": "Kaart",
+                "showSpeedometer": "Snelheidsmeter",
+                "showTransit": "Transit"
+            }
+        },
+        "transit": {
+            "arr": "Aank",
+            "dep": "Vert"
+        }
+    },
+    "journeyComplete": {
+        "title": "Reis voltooid",
+        "distance": "Afstand",
+        "stops": "Stops",
+        "totalKilometers": "Totaal aantal kilometers",
+        "level": "Level {n}",
+        "levelUp": "Level omhoog! Je bent nu Level {n}",
+        "stationsVisited": "Bezochte stations: {n}",
+        "newlyUnlocked": "Nieuw ontgrendeld",
+        "continue": "Doorgaan"
+    },
+    "account": {
+        "title": "Account",
+        "loading": "Vertrekt zo dadelijk...",
+        "logout": "Uitloggen",
+        "premium": {
+            "stripe": "Premium — via Stripe",
+            "patreon": "Premium — via Patreon",
+            "vip": "VIP — Eerste klas",
+            "gift": "Cadeau — Geniet van de rit!",
+            "influencer": "Influencer — Allen instappen",
+            "fallback": "Premium",
+            "renewsSuffix": " — verlengt op {date}",
+            "manageSubscription": "Abonnement beheren",
+            "manageSubscriptionLoading": "Openen...",
+            "connectionsDivider": "verbindingen"
+        },
+        "connections": {
+            "connected": "Verbonden",
+            "connect": "Verbinden",
+            "connecting": "Verbinden..."
+        },
+        "subscribe": {
+            "earlyAccessTag": "Early Access",
+            "earlyAccessBefore": "GeoRail is volop in ontwikkeling. Functies, content en prijzen kunnen veranderen. Lees voordat je je abonneert meer over wat het spel wel (en niet) is op onze ",
+            "earlyAccessAfter": ".",
+            "discordLinkText": "Discord",
+            "callToAction": "Abonneer je om toegang te krijgen tot GeoRail en de premium Discord.",
+            "subscribe": "Abonneren",
+            "subscribeLoading": "Doorverwijzen...",
+            "or": "of",
+            "subscribePatreon": "Abonneren via Patreon",
+            "subscribePatreonLoading": "Doorverwijzen..."
+        },
+        "messages": {
+            "stripeSuccess": "Abonnement geactiveerd! Het kan even duren voordat dit is bijgewerkt.",
+            "discordLinked": "Discord-account verbonden!",
+            "patreonSuccess": "Patreon gekoppeld en premium geactiveerd!",
+            "patreonNotPatron": "Je Patreon-account is gekoppeld maar je bent geen actieve patron.",
+            "discordError": "Verbinden met Discord mislukt. Probeer het opnieuw.",
+            "patreonError": "Verbinden met Patreon mislukt. Probeer het opnieuw.",
+            "checkoutFailed": "Afrekenen starten mislukt.",
+            "portalFailed": "Abonnementsbeheer openen mislukt.",
+            "discordStartFailed": "Discord-koppeling starten mislukt.",
+            "patreonStartFailed": "Patreon-koppeling starten mislukt."
+        }
+    },
+    "gate": {
+        "loading": "Vertrekt zo dadelijk...",
+        "title": {
+            "login": "Welkom",
+            "signup": "Account aanmaken",
+            "forgot": "Wachtwoord resetten",
+            "reset": "Nieuw wachtwoord instellen"
+        },
+        "submit": {
+            "login": "Inloggen",
+            "signup": "Aanmelden",
+            "forgot": "Verstuur resetlink",
+            "reset": "Wachtwoord bijwerken"
+        },
+        "submitLoading": {
+            "login": "Bezig met inloggen...",
+            "signup": "Account aanmaken...",
+            "forgot": "Versturen...",
+            "reset": "Bijwerken..."
+        },
+        "fields": {
+            "email": "E-mail",
+            "emailPlaceholder": "jouw@email.nl",
+            "password": "Wachtwoord",
+            "newPassword": "Nieuw wachtwoord",
+            "passwordPlaceholder": "Min. 6 tekens"
+        },
+        "links": {
+            "forgotPassword": "Wachtwoord vergeten?",
+            "createAccount": "Account aanmaken",
+            "backToLogin": "Terug naar inloggen"
+        },
+        "or": "of",
+        "success": {
+            "checkEmailConfirm": "Controleer je e-mail om je account te bevestigen.",
+            "checkEmailReset": "Controleer je e-mail voor een resetlink."
+        }
+    },
+    "credits": {
+        "title": "Credits",
+        "back": "Terug",
+        "intro": "Een tabletop-treinsimulator gebouwd op Google's fotorealistische 3D-tegels, die echte spoornetwerken volgt. We beginnen in Nederland en breiden van daaruit uit.",
+        "copyright": "© 2025 Terminarch Games",
+        "sections": {
+            "team": "Team",
+            "tiles3d": "3D-kaarttegels",
+            "map2d": "2D-kaart",
+            "railData": "Spoor- en stationsdata",
+            "departures": "Vertrektijden",
+            "builtWith": "Gebouwd met"
+        },
+        "team": {
+            "programmingLabel": "Programmering",
+            "trainModelsLabel": "Treinmodellen",
+            "playtestingLabel": "Speltesten"
+        },
+        "map2d": {
+            "renderingBy": "Rendering door"
+        },
+        "railData": {
+            "osmSuffix": "bijdragers",
+            "routingPoweredBy": "Routering door"
+        },
+        "departures": {
+            "liveFromPrefix": "Live vertrektijden en reisdata van"
+        }
+    }
+}
