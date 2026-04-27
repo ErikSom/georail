@@ -1,11 +1,22 @@
 # Changelog
 
+## 0.4.1 (2026-04-27)
+
+### Features
+
+* **i18n:** finish translating in-game HUD and station picker 
+* **travel:** map-based station picker with mobile two-tap select 
+
+### Bug Fixes
+
+* **archive:** dedupe in-progress sessions for same route and cap visible history at 20 
+* **travel:** anchor archive badge to its label
+
 ## 0.4.0 (2026-04-26)
 
 ### Features
 
 * **Game:** persisted metric/imperial unit toggle 
-* **i18n:** EN/NL multi-language routing with persisted preference 
 * **i18n:** localize app screens to English and Dutch
 
 ## 0.3.2 (2026-04-24)
