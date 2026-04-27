@@ -39,9 +39,26 @@ export const startJourneySession = async (req, res) => {
 			return res.status(400).json({ error: 'segment_distances must have N-1 positive numbers' });
 		}
 
-		// Multi-session: we don't touch existing incomplete sessions. User can have
-		// several parallel trips waiting. The in-progress badge in the Archive's
-		// history list surfaces each one so they can Continue or Start over.
+		// Multi-session: parallel trips on different routes are allowed, but
+		// starting a fresh attempt at a route you already have in progress
+		// supersedes the prior attempt — otherwise the Archive accumulates
+		// duplicates of the same route stuck at "1 of N stops".
+		const { data: dupCandidates } = await supabase
+			.from('journey_sessions')
+			.select('id, station_codes')
+			.eq('user_id', req.userId)
+			.eq('completed', false);
+		const dupIds = (dupCandidates || [])
+			.filter(s => Array.isArray(s.station_codes)
+				&& s.station_codes.length === station_codes.length
+				&& s.station_codes.every((c, i) => c === station_codes[i]))
+			.map(s => s.id);
+		if (dupIds.length > 0) {
+			await supabase
+				.from('journey_sessions')
+				.update({ completed: true })
+				.in('id', dupIds);
+		}
 
 		let station_coords;
 		let alreadyVisited = [];
@@ -355,7 +372,7 @@ export const getJourneyHistory = async (req, res) => {
 			.eq('user_id', req.userId)
 			.eq('country', filterCountry)
 			.order('started_at', { ascending: false })
-			.limit(MAX_HISTORY);
+			.limit(20);
 
 		const { data: favorites } = await supabase
 			.from('favorite_routes')
