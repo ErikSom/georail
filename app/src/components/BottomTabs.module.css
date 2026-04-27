@@ -5,9 +5,10 @@
     right: 0;
     display: flex;
     background: var(--menu-panel);
-    border-top: 1px solid var(--menu-dark-06);
-    padding: 6px 0 env(safe-area-inset-bottom, 8px);
+    padding: 4px 0 env(safe-area-inset-bottom, 8px);
     z-index: 50;
+    border-radius: 16px;
+    margin: 6px 16px;
 }
 
 .tab {
