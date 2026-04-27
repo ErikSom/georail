@@ -12,6 +12,8 @@ AS $$
         'name', name,
         'code', code,
         'country', country,
+        'lat', lat,
+        'lon', lon,
         'tracks', CASE
             -- Check if the result is null or an empty array using JSONB
             WHEN tracks_list IS NULL OR tracks_list::jsonb = '[]'::jsonb
@@ -26,6 +28,8 @@ AS $$
       name,
       MAX(code) as code,
       MAX(country) as country,
+      ST_Y(ST_Centroid(ST_Collect(geom))) as lat,
+      ST_X(ST_Centroid(ST_Collect(geom))) as lon,
       json_agg(DISTINCT ref) FILTER (WHERE ref IS NOT NULL AND ref != '') as tracks_list
     FROM
       public.stations

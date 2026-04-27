@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'preact/hooks';
 import { createPortal } from 'preact/compat';
 import type { StationTrackInfo } from '../lib/api/station';
 import { t } from '../i18n';
+import MapStationPicker from './MapStationPicker';
 import styles from './StationPicker.module.css';
 
 interface StationPickerProps {
@@ -33,6 +34,7 @@ export default function StationPicker({
     const [searchQuery, setSearchQuery] = useState('');
     const [pickingTrack, setPickingTrack] = useState(false);
     const [mobileMode, setMobileMode] = useState(false);
+    const [showMap, setShowMap] = useState(false);
     const [viewportHeight, setViewportHeight] = useState<number | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -42,6 +44,7 @@ export default function StationPicker({
         setSearchQuery('');
         setPickingTrack(false);
         setMobileMode(false);
+        setShowMap(false);
     }, []);
 
     // Click-outside handler (desktop only)
@@ -94,12 +97,18 @@ export default function StationPicker({
 
     const handleStationClick = (station: StationTrackInfo) => {
         onSelectStation(station.name);
+        setShowMap(false);
         if (!stationOnly && station.tracks && station.tracks.length > 0) {
             setPickingTrack(true);
             setSearchQuery('');
         } else {
             close();
         }
+    };
+
+    const handleMapSelect = (stationName: string) => {
+        const station = stations.find((s) => s.name === stationName);
+        if (station) handleStationClick(station);
     };
 
     const handleTrackClick = (track: string) => {
@@ -148,14 +157,32 @@ export default function StationPicker({
         </div>
     ) : (
         <>
-            <input
-                ref={inputRef}
-                type="text"
-                className={styles.searchInput}
-                value={searchQuery}
-                onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
-                placeholder={t('travel.searchStations')}
-            />
+            <div className={styles.searchRow}>
+                <input
+                    ref={inputRef}
+                    type="text"
+                    className={styles.searchInput}
+                    value={searchQuery}
+                    onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
+                    placeholder={t('travel.searchStations')}
+                />
+                <button
+                    type="button"
+                    className={styles.mapButton}
+                    onClick={() => setShowMap(true)}
+                    aria-label={t('travel.openMap')}
+                    title={t('travel.openMap')}
+                >
+                    <span className={styles.mapButtonIcon} />
+                </button>
+            </div>
+            {showMap && (
+                <MapStationPicker
+                    stations={stations}
+                    onSelect={handleMapSelect}
+                    onClose={() => setShowMap(false)}
+                />
+            )}
             <div key={searchQuery} className={`${mobileMode ? styles.mobileResultsList : styles.resultsList} thinScroll`}>
                 {filteredStations.map(station => {
                     console.log("**** Rendering station:", station.name, station.code);

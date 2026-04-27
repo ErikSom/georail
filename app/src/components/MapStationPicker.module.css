@@ -1,0 +1,68 @@
+.overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: var(--menu-light);
+    display: flex;
+    flex-direction: column;
+    animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    background: var(--menu-light);
+    z-index: 1;
+}
+
+.title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--menu-dark);
+}
+
+.closeButton {
+    background: none;
+    border: none;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 10px;
+    color: var(--menu-dim);
+    border-radius: 8px;
+    transition: background 0.15s, color 0.15s;
+}
+
+.closeButton:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--menu-dark);
+}
+
+.mapContainer {
+    flex: 1;
+    width: 100%;
+    position: relative;
+}
+
+.tooltip {
+    position: absolute;
+    pointer-events: none;
+    padding: 6px 10px;
+    background: var(--menu-dark);
+    color: var(--menu-light);
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 8px;
+    white-space: nowrap;
+    transform: translate(-50%, calc(-100% - 12px));
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    z-index: 2;
+}

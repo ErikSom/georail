@@ -90,7 +90,9 @@
         "selectStation": "Select station",
         "selectTrack": "Select track",
         "anyTrack": "Any track",
-        "noStations": "No stations found"
+        "noStations": "No stations found",
+        "openMap": "Open map",
+        "mapPickerTitle": "Pick a station on the map"
     },
     "settings": {
         "language": "Language",

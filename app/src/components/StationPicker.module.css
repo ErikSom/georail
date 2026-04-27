@@ -68,7 +68,19 @@
 
 /* ─── Search input ────────────────────────────────────────── */
 
+.searchRow {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+}
+
+.mobileOverlay .mapButton {
+    padding: 6px 25px 6px 0;
+    margin-right: 0;
+}
+
 .searchInput {
+    flex: 1;
     width: 100%;
     font-size: 16px;
     font-weight: 600;
@@ -84,6 +96,40 @@
 .searchInput::placeholder {
     color: var(--menu-dim);
     font-weight: 400;
+}
+
+.mapButton {
+    flex-shrink: 0;
+    align-self: flex-end;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+    padding: 0;
+    margin-right: -8px;
+}
+
+.mapButton:hover {
+    background: rgba(52, 115, 230, 0.08);
+}
+
+.mapButtonIcon {
+    display: block;
+    width: 22px;
+    height: 22px;
+    background-color: var(--menu-accent);
+    mask-image: url(/icons/map.svg);
+    mask-size: contain;
+    mask-repeat: no-repeat;
+    mask-position: center;
+    -webkit-mask-image: url(/icons/map.svg);
+    -webkit-mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-position: center;
 }
 
 /* ─── Results dropdown (desktop) ──────────────────────────── */

@@ -90,7 +90,9 @@
         "selectStation": "Selecteer station",
         "selectTrack": "Selecteer spoor",
         "anyTrack": "Elk spoor",
-        "noStations": "Geen stations gevonden"
+        "noStations": "Geen stations gevonden",
+        "openMap": "Kaart openen",
+        "mapPickerTitle": "Kies een station op de kaart"
     },
     "settings": {
         "language": "Taal",

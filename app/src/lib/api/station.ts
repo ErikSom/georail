@@ -5,6 +5,8 @@ export interface StationTrackInfo {
     code: string;
     tracks: string[] | null;
     country: string;
+    lat?: number;
+    lon?: number;
 }
 
 export interface RouteStation {
