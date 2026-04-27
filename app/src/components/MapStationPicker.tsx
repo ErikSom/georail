@@ -26,6 +26,7 @@ export default function MapStationPicker({ stations, onSelect, onClose }: Props)
     const mapRef = useRef<maplibregl.Map | null>(null);
     const popupRef = useRef<maplibregl.Popup | null>(null);
     const pendingNameRef = useRef<string | null>(null);
+    const pendingIdRef = useRef<string | number | null>(null);
     const [hover, setHover] = useState<HoverInfo | null>(null);
 
     useEffect(() => {
@@ -56,14 +57,26 @@ export default function MapStationPicker({ stations, onSelect, onClose }: Props)
         const touch = isTouchDevice();
 
         const clearPending = () => {
+            if (pendingIdRef.current != null && mapRef.current) {
+                mapRef.current.setFeatureState(
+                    { source: 'stations', id: pendingIdRef.current },
+                    { pending: false }
+                );
+            }
             pendingNameRef.current = null;
+            pendingIdRef.current = null;
             popupRef.current?.remove();
             popupRef.current = null;
         };
 
+        // Tap target — bigger than the visible dot on touch devices for fat-finger tolerance.
+        // Mouse devices keep precise hit on the visible dot.
+        const hitLayer = touch ? 'stations-hitarea' : 'stations-circle';
+
         map.on('load', () => {
             map.addSource('stations', {
                 type: 'geojson',
+                generateId: true,
                 data: {
                     type: 'FeatureCollection',
                     features: validStations.map((s) => ({
@@ -74,15 +87,42 @@ export default function MapStationPicker({ stations, onSelect, onClose }: Props)
                 },
             });
 
+            if (touch) {
+                map.addLayer({
+                    id: 'stations-hitarea',
+                    type: 'circle',
+                    source: 'stations',
+                    paint: {
+                        'circle-radius': ['interpolate', ['linear'], ['zoom'], 7, 16, 12, 26],
+                        'circle-color': '#000000',
+                        'circle-opacity': 0,
+                    },
+                });
+            }
+
             map.addLayer({
                 id: 'stations-circle',
                 type: 'circle',
                 source: 'stations',
                 paint: {
-                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 7, 3, 12, 8],
-                    'circle-color': '#3473e6',
+                    'circle-radius': [
+                        'interpolate', ['linear'], ['zoom'],
+                        7, ['case', ['boolean', ['feature-state', 'pending'], false], 9, 5],
+                        12, ['case', ['boolean', ['feature-state', 'pending'], false], 15, 11],
+                    ],
+                    'circle-color': [
+                        'case',
+                        ['boolean', ['feature-state', 'pending'], false],
+                        '#1d4ed8',
+                        '#3473e6',
+                    ],
                     'circle-stroke-color': '#ffffff',
-                    'circle-stroke-width': 1.5,
+                    'circle-stroke-width': [
+                        'case',
+                        ['boolean', ['feature-state', 'pending'], false],
+                        3,
+                        1.5,
+                    ],
                 },
             });
 
@@ -107,7 +147,7 @@ export default function MapStationPicker({ stations, onSelect, onClose }: Props)
                 });
             }
 
-            map.on('click', 'stations-circle', (e) => {
+            map.on('click', hitLayer, (e) => {
                 const feature = e.features?.[0];
                 const name = feature?.properties?.name;
                 if (typeof name !== 'string') return;
@@ -115,13 +155,28 @@ export default function MapStationPicker({ stations, onSelect, onClose }: Props)
                     onSelect(name);
                     return;
                 }
-                // Touch: first tap shows label popup, second tap on same station selects.
+                // Touch: first tap shows label popup + highlights the dot,
+                // second tap on the same station selects it.
                 if (pendingNameRef.current === name) {
                     onSelect(name);
                     clearPending();
                     return;
                 }
+                // Switch highlight to the new station.
+                if (pendingIdRef.current != null) {
+                    map.setFeatureState(
+                        { source: 'stations', id: pendingIdRef.current },
+                        { pending: false }
+                    );
+                }
                 pendingNameRef.current = name;
+                pendingIdRef.current = feature.id ?? null;
+                if (feature.id != null) {
+                    map.setFeatureState(
+                        { source: 'stations', id: feature.id },
+                        { pending: true }
+                    );
+                }
                 const coords = (feature.geometry as GeoJSON.Point).coordinates as [number, number];
                 popupRef.current?.remove();
                 popupRef.current = new maplibregl.Popup({
@@ -138,7 +193,7 @@ export default function MapStationPicker({ stations, onSelect, onClose }: Props)
             if (touch) {
                 map.on('click', (e) => {
                     const features = map.queryRenderedFeatures(e.point, {
-                        layers: ['stations-circle'],
+                        layers: ['stations-hitarea'],
                     });
                     if (features.length === 0) clearPending();
                 });
