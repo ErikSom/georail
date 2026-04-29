@@ -171,8 +171,12 @@ function Speedometer() {
             {trackLimit != null && (() => {
                 const limitDisplay = formatSpeed(trackLimit, unitSystem);
                 const isThreeDigit = limitDisplay >= 100;
+                const signOnLeft = position.x > window.innerWidth / 2;
                 return (
-                    <div className={styles.speedLimitSign} aria-label={`Speed limit ${limitDisplay} ${unit}`}>
+                    <div
+                        className={`${styles.speedLimitSign} ${signOnLeft ? styles.speedLimitSignLeft : ''}`}
+                        aria-label={`Speed limit ${limitDisplay} ${unit}`}
+                    >
                         <span className={`${styles.speedLimitValue} ${isThreeDigit ? styles.speedLimitValueTight : ''}`}>{limitDisplay}</span>
                     </div>
                 );

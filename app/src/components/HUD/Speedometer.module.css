@@ -67,6 +67,15 @@
     right: -8px;
 }
 
+.speedLimitSignLeft {
+    right: auto;
+    left: -18px;
+}
+
+.analogMode .speedLimitSignLeft {
+    left: -8px;
+}
+
 .speedLimitValue {
     font-family: system-ui, -apple-system, sans-serif;
     font-size: 13px;
