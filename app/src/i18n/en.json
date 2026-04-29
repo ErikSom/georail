@@ -1,7 +1,8 @@
 {
     "menu": {
         "footer": {
-            "credits": "Credits"
+            "credits": "Credits",
+            "faq": "FAQ"
         }
     },
     "tabs": {
@@ -174,8 +175,10 @@
         },
         "subscribe": {
             "earlyAccessTag": "Early Access",
-            "earlyAccessBefore": "GeoRail is in active development. Features, content, and pricing will evolve over time. Before subscribing, please read more about what the game is (and isn't) on our ",
+            "earlyAccessBefore": "GeoRail is in active development. Features, content, and pricing will evolve over time. Before subscribing, please read more about what the game is (and isn't) in our ",
+            "earlyAccessMiddle": " or on our ",
             "earlyAccessAfter": ".",
+            "faqLinkText": "FAQ",
             "discordLinkText": "Discord",
             "callToAction": "Subscribe to get access to GeoRail and the premium Discord.",
             "subscribe": "Subscribe",
@@ -262,6 +265,41 @@
         },
         "departures": {
             "liveFromPrefix": "Live departures and journey data from"
+        }
+    },
+    "faq": {
+        "title": "FAQ",
+        "back": "Back",
+        "intro": "Common questions about GeoRail. Tap a question to read more.",
+        "q": {
+            "isSimulator": {
+                "q": "Is GeoRail a train simulator?",
+                "a": "<p>Not really. GeoRail is a <strong>model train simulation</strong>. Think of it like a digital model railroad, not a complex driving simulator.</p><p>You drive real trains on real tracks, but the controls are easy to pick up. It's made to be relaxing. You don't need to learn how every button in a real cab works.</p>"
+            },
+            "flatCities": {
+                "q": "Why do some cities look worse or flat?",
+                "a": "<p>The 3D world is rendered using <a href=\"https://developers.google.com/maps/documentation/tile/3d-tiles\" target=\"_blank\" rel=\"noreferrer nofollow\">Google's Photorealistic 3D Tiles</a>. Coverage and detail vary by location. Large cities have full photogrammetry mesh, while smaller towns may only have flat textures or simple extruded buildings.</p><p>This is dictated by Google's data, not by GeoRail. Coverage keeps improving over time as more areas get captured.</p>"
+            },
+            "subscription": {
+                "q": "Why do I need a subscription?",
+                "a": "<p>GeoRail streams Google's Photorealistic 3D Tiles, which are billed per session. On top of that there are server and database costs.</p><p>The subscription covers those running costs and lets a small indie team keep building GeoRail without ads or selling your data.</p>"
+            },
+            "trainFloats": {
+                "q": "Why does the train float or go into the ground?",
+                "a": "<p>Track positions come from <a href=\"https://www.openstreetmap.org/\" target=\"_blank\" rel=\"noreferrer nofollow\">OpenStreetMap</a>, but OpenStreetMap doesn't include altitude data. We add the height for each track by hand in our own editor, so it takes time to cover everything.</p><p>If you spot a section where the train floats or sinks, please report it in the <a href=\"https://discord.gg/JTZBKZfq2h\" target=\"_blank\" rel=\"noreferrer nofollow\">Discord</a> and we'll prioritise fixing it.</p><p>We're also always looking for people who want to help update altitudes in our editor. If that sounds fun, ask in the Discord and help the community out.</p>"
+            },
+            "outsideNetherlands": {
+                "q": "Can I drive outside of the Netherlands?",
+                "a": "<p>The official live departures and routing are Netherlands-only for now, so we can polish one country first.</p><p>You can already drive abroad through <a href=\"/user-routes\">user routes</a>. Anyone can build a route anywhere on the map and share it.</p><p>If you make one, please share it in the <a href=\"https://discord.gg/JTZBKZfq2h\" target=\"_blank\" rel=\"noreferrer nofollow\">Discord</a>. These routes aren't organised by GeoRail. The community builds and shares them.</p>"
+            },
+            "uploadTrains": {
+                "q": "Can I upload my own trains?",
+                "a": "<p>Not yet, but we're actively working on it. Our <a href=\"/train-editor\">train editor</a> is in development and will eventually let you bring your own trains into GeoRail.</p>"
+            },
+            "nextUpdate": {
+                "q": "What update will come next?",
+                "a": "<p>Current focus areas are smoother train alignment to the 3D mesh, more rolling stock, and expanding beyond the Netherlands. User-shared routes and the train editor are also actively in development.</p><p>Join the <a href=\"https://discord.gg/JTZBKZfq2h\" target=\"_blank\" rel=\"noreferrer nofollow\">Discord</a> for the latest roadmap discussion and to suggest what should land next.</p>"
+            }
         }
     }
 }

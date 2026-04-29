@@ -1,7 +1,8 @@
 {
     "menu": {
         "footer": {
-            "credits": "Credits"
+            "credits": "Credits",
+            "faq": "FAQ"
         }
     },
     "tabs": {
@@ -174,8 +175,10 @@
         },
         "subscribe": {
             "earlyAccessTag": "Early Access",
-            "earlyAccessBefore": "GeoRail is volop in ontwikkeling. Functies, content en prijzen kunnen veranderen. Lees voordat je je abonneert meer over wat het spel wel (en niet) is op onze ",
+            "earlyAccessBefore": "GeoRail is volop in ontwikkeling. Functies, content en prijzen kunnen veranderen. Lees voordat je je abonneert meer over wat het spel wel (en niet) is in onze ",
+            "earlyAccessMiddle": " of op onze ",
             "earlyAccessAfter": ".",
+            "faqLinkText": "FAQ",
             "discordLinkText": "Discord",
             "callToAction": "Abonneer je om toegang te krijgen tot GeoRail en de premium Discord.",
             "subscribe": "Abonneren",
@@ -262,6 +265,41 @@
         },
         "departures": {
             "liveFromPrefix": "Live vertrektijden en reisdata van"
+        }
+    },
+    "faq": {
+        "title": "FAQ",
+        "back": "Terug",
+        "intro": "Veelgestelde vragen over GeoRail. Tik op een vraag voor het antwoord.",
+        "q": {
+            "isSimulator": {
+                "q": "Is GeoRail een treinsimulator?",
+                "a": "<p>Niet echt. GeoRail is een <strong>modelspoor-simulatie</strong>. Zie het als een digitale modelbaan, geen ingewikkelde rijsimulator.</p><p>Je bestuurt echte treinen op echte sporen, maar de besturing is makkelijk op te pakken. Het is gemaakt om ontspannen te zijn. Je hoeft niet te weten hoe elke knop in een echte cabine werkt.</p>"
+            },
+            "flatCities": {
+                "q": "Waarom zien sommige steden er slechter of plat uit?",
+                "a": "<p>De 3D-wereld wordt gerenderd met <a href=\"https://developers.google.com/maps/documentation/tile/3d-tiles\" target=\"_blank\" rel=\"noreferrer nofollow\">Google's Photorealistic 3D Tiles</a>. Dekking en detail variëren per locatie. Grote steden hebben volledige fotogrammetrie-mesh, terwijl kleinere plaatsen soms alleen platte texturen of simpele opgetrokken gebouwen hebben.</p><p>Dit wordt bepaald door Google's data, niet door GeoRail. De dekking blijft verbeteren naarmate meer gebieden worden vastgelegd.</p>"
+            },
+            "subscription": {
+                "q": "Waarom heb ik een abonnement nodig?",
+                "a": "<p>GeoRail streamt Google's Photorealistic 3D Tiles, die per sessie worden afgerekend. Daarbovenop komen kosten voor servers en database.</p><p>Het abonnement dekt die lopende kosten en stelt een klein indie-team in staat om GeoRail door te ontwikkelen, zonder advertenties of het verkopen van je gegevens.</p>"
+            },
+            "trainFloats": {
+                "q": "Waarom zweeft de trein of zakt hij in de grond?",
+                "a": "<p>De positie van het spoor komt uit <a href=\"https://www.openstreetmap.org/\" target=\"_blank\" rel=\"noreferrer nofollow\">OpenStreetMap</a>, maar OpenStreetMap bevat geen hoogtedata. We voegen de hoogte voor elk stuk spoor handmatig toe in onze eigen editor, dus het kost tijd om alles te dekken.</p><p>Zie je ergens dat de trein zweeft of in de grond zakt? Meld het in de <a href=\"https://discord.gg/JTZBKZfq2h\" target=\"_blank\" rel=\"noreferrer nofollow\">Discord</a>, dan pakken we het met voorrang op.</p><p>We zoeken altijd mensen die willen helpen met het bijwerken van hoogtes in onze editor. Lijkt je dat leuk? Vraag het in de Discord en help de community.</p>"
+            },
+            "outsideNetherlands": {
+                "q": "Kan ik buiten Nederland rijden?",
+                "a": "<p>De officiële live vertrektijden en routing zijn voorlopig alleen voor Nederland, zodat we eerst één land goed op orde krijgen.</p><p>Buiten Nederland rijden kan al via <a href=\"/nl/user-routes\">eigen routes</a>. Iedereen kan ergens op de kaart een route bouwen en delen.</p><p>Maak je er een? Deel hem in de <a href=\"https://discord.gg/JTZBKZfq2h\" target=\"_blank\" rel=\"noreferrer nofollow\">Discord</a>. Deze routes worden niet door GeoRail beheerd. De community bouwt en deelt ze.</p>"
+            },
+            "uploadTrains": {
+                "q": "Kan ik mijn eigen treinen uploaden?",
+                "a": "<p>Nog niet, maar we werken er actief aan. Onze <a href=\"/train-editor\">treineditor</a> is in ontwikkeling en zal het uiteindelijk mogelijk maken om je eigen treinen in GeoRail te gebruiken.</p>"
+            },
+            "nextUpdate": {
+                "q": "Welke update komt er als volgende?",
+                "a": "<p>De huidige focus ligt op vloeiendere uitlijning van treinen op de 3D-mesh, meer materieel en uitbreiding buiten Nederland. Door gebruikers gedeelde routes en de treineditor zijn ook in actieve ontwikkeling.</p><p>Sluit je aan bij de <a href=\"https://discord.gg/JTZBKZfq2h\" target=\"_blank\" rel=\"noreferrer nofollow\">Discord</a> voor de laatste roadmap-discussies en om mee te denken over wat als volgende moet landen.</p>"
+            }
         }
     }
 }

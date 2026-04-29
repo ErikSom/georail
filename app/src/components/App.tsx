@@ -23,6 +23,11 @@ function isCreditsRoute(): boolean {
     return stripLocale(window.location.pathname) === '/credits';
 }
 
+function isFaqRoute(): boolean {
+    if (typeof window === 'undefined') return false;
+    return stripLocale(window.location.pathname) === '/faq';
+}
+
 export default function App() {
     const [session, setSession] = useState<Session | null>(null);
     const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -31,6 +36,7 @@ export default function App() {
     const [showSplash, setShowSplash] = useState(true);
     const [recoveryMode, setRecoveryMode] = useState(false);
     const [showCredits, setShowCredits] = useState(isCreditsRoute);
+    const [showFaq, setShowFaq] = useState(isFaqRoute);
 
     useEffect(() => {
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -75,6 +81,7 @@ export default function App() {
             locale.value = detectLocaleFromPath();
             setTab(currentTab());
             setShowCredits(isCreditsRoute());
+            setShowFaq(isFaqRoute());
         };
         window.addEventListener('popstate', onPopState);
         return () => window.removeEventListener('popstate', onPopState);
@@ -131,6 +138,22 @@ export default function App() {
         }
     };
 
+    const openFaq = () => {
+        setShowFaq(true);
+        const target = withLocale('/faq', locale.value);
+        if (window.location.pathname !== target) {
+            window.history.pushState({}, '', target);
+        }
+    };
+
+    const closeFaq = () => {
+        setShowFaq(false);
+        if (stripLocale(window.location.pathname) === '/faq') {
+            const target = withLocale(tab === 'account' ? '/account' : '/', locale.value);
+            window.history.pushState({}, '', target);
+        }
+    };
+
     const isPremium = !!(session && !loading && profile?.is_premium);
 
     const navigate = (to: TabId) => {
@@ -174,11 +197,14 @@ export default function App() {
                 activeTab={tab}
                 recoveryMode={recoveryMode}
                 showCredits={showCredits}
+                showFaq={showFaq}
                 onLogout={handleLogout}
                 onPremiumChange={refreshProfile}
                 onRecoveryComplete={handleRecoveryComplete}
                 onOpenCredits={openCredits}
                 onCloseCredits={closeCredits}
+                onOpenFaq={openFaq}
+                onCloseFaq={closeFaq}
             />
             {isPremium && !recoveryMode && <BottomTabs activeTab={tab} onTabChange={navigate} />}
         </>

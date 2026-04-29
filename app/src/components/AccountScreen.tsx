@@ -9,7 +9,7 @@ import {
     type SubscriptionStatus
 } from '../lib/api/subscription';
 import TrainSpinner from './TrainSpinner';
-import { t, locale } from '../i18n';
+import { t, locale, withLocale } from '../i18n';
 
 import styles from './GateScreen.module.css';
 
@@ -212,6 +212,10 @@ export default function AccountScreen({ session, onLogout, onPremiumChange }: Pr
                             <span className={styles.earlyAccessTag}>{t('account.subscribe.earlyAccessTag')}</span>
                             <p>
                                 {t('account.subscribe.earlyAccessBefore')}
+                                <a href={withLocale('/faq', locale.value)}>
+                                    {t('account.subscribe.faqLinkText')}
+                                </a>
+                                {t('account.subscribe.earlyAccessMiddle')}
                                 <a
                                     href="https://discord.gg/JTZBKZfq2h"
                                     target="_blank"

@@ -11,7 +11,7 @@ const DEFAULT_KEYWORDS_EN =
 const DEFAULT_KEYWORDS_NL =
     "treinsimulator, 3D treinspel, fotorealistische treinsimulator, Nederlandse treinen, NS treinen, Nederlands spoor, treinsimulator browser, echte treinen, 3D kaart, spoorwegsimulator";
 
-export const seo: Record<Locale, Record<"home" | "account" | "credits" | "userRoutes", PageSeo>> = {
+export const seo: Record<Locale, Record<"home" | "account" | "credits" | "userRoutes" | "faq", PageSeo>> = {
     en: {
         home: {
             title: "GeoRail — Drive real trains on photorealistic 3D maps",
@@ -32,6 +32,11 @@ export const seo: Record<Locale, Record<"home" | "account" | "credits" | "userRo
         userRoutes: {
             title: "My Routes — GeoRail",
             description: "Build, edit, and share your own train routes for GeoRail.",
+            keywords: DEFAULT_KEYWORDS_EN,
+        },
+        faq: {
+            title: "FAQ — GeoRail",
+            description: "Frequently asked questions about GeoRail — a model train simulation on photorealistic 3D tiles, following real Dutch tracks.",
             keywords: DEFAULT_KEYWORDS_EN,
         },
     },
@@ -55,6 +60,11 @@ export const seo: Record<Locale, Record<"home" | "account" | "credits" | "userRo
         userRoutes: {
             title: "Mijn routes — GeoRail",
             description: "Maak, bewerk en deel je eigen treinroutes voor GeoRail.",
+            keywords: DEFAULT_KEYWORDS_NL,
+        },
+        faq: {
+            title: "FAQ — GeoRail",
+            description: "Veelgestelde vragen over GeoRail — een modelspoor-simulatie op fotorealistische 3D-tegels, volgt echte Nederlandse sporen.",
             keywords: DEFAULT_KEYWORDS_NL,
         },
     },

@@ -6,6 +6,7 @@ import TravelPicker from './TravelPicker';
 import GateScreen from './GateScreen';
 import AccountScreen from './AccountScreen';
 import CreditsScreen from './CreditsScreen';
+import FaqScreen from './FaqScreen';
 import { t } from '../i18n';
 import styles from './MenuScreen.module.css';
 
@@ -16,14 +17,17 @@ interface Props {
     activeTab: TabId;
     recoveryMode: boolean;
     showCredits: boolean;
+    showFaq: boolean;
     onLogout: () => void;
     onPremiumChange: () => void;
     onRecoveryComplete: () => void;
     onOpenCredits: () => void;
     onCloseCredits: () => void;
+    onOpenFaq: () => void;
+    onCloseFaq: () => void;
 }
 
-export default function MenuScreen({ session, profile, checking, activeTab, recoveryMode, showCredits, onLogout, onPremiumChange, onRecoveryComplete, onOpenCredits, onCloseCredits }: Props) {
+export default function MenuScreen({ session, profile, checking, activeTab, recoveryMode, showCredits, showFaq, onLogout, onPremiumChange, onRecoveryComplete, onOpenCredits, onCloseCredits, onOpenFaq, onCloseFaq }: Props) {
     useEffect(() => {
         document.body.style.touchAction = 'auto';
         return () => {
@@ -34,6 +38,10 @@ export default function MenuScreen({ session, profile, checking, activeTab, reco
     const isPremium = session && !checking && profile?.is_premium;
 
     const renderPanel = () => {
+        if (showFaq) {
+            return <FaqScreen onBack={onCloseFaq} />;
+        }
+
         if (showCredits) {
             return <CreditsScreen onBack={onCloseCredits} />;
         }
@@ -71,6 +79,10 @@ export default function MenuScreen({ session, profile, checking, activeTab, reco
             {renderPanel()}
             <footer className={styles.footer}>
                 &copy; 2025 Terminarch Games &middot; v{__APP_VERSION__}
+                {' · '}
+                <button className={styles.creditsLink} onClick={onOpenFaq}>
+                    {t('menu.footer.faq')}
+                </button>
                 {' · '}
                 <button className={styles.creditsLink} onClick={onOpenCredits}>
                     {t('menu.footer.credits')}
