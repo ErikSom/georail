@@ -13,19 +13,22 @@ import { fetchSharedUserRoute } from '../lib/api/userRoutes';
 import type { RouteData } from '../lib/api/navigation';
 import { stripLocale, withLocale, locale, detectLocaleFromPath } from '../i18n';
 
+function normalizedPath(): string {
+    if (typeof window === 'undefined') return '/';
+    const p = stripLocale(window.location.pathname).replace(/\/+$/, '');
+    return p === '' ? '/' : p;
+}
+
 function currentTab(): TabId {
-    if (typeof window === 'undefined') return 'journey';
-    return stripLocale(window.location.pathname) === '/account' ? 'account' : 'journey';
+    return normalizedPath() === '/account' ? 'account' : 'journey';
 }
 
 function isCreditsRoute(): boolean {
-    if (typeof window === 'undefined') return false;
-    return stripLocale(window.location.pathname) === '/credits';
+    return normalizedPath() === '/credits';
 }
 
 function isFaqRoute(): boolean {
-    if (typeof window === 'undefined') return false;
-    return stripLocale(window.location.pathname) === '/faq';
+    return normalizedPath() === '/faq';
 }
 
 export default function App() {
@@ -132,7 +135,7 @@ export default function App() {
 
     const closeCredits = () => {
         setShowCredits(false);
-        if (stripLocale(window.location.pathname) === '/credits') {
+        if (normalizedPath() === '/credits') {
             const target = withLocale(tab === 'account' ? '/account' : '/', locale.value);
             window.history.pushState({}, '', target);
         }
@@ -148,7 +151,7 @@ export default function App() {
 
     const closeFaq = () => {
         setShowFaq(false);
-        if (stripLocale(window.location.pathname) === '/faq') {
+        if (normalizedPath() === '/faq') {
             const target = withLocale(tab === 'account' ? '/account' : '/', locale.value);
             window.history.pushState({}, '', target);
         }
