@@ -354,14 +354,23 @@ export default class Path {
 
         if (this.looping) return this.getPointInternal(this.wrapDistance(distance), out);
 
-        if (distance < 0) return out.copy(this.points[0]).addScaledVector(this.startDir, distance);
+        // When extrapolating past either endpoint, keep the anchor's altitude.
+        // Spurious height discontinuities in the first/last segment (often from
+        // a route's trimmed entry where no override matched) would otherwise
+        // make extrapolated train wagons sink below or shoot above the rail.
+        if (distance < 0) {
+            out.copy(this.points[0]).addScaledVector(this.startDir, distance);
+            out.y = this.points[0].y;
+            return out;
+        }
         if (distance >= this.totalLength) {
              const lastLogIdx = this.logicalCount - 1;
              const pIdx = this.segPointIndices[lastLogIdx];
              const isCurve = this.segTypes[lastLogIdx] === SEG_CURVE;
-             // Safe End Extrapolation: use the last real geometry point
              const lastPt = this.points[pIdx + (isCurve ? 2 : 1)];
-             return out.copy(lastPt).addScaledVector(this.endDir, distance - this.totalLength);
+             out.copy(lastPt).addScaledVector(this.endDir, distance - this.totalLength);
+             out.y = lastPt.y;
+             return out;
         }
 
         return this.getPointInternal(distance, out);
@@ -483,6 +492,46 @@ export default class Path {
             }
         }
         return this.totalLength;
+    }
+
+    /**
+     * Inverse of getDistanceAtPointIndex: returns the input point index that
+     * the train is currently nearest to, given its arc-length distance.
+     * Useful for debugging — combined with the journey route's `editor` array
+     * it lets a debug HUD report the train's current segment_id/point_index.
+     */
+    public getPointIndexAtDistance(distance: number): number {
+        if (!Number.isFinite(distance)) return 0;
+        if (distance <= 0) return 0;
+        if (distance >= this.totalLength) return this.points.length - 1;
+        const seg = this.binarySearch(distance);
+        const startPt = this.segPointIndices[seg];
+        const isCurve = this.segTypes[seg] === SEG_CURVE;
+        const endPt = startPt + (isCurve ? 2 : 1);
+        const segStart = this.cumulativeLengths[seg];
+        const segEnd = this.cumulativeLengths[seg + 1];
+        const segLen = Math.max(EPS, segEnd - segStart);
+        // Pick the point (start, optional middle, end) whose distance is
+        // closest to `distance`.
+        const candidates = isCurve
+            ? [
+                { pi: startPt, d: segStart },
+                { pi: startPt + 1, d: (segStart + segEnd) / 2 },
+                { pi: endPt, d: segEnd },
+            ]
+            : [
+                { pi: startPt, d: segStart },
+                { pi: endPt, d: segEnd },
+            ];
+        let best = candidates[0];
+        let bestDelta = Math.abs(distance - best.d);
+        for (let i = 1; i < candidates.length; i++) {
+            const dlt = Math.abs(distance - candidates[i].d);
+            if (dlt < bestDelta) { best = candidates[i]; bestDelta = dlt; }
+        }
+        // Suppress unused-var warning in case we add interpolation logic later.
+        void segLen;
+        return best.pi;
     }
 
     /**
