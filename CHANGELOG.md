@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0 (2026-05-02)
+
+### Features
+
+* **rail:** trains follow real terrain across the Netherlands
+* **editor:** edit areas, multi-select with marquee, per-track colors
+* **hud:** F3 panel shows current track segment
+
 ## 0.4.1 (2026-04-27)
 
 ### Features
