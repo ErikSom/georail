@@ -79,3 +79,46 @@ export const findJourneyRoute = async (req, res) => {
         }
     });
 };
+
+/**
+ * Find every rail point inside a circular area
+ * GET /navi/area?lat=52.0801&lon=4.3250&radius=300&country=NL
+ * Returns the same shape as /navi/journey so the editor can render the
+ * result with its existing RouteEditor.
+ */
+export const findAreaRoute = async (req, res) => {
+    const { lat, lon, radius, country } = req.query;
+
+    const latNum = parseFloat(lat);
+    const lonNum = parseFloat(lon);
+    const radiusNum = parseFloat(radius);
+
+    if (!Number.isFinite(latNum) || !Number.isFinite(lonNum) || !Number.isFinite(radiusNum)) {
+        return res.status(400).json({ error: 'Query params lat, lon, radius must be numbers.' });
+    }
+    if (radiusNum <= 0 || radiusNum > 5000) {
+        return res.status(400).json({ error: 'radius must be between 1 and 5000 meters.' });
+    }
+
+    const { data: route, error: routeError } = await supabase.rpc('get_rail_in_area', {
+        p_lat: latNum,
+        p_lon: lonNum,
+        p_radius_m: radiusNum,
+        p_country: (country || 'NL').toString().toUpperCase()
+    });
+
+    if (routeError) {
+        return res.status(500).json({ error: `Area query error: ${routeError.message}` });
+    }
+
+    res.set('Cache-Control', 'public, s-maxage=604800, max-age=0, must-revalidate');
+    res.set('Vary', 'Accept-Encoding');
+
+    res.json({
+        type: "Feature",
+        geometry: route,
+        properties: {
+            stop_count: 0
+        }
+    });
+};

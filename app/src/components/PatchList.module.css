@@ -145,6 +145,20 @@
     font-size: 12px;
     font-weight: 400;
     color: #888;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.patchKindBadge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background-color: #2a2a2a;
+    color: #cccccc;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
 }
 
 .patchDescription {

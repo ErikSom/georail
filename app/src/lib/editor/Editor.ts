@@ -24,7 +24,7 @@ import { MapViewer } from '../MapViewer';
 import { FlightControls } from '../utils/FlightControls';
 import { Input } from '../utils/Input';
 import { RouteEditor } from './RouteEditor';
-import { fetchJourneyRoute, type RouteData, type JourneyStopInput } from '../api/navigation';
+import { fetchJourneyRoute, fetchAreaRoute, type RouteData, type JourneyStopInput, type JourneyRouteData } from '../api/navigation';
 import type { RouteInfo } from '../types/Patch';
 import { Sky } from '../Sky';
 import type { Tiles3DAttributionCredits } from '../../components/HUD/Tiles3DAttribution';
@@ -55,6 +55,7 @@ export class Editor {
 
     // Callbacks for patch editing
     public onNodeSelected: ((nodeData: any) => void) | null = null;
+    public onSelectionChanged: ((nodes: any[]) => void) | null = null;
     public onNodesModified: ((count: number) => void) | null = null;
     public onNodeIndexChanged: ((currentIndex: number, totalNodes: number) => void) | null = null;
 
@@ -106,7 +107,8 @@ export class Editor {
             if (this.routeEditor) {
                 const nodeKey = this.routeEditor.raycastNodes(this.raycaster);
                 if (nodeKey) {
-                    this.routeEditor.selectNode(nodeKey);
+                    const mode = Input.isShift ? 'toggle' : 'replace';
+                    this.routeEditor.selectNodes([nodeKey], mode);
                     return;
                 }
 
@@ -115,8 +117,8 @@ export class Editor {
                     return; // Don't deselect if clicking on transform controls
                 }
 
-                // If we didn't click a node or transform controls, deselect
-                this.routeEditor.selectNode(null);
+                // If we didn't click a node or transform controls, deselect (unless shift held — keeps selection so a marquee drag can extend it).
+                if (!Input.isShift) this.routeEditor.selectNodes([], 'replace');
                 return;
             }
 
@@ -157,28 +159,36 @@ export class Editor {
 
     public async loadPatchRoute(routeInfo: RouteInfo, patchId: number, reviewMode: boolean = false): Promise<void> {
         try {
-            // Build stops array for journey API using station codes
-            const stops: JourneyStopInput[] = [
-                routeInfo.fromTrack ? { code: routeInfo.fromStationCode, track: routeInfo.fromTrack } : { code: routeInfo.fromStationCode },
-                ...(routeInfo.viaStops || []).map(v =>
-                    v.track ? { code: v.stationCode, track: v.track } : { code: v.stationCode }
-                ),
-                routeInfo.toTrack ? { code: routeInfo.toStationCode, track: routeInfo.toTrack } : { code: routeInfo.toStationCode },
-            ];
+            const isArea = routeInfo.kind === 'area' && routeInfo.area;
 
-            // Fetch route data with editor=true to get all points
-            const journeyData = await fetchJourneyRoute(stops, true);
+            let journeyData: JourneyRouteData;
+            if (isArea) {
+                journeyData = await fetchAreaRoute(routeInfo.area!.lat, routeInfo.area!.lon, routeInfo.area!.radiusM);
+            } else {
+                // Build stops array for journey API using station codes
+                const stops: JourneyStopInput[] = [
+                    routeInfo.fromTrack ? { code: routeInfo.fromStationCode, track: routeInfo.fromTrack } : { code: routeInfo.fromStationCode },
+                    ...(routeInfo.viaStops || []).map(v =>
+                        v.track ? { code: v.stationCode, track: v.track } : { code: v.stationCode }
+                    ),
+                    routeInfo.toTrack ? { code: routeInfo.toStationCode, track: routeInfo.toTrack } : { code: routeInfo.toStationCode },
+                ];
+                journeyData = await fetchJourneyRoute(stops, true);
+            }
 
-            // Transform to RouteData format for compatibility
+            // Transform to RouteData format for compatibility. Area patches have
+            // no station stops, so we use a single placeholder anchor at the
+            // area center so RouteData's required `stops` array is non-empty.
+            const stopsForRouteData = isArea
+                ? [{ station: 'Area', code: '', track: null, arrivalTime: 0, departureTime: 0 }]
+                : [
+                    { station: routeInfo.fromStation, code: routeInfo.fromStationCode, track: routeInfo.fromTrack || null, arrivalTime: 0, departureTime: 0 },
+                    ...(routeInfo.viaStops || []).map(v => ({ station: v.station, code: v.stationCode, track: v.track || null, arrivalTime: 0, departureTime: 0 })),
+                    { station: routeInfo.toStation, code: routeInfo.toStationCode, track: routeInfo.toTrack || null, arrivalTime: 0, departureTime: 0 },
+                ];
             const routeData: RouteData = {
                 geometry: journeyData.geometry,
-                properties: {
-                    stops: [
-                        { station: routeInfo.fromStation, code: routeInfo.fromStationCode, track: routeInfo.fromTrack || null, arrivalTime: 0, departureTime: 0 },
-                        ...(routeInfo.viaStops || []).map(v => ({ station: v.station, code: v.stationCode, track: v.track || null, arrivalTime: 0, departureTime: 0 })),
-                        { station: routeInfo.toStation, code: routeInfo.toStationCode, track: routeInfo.toTrack || null, arrivalTime: 0, departureTime: 0 },
-                    ]
-                }
+                properties: { stops: stopsForRouteData }
             };
 
             // Fetch existing patch data to apply saved offsets
@@ -211,6 +221,12 @@ export class Editor {
                 this.routeEditor.onNodeSelected = (nodeData) => {
                     if (this.onNodeSelected) {
                         this.onNodeSelected(nodeData);
+                    }
+                };
+
+                this.routeEditor.onSelectionChanged = (nodes) => {
+                    if (this.onSelectionChanged) {
+                        this.onSelectionChanged(nodes);
                     }
                 };
 

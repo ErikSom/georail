@@ -169,7 +169,14 @@ export const fetchJourneyRoute = async (stops: JourneyStopInput[], editor: boole
 
     const stopsParam = encodeStops(stops);
     const editorParam = editor ? '&editor=true' : '';
-    const url = `${import.meta.env.PUBLIC_GEORAIL_URL}/navi/journey?s=${stopsParam}${editorParam}`;
+    // Dev only: append `?nocache=1` to the page URL to bypass Cloudflare's
+    // /navi/journey cache (e.g. after a fresh seed). Without the flag, dev
+    // uses the cached response same as production.
+    const bypassCache = import.meta.env.DEV
+        && typeof window !== 'undefined'
+        && new URLSearchParams(window.location.search).has('nocache');
+    const cacheBust = bypassCache ? `&cb=${Date.now()}` : '';
+    const url = `${import.meta.env.PUBLIC_GEORAIL_URL}/navi/journey?s=${stopsParam}${editorParam}${cacheBust}`;
 
     try {
         const response = await fetch(url, {
@@ -190,4 +197,42 @@ export const fetchJourneyRoute = async (stops: JourneyStopInput[], editor: boole
         console.error('Failed to fetch journey route:', error);
         throw error;
     }
+};
+
+/**
+ * Fetch every rail point inside a circular area. Returns the same shape as
+ * fetchJourneyRoute, so the editor can consume it with the same RouteEditor.
+ */
+export const fetchAreaRoute = async (lat: number, lon: number, radiusM: number, countryCode: string = 'NL'): Promise<JourneyRouteData> => {
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(radiusM)) {
+        throw new Error('lat, lon, and radius must be numbers');
+    }
+    if (radiusM <= 0 || radiusM > 5000) {
+        throw new Error('radius must be between 1 and 5000 meters');
+    }
+
+    const bypassCache = import.meta.env.DEV
+        && typeof window !== 'undefined'
+        && new URLSearchParams(window.location.search).has('nocache');
+    const cacheBust = bypassCache ? `&cb=${Date.now()}` : '';
+
+    const params = new URLSearchParams({
+        lat: String(lat),
+        lon: String(lon),
+        radius: String(radiusM),
+        country: countryCode,
+    });
+    const url = `${import.meta.env.PUBLIC_GEORAIL_URL}/navi/area?${params.toString()}${cacheBust}`;
+
+    const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || `Server error: ${response.status}`);
+    }
+
+    return await response.json() as JourneyRouteData;
 };

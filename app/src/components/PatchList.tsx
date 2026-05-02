@@ -90,6 +90,9 @@ function PatchList({ onCreateNew, onEditPatch, onReviewPatch, onReopenPatch, onC
     };
 
     const getPatchTitle = (patch: Patch) => {
+        if (patch.center_lat != null && patch.center_lon != null && patch.radius_m != null) {
+            return `Area · ${patch.radius_m}m @ ${patch.center_lat.toFixed(4)}, ${patch.center_lon.toFixed(4)}`;
+        }
         if (patch.from_station && patch.to_station) {
             const fromTrack = patch.from_track ? ` (${patch.from_track})` : '';
             const toTrack = patch.to_track ? ` (${patch.to_track})` : '';
@@ -178,7 +181,12 @@ function PatchList({ onCreateNew, onEditPatch, onReviewPatch, onReopenPatch, onC
                             <div className={styles.patchHeader}>
                                 <div className={styles.patchTitleContainer}>
                                     <div className={styles.patchTitle}>{getPatchTitle(patch)}</div>
-                                    <div className={styles.patchId}>#{patch.id}</div>
+                                    <div className={styles.patchId}>
+                                        #{patch.id}
+                                        <span className={styles.patchKindBadge}>
+                                            {patch.center_lat != null ? 'Area' : 'Route'}
+                                        </span>
+                                    </div>
                                 </div>
                                 <span
                                     className={styles.statusBadge}

@@ -2,7 +2,7 @@ import express from 'express';
 
 import rateLimit from 'express-rate-limit';
 
-import { findJourneyRoute } from '../controllers/navigation.js';
+import { findJourneyRoute, findAreaRoute } from '../controllers/navigation.js';
 
 const routeLimiter = rateLimit({
     windowMs: 60 * 1000,
@@ -17,5 +17,6 @@ const routeLimiter = rateLimit({
 const router = express.Router();
 
 router.get('/journey', routeLimiter, findJourneyRoute);
+router.get('/area', routeLimiter, findAreaRoute);
 
 export default router;

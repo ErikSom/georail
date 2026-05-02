@@ -55,16 +55,23 @@ function PatchManagement({ onClose, onStartEditing, activePatchId }: PatchManage
         setShowCreator(false);
     };
 
-    const buildRouteInfo = (patch: Patch): RouteInfo => ({
-        fromStation: patch.from_station || '',
-        fromStationCode: getStationCode(patch.from_station || ''),
-        fromTrack: patch.from_track || '',
-        toStation: patch.to_station || '',
-        toStationCode: getStationCode(patch.to_station || ''),
-        toTrack: patch.to_track || '',
-        viaStops: patch.via_stops,
-        description: patch.description,
-    });
+    const buildRouteInfo = (patch: Patch): RouteInfo => {
+        const isArea = patch.center_lat != null && patch.center_lon != null && patch.radius_m != null;
+        return {
+            kind: isArea ? 'area' : 'route',
+            fromStation: patch.from_station || '',
+            fromStationCode: getStationCode(patch.from_station || ''),
+            fromTrack: patch.from_track || '',
+            toStation: patch.to_station || '',
+            toStationCode: getStationCode(patch.to_station || ''),
+            toTrack: patch.to_track || '',
+            viaStops: patch.via_stops,
+            description: patch.description,
+            area: isArea
+                ? { lat: patch.center_lat as number, lon: patch.center_lon as number, radiusM: patch.radius_m as number }
+                : undefined,
+        };
+    };
 
     const handleEditPatch = (patchId: number, patch: Patch) => {
         if (onStartEditing) {

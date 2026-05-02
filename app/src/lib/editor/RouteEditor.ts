@@ -10,6 +10,11 @@ import {
     LineBasicMaterial,
     BufferGeometry,
     Line,
+    LineSegments,
+    Float32BufferAttribute,
+    Color,
+    MeshBasicMaterial,
+    Quaternion,
     type ShaderMaterial,
 } from 'three';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
@@ -63,8 +68,14 @@ export class RouteEditor {
     private routeGroup: Group;
     private nodes: Map<string, NodeData> = new Map();
     private nodeIndicators: Map<string, NodeIndicator> = new Map();
+    private endpointPartner: Map<string, string> = new Map();
+    private nodeChainId: Map<string, number> = new Map();
+    private chainMaterials: Map<number, MeshBasicMaterial> = new Map();
+    private chainLines: LineSegments | null = null;
     private transformControls: TransformControls;
-    private selectedNode: string | null = null;
+    private selectedNodes: Set<string> = new Set();
+    private selectionAnchor: Group;
+    private lastAnchorPosition: Vector3 = new Vector3();
     private reviewMode: boolean = false;
     private offsetIndicators: Map<string, Mesh> = new Map();
     private stationBeamMaterials: ShaderMaterial[] = [];
@@ -77,6 +88,7 @@ export class RouteEditor {
 
     // Callbacks
     public onNodeSelected: ((nodeData: NodeData | null) => void) | null = null;
+    public onSelectionChanged: ((nodes: NodeData[]) => void) | null = null;
     public onNodesModified: ((nodes: NodeData[]) => void) | null = null;
     public onNodeIndexChanged: ((currentIndex: number, totalNodes: number) => void) | null = null;
 
@@ -90,6 +102,10 @@ export class RouteEditor {
         this.routeGroup = new Group();
         this.routeGroup.name = 'RouteEditorGroup';
         this.scene.add(this.routeGroup);
+
+        this.selectionAnchor = new Group();
+        this.selectionAnchor.name = 'SelectionAnchor';
+        this.scene.add(this.selectionAnchor);
 
         // Register for automatic reorientation
         this.mapViewer.onReorient = (delta) => this.handleReorient(delta);
@@ -106,12 +122,15 @@ export class RouteEditor {
 
         this.transformControls.addEventListener('dragging-changed', (event) => {
             // Disable camera controls while dragging
-            this.domElement.dispatchEvent(new CustomEvent('transform-dragging', { detail: event.value }));
+            this.domElement.dispatchEvent(new CustomEvent('transform-dragging', { detail: event.value, bubbles: true }));
 
             // Capture state at start of drag for undo
             if (event.value && !this.isDragging) {
                 this.isDragging = true;
                 this.pushUndoState();
+                if (this.selectedNodes.size > 1) {
+                    this.lastAnchorPosition.copy(this.selectionAnchor.position);
+                }
             } else if (!event.value) {
                 this.isDragging = false;
             }
@@ -220,20 +239,28 @@ export class RouteEditor {
         });
 
         // Orient each mesh so local Z-axis points towards the next node
-        // The cone geometry itself is already pointing down, we just rotate the mesh
+        // The cone geometry itself is already pointing down, we just rotate the mesh.
         const MIN_DISTANCE_THRESHOLD = 0.1; // Minimum distance (in meters) to calculate orientation
 
         for (let i = 0; i < orderedMeshes.length; i++) {
             const mesh = orderedMeshes[i];
 
             if (i < orderedMeshes.length - 1) {
-                const nextMesh = orderedMeshes[i + 1];
-                const distance = mesh.position.distanceTo(nextMesh.position);
+                // Walk forward through iteration order until we find a node
+                // far enough to give a meaningful direction. Skips clustered
+                // nodes that share a position at junctions.
+                let nextMesh: Mesh | null = null;
+                for (let j = i + 1; j < orderedMeshes.length; j++) {
+                    if (orderedMeshes[j].position.distanceTo(mesh.position) >= MIN_DISTANCE_THRESHOLD) {
+                        nextMesh = orderedMeshes[j];
+                        break;
+                    }
+                }
 
-                // If nodes are too close together, copy rotation from previous node
-                if (distance < MIN_DISTANCE_THRESHOLD && i > 0) {
+                if (!nextMesh && i > 0) {
+                    // Reached the end with only clustered neighbours — copy previous rotation.
                     mesh.rotation.copy(orderedMeshes[i - 1].rotation);
-                } else if (distance >= MIN_DISTANCE_THRESHOLD) {
+                } else if (nextMesh) {
                     // Calculate direction to next node
                     const direction = new Vector3()
                         .subVectors(nextMesh.position, mesh.position)
@@ -248,9 +275,6 @@ export class RouteEditor {
                         .sub(direction); // Look at opposite direction so +Z points toward next
 
                     mesh.lookAt(targetPoint);
-                } else {
-                    // First node and too close to next - keep default orientation (pointing down)
-                    // No rotation needed as geometry is already oriented correctly
                 }
             } else {
                 // Last node: copy rotation from previous node
@@ -260,6 +284,11 @@ export class RouteEditor {
             }
         }
 
+        this.buildEndpointPartners();
+        this.assignChains();
+        this.applyChainColors();
+        this.buildChainLines();
+
         console.log(`Loaded ${this.nodes.size} nodes for route editing`);
         console.log('Route group position:', this.routeGroup.position);
         console.log('Route group world matrix:', this.routeGroup.matrixWorld);
@@ -268,6 +297,132 @@ export class RouteEditor {
         if (this.onNodeIndexChanged) {
             this.onNodeIndexChanged(-1, this.nodes.size);
         }
+    }
+
+    // Pair segment endpoints that share a position 1-to-1 (continuation).
+    private buildEndpointPartners(): void {
+        this.endpointPartner.clear();
+        const nodeKeys = Array.from(this.nodes.keys());
+        const endpoints: string[] = [];
+        for (let i = 0; i < nodeKeys.length; i++) {
+            const cur = this.nodes.get(nodeKeys[i])!;
+            const prevSeg = i > 0 ? this.nodes.get(nodeKeys[i - 1])?.segment_id : undefined;
+            const nextSeg = i < nodeKeys.length - 1 ? this.nodes.get(nodeKeys[i + 1])?.segment_id : undefined;
+            if (prevSeg !== cur.segment_id || nextSeg !== cur.segment_id) endpoints.push(nodeKeys[i]);
+        }
+        const buckets = new Map<string, string[]>();
+        for (const key of endpoints) {
+            const c = this.nodes.get(key)?.originalGeoCoords;
+            if (!c) continue;
+            const k = `${Math.round(c.lat * 1e6)}_${Math.round(c.lon * 1e6)}`;
+            const arr = buckets.get(k) ?? [];
+            arr.push(key);
+            buckets.set(k, arr);
+        }
+        for (const arr of buckets.values()) {
+            if (arr.length !== 2) continue;
+            const [a, b] = arr;
+            const an = this.nodes.get(a)!;
+            const bn = this.nodes.get(b)!;
+            if (an.segment_id === bn.segment_id) continue;
+            this.endpointPartner.set(a, b);
+            this.endpointPartner.set(b, a);
+        }
+    }
+
+    // BFS each connected chain, assigning a unique id; also builds chain materials.
+    private assignChains(): void {
+        this.nodeChainId.clear();
+        for (const m of this.chainMaterials.values()) m.dispose();
+        this.chainMaterials.clear();
+
+        let nextId = 0;
+        for (const startKey of this.nodes.keys()) {
+            if (this.nodeChainId.has(startKey)) continue;
+            const queue: string[] = [startKey];
+            while (queue.length) {
+                const k = queue.shift()!;
+                if (this.nodeChainId.has(k)) continue;
+                this.nodeChainId.set(k, nextId);
+                const a = this.chainNeighbor(k, null);
+                if (a && !this.nodeChainId.has(a)) queue.push(a);
+                const b = a ? this.chainNeighbor(k, a) : null;
+                if (b && !this.nodeChainId.has(b)) queue.push(b);
+            }
+            const hue = ((nextId * 137.508) % 360) / 360;
+            const color = new Color().setHSL(hue, 0.65, 0.55);
+            this.chainMaterials.set(nextId, new MeshBasicMaterial({ color }));
+            nextId++;
+        }
+    }
+
+    private applyChainColors(): void {
+        for (const [key, indicator] of this.nodeIndicators) {
+            const node = this.nodes.get(key);
+            if (!node || node.isStationNode) continue;
+            const cid = this.nodeChainId.get(key);
+            if (cid === undefined) continue;
+            const mat = this.chainMaterials.get(cid);
+            if (mat) indicator.setBaseMaterial(mat);
+        }
+    }
+
+    private buildChainLines(): void {
+        if (this.chainLines) {
+            this.routeGroup.remove(this.chainLines);
+            this.chainLines.geometry.dispose();
+            (this.chainLines.material as MeshBasicMaterial).dispose();
+            this.chainLines = null;
+        }
+
+        const positions: number[] = [];
+        const colors: number[] = [];
+        const seen = new Set<string>();
+        for (const key of this.nodes.keys()) {
+            const node = this.nodes.get(key)!;
+            const cid = this.nodeChainId.get(key);
+            if (cid === undefined) continue;
+            const mat = this.chainMaterials.get(cid);
+            const c = mat?.color;
+            if (!c) continue;
+            const a = this.chainNeighbor(key, null);
+            const b = a ? this.chainNeighbor(key, a) : null;
+            for (const nb of [a, b]) {
+                if (!nb) continue;
+                const edgeKey = key < nb ? `${key}|${nb}` : `${nb}|${key}`;
+                if (seen.has(edgeKey)) continue;
+                seen.add(edgeKey);
+                const other = this.nodes.get(nb);
+                if (!other) continue;
+                positions.push(node.position.x, node.position.y, node.position.z);
+                positions.push(other.position.x, other.position.y, other.position.z);
+                colors.push(c.r, c.g, c.b, c.r, c.g, c.b);
+            }
+        }
+        if (positions.length === 0) return;
+
+        const geom = new BufferGeometry();
+        geom.setAttribute('position', new Float32BufferAttribute(positions, 3));
+        geom.setAttribute('color', new Float32BufferAttribute(colors, 3));
+        const mat = new LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.6 });
+        this.chainLines = new LineSegments(geom, mat);
+        this.routeGroup.add(this.chainLines);
+    }
+
+    // Next chain node walking outward from `currentKey`, having come from `cameFrom`.
+    private chainNeighbor(currentKey: string, cameFrom: string | null): string | null {
+        const nodeKeys = Array.from(this.nodes.keys());
+        const idx = nodeKeys.indexOf(currentKey);
+        if (idx === -1) return null;
+        const cur = this.nodes.get(currentKey)!;
+        for (const off of [-1, 1] as const) {
+            const cand = nodeKeys[idx + off];
+            if (!cand || cand === cameFrom) continue;
+            if (this.nodes.get(cand)?.segment_id === cur.segment_id) return cand;
+        }
+        const partner = this.endpointPartner.get(currentKey);
+        if (partner && partner !== cameFrom) return partner;
+        return null;
     }
 
     private addStationBeams(nodeMesh: Mesh): void {
@@ -292,54 +447,140 @@ export class RouteEditor {
     }
 
     public selectNode(nodeKey: string | null): void {
-        if (nodeKey === this.selectedNode) return;
+        if (nodeKey == null) this.selectNodes([], 'replace');
+        else this.selectNodes([nodeKey], 'replace');
+    }
 
-        // Deselect previous
-        if (this.selectedNode) {
-            const prevIndicator = this.nodeIndicators.get(this.selectedNode);
-            const prevData = this.nodes.get(this.selectedNode);
-            if (prevIndicator && prevData) {
-                const mode = prevData.isKeyNode ? 'keyNode' : prevData.isStationNode ? 'station' : 'normal';
-                prevIndicator.setMode(mode);
-            }
-        }
-
-        this.selectedNode = nodeKey;
-
-        if (nodeKey) {
-            const nodeIndicator = this.nodeIndicators.get(nodeKey);
-            const nodeData = this.nodes.get(nodeKey);
-
-            if (nodeIndicator && nodeData) {
-                // Highlight selected node
-                nodeIndicator.setMode('selected');
-
-                // Attach transform controls — show Z axis (along track) for station nodes
-                this.transformControls.showZ = nodeData.isStationNode;
-                this.transformControls.attach(nodeIndicator.mesh);
-
-                // Notify callback
-                if (this.onNodeSelected) {
-                    this.onNodeSelected(nodeData);
-                }
-
-                // Notify node index changed
-                if (this.onNodeIndexChanged) {
-                    const nodeKeys = Array.from(this.nodes.keys());
-                    const currentIndex = nodeKeys.indexOf(nodeKey);
-                    this.onNodeIndexChanged(currentIndex, nodeKeys.length);
-                }
+    public selectNodes(keys: string[], mode: 'replace' | 'add' | 'toggle' = 'replace'): void {
+        const next = mode === 'replace' ? new Set<string>() : new Set(this.selectedNodes);
+        if (mode === 'toggle') {
+            for (const k of keys) {
+                if (next.has(k)) next.delete(k);
+                else next.add(k);
             }
         } else {
+            for (const k of keys) next.add(k);
+        }
+
+        const removed = new Set<string>();
+        for (const k of this.selectedNodes) if (!next.has(k)) removed.add(k);
+        const added = new Set<string>();
+        for (const k of next) if (!this.selectedNodes.has(k)) added.add(k);
+        if (removed.size === 0 && added.size === 0) return;
+
+        for (const k of removed) {
+            const ind = this.nodeIndicators.get(k);
+            const data = this.nodes.get(k);
+            if (!ind || !data) continue;
+            const m = data.isStationNode ? 'station' : data.isKeyNode ? 'keyNode' : 'normal';
+            ind.setMode(m);
+        }
+        for (const k of added) {
+            const ind = this.nodeIndicators.get(k);
+            if (ind) ind.setMode('selected');
+        }
+
+        this.selectedNodes = next;
+        this.attachTransformControls();
+        this.emitSelection();
+    }
+
+    private attachTransformControls(): void {
+        const size = this.selectedNodes.size;
+        if (size === 0) {
             this.transformControls.showZ = false;
             this.transformControls.detach();
-            if (this.onNodeSelected) {
-                this.onNodeSelected(null);
+            return;
+        }
+        if (size === 1) {
+            const key = this.selectedNodes.values().next().value!;
+            const indicator = this.nodeIndicators.get(key);
+            const data = this.nodes.get(key);
+            if (!indicator || !data) return;
+            this.transformControls.showZ = data.isStationNode;
+            this.transformControls.attach(indicator.mesh);
+            return;
+        }
+        const centroid = new Vector3();
+        for (const k of this.selectedNodes) {
+            const d = this.nodes.get(k);
+            if (d) centroid.add(d.position);
+        }
+        centroid.multiplyScalar(1 / size);
+        this.selectionAnchor.position.copy(centroid);
+        this.selectionAnchor.quaternion.copy(this.averageNodeOrientation());
+        this.selectionAnchor.updateMatrixWorld();
+        this.lastAnchorPosition.copy(centroid);
+        this.transformControls.showZ = true;
+        this.transformControls.attach(this.selectionAnchor);
+    }
+
+    // Element-wise quaternion mean with antipodal-sign correction.
+    private averageNodeOrientation(): Quaternion {
+        let sx = 0, sy = 0, sz = 0, sw = 0;
+        let ref: Quaternion | null = null;
+        for (const k of this.selectedNodes) {
+            const ind = this.nodeIndicators.get(k);
+            if (!ind) continue;
+            const q = ind.mesh.quaternion;
+            let qx = q.x, qy = q.y, qz = q.z, qw = q.w;
+            if (!ref) {
+                ref = q.clone();
+            } else {
+                const dot = ref.x * qx + ref.y * qy + ref.z * qz + ref.w * qw;
+                if (dot < 0) { qx = -qx; qy = -qy; qz = -qz; qw = -qw; }
             }
-            if (this.onNodeIndexChanged) {
+            sx += qx; sy += qy; sz += qz; sw += qw;
+        }
+        const len = Math.hypot(sx, sy, sz, sw);
+        if (len < 1e-9) return new Quaternion();
+        return new Quaternion(sx / len, sy / len, sz / len, sw / len);
+    }
+
+    private emitSelection(): void {
+        const list: NodeData[] = [];
+        for (const k of this.selectedNodes) {
+            const d = this.nodes.get(k);
+            if (d) list.push(d);
+        }
+        if (this.onSelectionChanged) this.onSelectionChanged(list);
+        if (this.onNodeSelected) this.onNodeSelected(list.length === 1 ? list[0] : null);
+        if (this.onNodeIndexChanged) {
+            if (list.length === 1) {
+                const nodeKeys = Array.from(this.nodes.keys());
+                this.onNodeIndexChanged(nodeKeys.indexOf(list[0].segment_id + '-' + list[0].index), this.nodes.size);
+            } else {
                 this.onNodeIndexChanged(-1, this.nodes.size);
             }
         }
+    }
+
+    public getSelectedNodes(): NodeData[] {
+        const out: NodeData[] = [];
+        for (const k of this.selectedNodes) {
+            const d = this.nodes.get(k);
+            if (d) out.push(d);
+        }
+        return out;
+    }
+
+    public selectNodesInScreenRect(
+        rect: { left: number; top: number; right: number; bottom: number },
+        mode: 'replace' | 'add' = 'replace'
+    ): void {
+        const w = this.domElement.clientWidth;
+        const h = this.domElement.clientHeight;
+        if (w <= 0 || h <= 0) return;
+        const tmp = new Vector3();
+        const keys: string[] = [];
+        for (const [key, node] of this.nodes) {
+            tmp.copy(node.position).project(this.camera);
+            if (tmp.z < -1 || tmp.z > 1) continue;
+            const x = (tmp.x * 0.5 + 0.5) * w;
+            const y = (1 - (tmp.y * 0.5 + 0.5)) * h;
+            if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) keys.push(key);
+        }
+        this.selectNodes(keys, mode);
     }
 
     public toggleKeyNode(nodeKey: string): void {
@@ -350,7 +591,7 @@ export class RouteEditor {
             nodeData.isKeyNode = !nodeData.isKeyNode;
 
             // Update mode - selected nodes stay selected
-            if (nodeKey === this.selectedNode) {
+            if (this.selectedNodes.has(nodeKey)) {
                 nodeIndicator.setMode('selected');
             } else {
                 const mode = nodeData.isKeyNode ? 'keyNode' : nodeData.isStationNode ? 'station' : 'normal';
@@ -360,6 +601,42 @@ export class RouteEditor {
             this.rebuildSegmentsAroundNode(nodeKey);
             this.notifyModification();
         }
+    }
+
+    public setKeyNodeForSelection(value: boolean): void {
+        if (this.selectedNodes.size === 0) return;
+        const touched: string[] = [];
+        for (const key of this.selectedNodes) {
+            const nodeData = this.nodes.get(key);
+            const nodeIndicator = this.nodeIndicators.get(key);
+            if (!nodeData || !nodeIndicator) continue;
+            if (nodeData.isKeyNode === value) continue;
+            nodeData.isKeyNode = value;
+            nodeIndicator.setMode('selected');
+            touched.push(key);
+        }
+        for (const k of touched) this.rebuildSegmentsAroundNode(k);
+        if (touched.length > 0) {
+            this.notifyModification();
+            this.emitSelection();
+        }
+    }
+
+    public setOffsetForSelection(axis: 'east' | 'up' | 'north', value: number): void {
+        if (this.selectedNodes.size === 0 || !Number.isFinite(value)) return;
+        for (const key of this.selectedNodes) {
+            const nodeData = this.nodes.get(key);
+            if (!nodeData) continue;
+            const next = nodeData.world_offset.clone();
+            if (axis === 'east') next.x = value;
+            else if (axis === 'up') next.y = value;
+            else next.z = value;
+            this.applyOffsetToNode(key, next);
+        }
+        for (const key of this.selectedNodes) this.interpolateBetweenKeyNodes(key);
+        this.attachTransformControls();
+        this.notifyModification();
+        this.emitSelection();
     }
 
     public autoHeightNode(nodeKey: string): boolean {
@@ -391,68 +668,60 @@ export class RouteEditor {
             nodeIndicator.mesh.position.copy(newPos);
         }
 
-        if (!nodeData.isKeyNode) {
-            nodeData.isKeyNode = true;
-            if (this.selectedNode === nodeKey) {
-                nodeIndicator.setMode('selected');
-            } else {
-                nodeIndicator.setMode('keyNode');
-            }
-        }
-
         this.interpolateBetweenKeyNodes(nodeKey);
 
-        if (this.onNodeSelected && nodeKey === this.selectedNode) {
-            this.onNodeSelected({
-                ...nodeData,
-                world_offset: nodeData.world_offset.clone(),
-            });
+        if (this.selectedNodes.has(nodeKey)) {
+            this.emitSelection();
         }
         this.notifyModification();
         return true;
     }
 
-    // Lerps only the segments adjacent to `nodeKey` and extends to the route
-    // endpoints only when `nodeKey` is the first or last key — no full-route scan.
+    // Propagate `nodeKey`'s edit along its chain. Only interpolates *between* keynodes.
     private rebuildSegmentsAroundNode(nodeKey: string): void {
-        const nodeKeys = Array.from(this.nodes.keys());
-        const idx = nodeKeys.indexOf(nodeKey);
-        if (idx === -1) return;
-
-        let prev = -1;
-        for (let i = idx - 1; i >= 0; i--) {
-            if (this.nodes.get(nodeKeys[i])?.isKeyNode) { prev = i; break; }
-        }
-        let next = -1;
-        for (let i = idx + 1; i < nodeKeys.length; i++) {
-            if (this.nodes.get(nodeKeys[i])?.isKeyNode) { next = i; break; }
-        }
-
         const node = this.nodes.get(nodeKey);
         if (!node) return;
 
-        if (node.isKeyNode) {
-            if (prev !== -1 && prev < idx - 1) this.lerpNodesBetween(prev, idx, nodeKeys);
-            if (next !== -1 && next > idx + 1) this.lerpNodesBetween(idx, next, nodeKeys);
+        const seeds = this.collectChainSeeds(nodeKey);
+        const dirs = seeds.map(seed => this.walkChainUntilKeyNode(seed, nodeKey));
 
-            if (prev === -1 && idx > 0) {
-                for (let i = 0; i < idx; i++) this.applyOffsetToNode(nodeKeys[i], node.world_offset);
-            }
-            if (next === -1 && idx < nodeKeys.length - 1) {
-                for (let i = idx + 1; i < nodeKeys.length; i++) this.applyOffsetToNode(nodeKeys[i], node.world_offset);
+        if (node.isKeyNode) {
+            for (const dir of dirs) {
+                if (dir.keyNode) this.lerpAlongChain(nodeKey, dir.keyNode, dir.intermediates);
             }
             return;
         }
 
-        if (prev !== -1 && next !== -1) {
-            this.lerpNodesBetween(prev, next, nodeKeys);
-        } else if (prev !== -1) {
-            const prevOffset = this.nodes.get(nodeKeys[prev])!.world_offset;
-            for (let i = prev + 1; i < nodeKeys.length; i++) this.applyOffsetToNode(nodeKeys[i], prevOffset);
-        } else if (next !== -1) {
-            const nextOffset = this.nodes.get(nodeKeys[next])!.world_offset;
-            for (let i = 0; i < next; i++) this.applyOffsetToNode(nodeKeys[i], nextOffset);
+        const found = dirs.filter(d => d.keyNode);
+        if (found.length === 2) {
+            const inters = [...dirs[0].intermediates.slice().reverse(), nodeKey, ...dirs[1].intermediates];
+            this.lerpAlongChain(found[0].keyNode!, found[1].keyNode!, inters);
         }
+    }
+
+    private collectChainSeeds(nodeKey: string): string[] {
+        const seeds: string[] = [];
+        const a = this.chainNeighbor(nodeKey, null);
+        if (a) seeds.push(a);
+        const b = this.chainNeighbor(nodeKey, a);
+        if (b) seeds.push(b);
+        return seeds;
+    }
+
+    private walkChainUntilKeyNode(seed: string, origin: string): { keyNode: string | null; intermediates: string[] } {
+        const intermediates: string[] = [];
+        let from: string | null = origin;
+        let current: string | null = seed;
+        while (current) {
+            const cn = this.nodes.get(current);
+            if (!cn) break;
+            if (cn.isKeyNode) return { keyNode: current, intermediates };
+            intermediates.push(current);
+            const nxt: string | null = this.chainNeighbor(current, from);
+            from = current;
+            current = nxt;
+        }
+        return { keyNode: null, intermediates };
     }
 
     private applyOffsetToNode(nodeKey: string, offset: Vector3): void {
@@ -483,13 +752,15 @@ export class RouteEditor {
     }
 
     public isTransformControlClicked(raycaster: Raycaster): boolean {
+        // If TC is already dragging, treat the click as belonging to the gizmo
+        // (covers the case where the raycast misses a thin handle by a pixel
+        // or fires before the helper updates).
+        if ((this.transformControls as any).dragging) return true;
         // Raycast against the transform controls to see if they were clicked
         const helper = this.transformControls.getHelper();
         let intersects = raycaster.intersectObject(helper, true);
 
         intersects = intersects.filter(intersect => ((intersect.object as any).isMesh && !(intersect.object as any).isTransformControlsPlane));
-
-        console.log('Transform control intersects:', intersects);
 
         return intersects.length > 0;
     }
@@ -541,9 +812,10 @@ export class RouteEditor {
     }
 
     public getCurrentNodeIndex(): number {
-        if (!this.selectedNode) return -1;
+        if (this.selectedNodes.size !== 1) return -1;
+        const key = this.selectedNodes.values().next().value!;
         const nodeKeys = Array.from(this.nodes.keys());
-        return nodeKeys.indexOf(this.selectedNode);
+        return nodeKeys.indexOf(key);
     }
 
     public bringNodeIntoView(nodeKey: string): void {
@@ -637,41 +909,44 @@ export class RouteEditor {
     }
 
     private handleNodeTransform(): void {
-        if (!this.selectedNode) return;
+        if (this.selectedNodes.size === 0) return;
 
-        const nodeIndicator = this.nodeIndicators.get(this.selectedNode);
-        const nodeData = this.nodes.get(this.selectedNode);
-
-        if (nodeIndicator && nodeData) {
-            // Update node data with new position
+        if (this.selectedNodes.size === 1) {
+            const key = this.selectedNodes.values().next().value!;
+            const nodeIndicator = this.nodeIndicators.get(key);
+            const nodeData = this.nodes.get(key);
+            if (!nodeIndicator || !nodeData) return;
             nodeData.position.copy(nodeIndicator.mesh.position);
-
-            // Convert world position back to geographic coordinates to update world_offset
             this.updateNodeWorldOffset(nodeData, nodeIndicator.mesh.position);
-
-            // Auto-mark as key node when manually moved
-            if (!nodeData.isKeyNode) {
-                nodeData.isKeyNode = true;
-                // Keep selected mode (yellow) since it's still selected
-                nodeIndicator.setMode('selected');
-            }
-
-            // Interpolate nodes between key nodes
-            this.interpolateBetweenKeyNodes(this.selectedNode);
-
-            // Update UI in real-time by calling onNodeSelected
-            // Create a shallow copy to trigger React state update (new reference)
-            if (this.onNodeSelected) {
-                this.onNodeSelected({
-                    ...nodeData,
-                    world_offset: nodeData.world_offset.clone(),
-                    position: nodeData.position.clone(),
-                    originalPosition: nodeData.originalPosition.clone(),
-                });
-            }
-
+            this.interpolateBetweenKeyNodes(key);
+            this.emitSelection();
             this.notifyModification();
+            return;
         }
+
+        // Multi-select: read the drag in the gizmo's local handle frame, then
+        // re-orient that delta into each node's own rotation before applying.
+        // Pulling the red handle by 5 m means "move each node 5 m along its
+        // own +X (rail-perpendicular)" — exactly what the single-node gizmo
+        // does. Different rail orientations therefore yield different world
+        // displacements per node, all from the same gizmo drag.
+        const worldDelta = new Vector3().subVectors(this.selectionAnchor.position, this.lastAnchorPosition);
+        if (worldDelta.lengthSq() === 0) return;
+        const gizmoLocalDelta = worldDelta.clone().applyQuaternion(this.selectionAnchor.quaternion.clone().invert());
+        for (const key of this.selectedNodes) {
+            const nodeData = this.nodes.get(key);
+            const nodeIndicator = this.nodeIndicators.get(key);
+            if (!nodeData || !nodeIndicator || !nodeData.originalGeoCoords) continue;
+            const worldDeltaForNode = gizmoLocalDelta.clone().applyQuaternion(nodeIndicator.mesh.quaternion);
+            const newPos = nodeData.position.clone().add(worldDeltaForNode);
+            nodeData.position.copy(newPos);
+            nodeIndicator.mesh.position.copy(newPos);
+            this.updateNodeWorldOffset(nodeData, newPos);
+        }
+        this.lastAnchorPosition.copy(this.selectionAnchor.position);
+        for (const key of this.selectedNodes) this.interpolateBetweenKeyNodes(key);
+        this.emitSelection();
+        this.notifyModification();
     }
 
     private updateNodeWorldOffset(nodeData: NodeData, position: Vector3): void {
@@ -688,50 +963,28 @@ export class RouteEditor {
         this.rebuildSegmentsAroundNode(changedNodeKey);
     }
 
-    private lerpNodesBetween(startIndex: number, endIndex: number, nodeKeys: string[]): void {
-        const startNode = this.nodes.get(nodeKeys[startIndex]);
-        const endNode = this.nodes.get(nodeKeys[endIndex]);
+    // Lerp `world_offset` across `intermediates` between `startKey` and `endKey`, weighted by arc length.
+    private lerpAlongChain(startKey: string, endKey: string, intermediates: string[]): void {
+        const startNode = this.nodes.get(startKey);
+        const endNode = this.nodes.get(endKey);
+        if (!startNode || !endNode || intermediates.length === 0) return;
 
-        if (!startNode || !endNode) return;
-
-        // Calculate cumulative distances from start node using original positions
+        const seq = [startKey, ...intermediates, endKey];
         const distances: number[] = [0];
-        let totalDistance = 0;
-
-        for (let i = startIndex + 1; i <= endIndex; i++) {
-            const prevNode = this.nodes.get(nodeKeys[i - 1]);
-            const currNode = this.nodes.get(nodeKeys[i]);
-            if (prevNode && currNode) {
-                const dist = prevNode.originalPosition.distanceTo(currNode.originalPosition);
-                totalDistance += dist;
-                distances.push(totalDistance);
-            }
+        let total = 0;
+        for (let i = 1; i < seq.length; i++) {
+            const a = this.nodes.get(seq[i - 1])?.originalPosition;
+            const b = this.nodes.get(seq[i])?.originalPosition;
+            if (!a || !b) return;
+            total += a.distanceTo(b);
+            distances.push(total);
         }
+        if (total <= 0) return;
 
-        // Interpolate each node based on its distance ratio
-        for (let i = startIndex + 1; i < endIndex; i++) {
-            const nodeKey = nodeKeys[i];
-            const nodeData = this.nodes.get(nodeKey);
-            const nodeIndicator = this.nodeIndicators.get(nodeKey);
-
-            if (!nodeData || !nodeIndicator) continue;
-
-            // Calculate t based on distance ratio
-            const distanceIndex = i - startIndex;
-            const t = totalDistance > 0 ? distances[distanceIndex] / totalDistance : 0;
-
-            // Lerp the world_offset values
+        for (let i = 1; i < seq.length - 1; i++) {
+            const t = distances[i] / total;
             const newOffset = new Vector3().lerpVectors(startNode.world_offset, endNode.world_offset, t);
-            nodeData.world_offset.copy(newOffset);
-
-            // Apply the interpolated offset using cached geo coords to avoid precision loss
-            if (nodeData.originalGeoCoords) {
-                const newPosition = applyENUOffset(nodeData.originalGeoCoords, newOffset, this.mapViewer);
-                if (newPosition) {
-                    nodeIndicator.mesh.position.copy(newPosition);
-                    nodeData.position.copy(newPosition);
-                }
-            }
+            this.applyOffsetToNode(seq[i], newOffset);
         }
     }
 
@@ -777,7 +1030,7 @@ export class RouteEditor {
 
                 nodeIndicator.mesh.position.copy(snapshot.position);
 
-                const isSelected = key === this.selectedNode;
+                const isSelected = this.selectedNodes.has(key);
                 if (isSelected) {
                     nodeIndicator.setMode('selected');
                 } else if (nodeData.isKeyNode) {
@@ -790,16 +1043,9 @@ export class RouteEditor {
             }
         }
 
-        if (this.selectedNode && this.onNodeSelected) {
-            const nodeData = this.nodes.get(this.selectedNode);
-            if (nodeData) {
-                this.onNodeSelected({
-                    ...nodeData,
-                    world_offset: nodeData.world_offset.clone(),
-                    position: nodeData.position.clone(),
-                    originalPosition: nodeData.originalPosition.clone(),
-                });
-            }
+        if (this.selectedNodes.size > 0) {
+            this.attachTransformControls();
+            this.emitSelection();
         }
 
         this.notifyModification();
@@ -811,9 +1057,16 @@ export class RouteEditor {
             this.undo();
         }
 
-        // Press F to frame/focus the selected node (like Unity)
-        if (Input.isPressed('KeyF') && this.selectedNode) {
-            this.bringNodeIntoView(this.selectedNode);
+        // Press F to frame/focus the (single) selected node (like Unity)
+        if (Input.isPressed('KeyF') && this.selectedNodes.size === 1) {
+            const key = this.selectedNodes.values().next().value!;
+            this.bringNodeIntoView(key);
+        }
+
+        // Press K to toggle keynode for the entire selection.
+        if (Input.isPressed('KeyK') && this.selectedNodes.size > 0) {
+            const allKey = this.getSelectedNodes().every(n => n.isKeyNode);
+            this.setKeyNodeForSelection(!allKey);
         }
 
         // Animate station beams
@@ -840,12 +1093,13 @@ export class RouteEditor {
         this.offsetIndicators.clear();
         this.routeGroup.clear();
         this.transformControls.detach();
-        this.selectedNode = null;
+        this.selectedNodes.clear();
     }
 
     public cleanup(): void {
         this.clear();
         this.scene.remove(this.routeGroup);
+        this.scene.remove(this.selectionAnchor);
         this.scene.remove(this.transformControls.getHelper());
         this.transformControls.dispose();
 

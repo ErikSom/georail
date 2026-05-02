@@ -6,7 +6,10 @@ CREATE OR REPLACE FUNCTION submit_patch(
   p_to_station text DEFAULT NULL,
   p_to_track text DEFAULT NULL,
   p_description text DEFAULT NULL,
-  p_via_stops jsonb DEFAULT NULL
+  p_via_stops jsonb DEFAULT NULL,
+  p_center_lat double precision DEFAULT NULL,
+  p_center_lon double precision DEFAULT NULL,
+  p_radius_m integer DEFAULT NULL
 )
 RETURNS json
 LANGUAGE plpgsql
@@ -27,7 +30,10 @@ BEGIN
       to_station = COALESCE(p_to_station, to_station),
       to_track = COALESCE(p_to_track, to_track),
       via_stops = p_via_stops,
-      description = COALESCE(p_description, description)
+      description = COALESCE(p_description, description),
+      center_lat = COALESCE(p_center_lat, center_lat),
+      center_lon = COALESCE(p_center_lon, center_lon),
+      radius_m = COALESCE(p_radius_m, radius_m)
     WHERE id = patch_id_to_update
     RETURNING id INTO new_patch_id;
 
@@ -39,7 +45,7 @@ BEGIN
     DELETE FROM public.rail_patch_data WHERE patch_id = new_patch_id;
 
   ELSE
-    -- Create a new patch with route information
+    -- Create a new patch with route or area information
     INSERT INTO public.rail_patches (
       user_id,
       from_station,
@@ -47,7 +53,10 @@ BEGIN
       to_station,
       to_track,
       via_stops,
-      description
+      description,
+      center_lat,
+      center_lon,
+      radius_m
     )
     VALUES (
       auth.uid(),
@@ -56,7 +65,10 @@ BEGIN
       p_to_station,
       p_to_track,
       p_via_stops,
-      p_description
+      p_description,
+      p_center_lat,
+      p_center_lon,
+      p_radius_m
     )
     RETURNING id INTO new_patch_id;
   END IF;

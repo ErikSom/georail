@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
-import type { RouteInfo, ViaStop, OpenRoute } from '../lib/types/Patch';
+import type { RouteInfo, ViaStop, OpenRoute, PatchKind } from '../lib/types/Patch';
 import { fetchAllStations, type StationTrackInfo } from '../lib/api/station';
 import { country } from '../store/globals';
 
@@ -15,7 +15,10 @@ interface ViaStopLocal {
     track: string;
 }
 
+const DEFAULT_AREA_RADIUS_M = 300;
+
 function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
+    const [kind, setKind] = useState<PatchKind>('route');
     const [stations, setStations] = useState<StationTrackInfo[]>([]);
     const [loading, setLoading] = useState(true);
     const [fromStation, setFromStation] = useState('');
@@ -29,6 +32,9 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
     const [suggestion, setSuggestion] = useState<OpenRoute | null>(null);
     const [cachedRoutes, setCachedRoutes] = useState<OpenRoute[]>([]);
     const [routeIndex, setRouteIndex] = useState(0);
+    const [areaLat, setAreaLat] = useState('');
+    const [areaLon, setAreaLon] = useState('');
+    const [areaRadius, setAreaRadius] = useState(String(DEFAULT_AREA_RADIUS_M));
 
     useEffect(() => {
         loadStations();
@@ -131,15 +137,55 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
     const handleSubmit = async (e: Event) => {
         e.preventDefault();
 
-        if (!fromStation || !toStation) {
+        if (kind === 'route' && (!fromStation || !toStation)) {
             alert('Please provide both from and to stations');
             return;
+        }
+
+        let lat = 0;
+        let lon = 0;
+        let radiusM = 0;
+        if (kind === 'area') {
+            lat = parseFloat(areaLat);
+            lon = parseFloat(areaLon);
+            radiusM = parseFloat(areaRadius);
+            if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(radiusM)) {
+                alert('Please enter valid lat, lon, and radius (meters).');
+                return;
+            }
+            if (radiusM <= 0 || radiusM > 5000) {
+                alert('Radius must be between 1 and 5000 meters.');
+                return;
+            }
         }
 
         try {
             setLoading(true);
 
             const { submitPatch } = await import('../lib/api/patches');
+
+            if (kind === 'area') {
+                const result = await submitPatch({
+                    data: [],
+                    centerLat: lat,
+                    centerLon: lon,
+                    radiusM,
+                    description: description || undefined,
+                });
+                const patchId = result.patchId;
+                onSubmit(patchId, {
+                    kind: 'area',
+                    area: { lat, lon, radiusM },
+                    fromStation: '',
+                    fromStationCode: '',
+                    fromTrack: '',
+                    toStation: '',
+                    toStationCode: '',
+                    toTrack: '',
+                    description: description || undefined,
+                });
+                return;
+            }
 
             const resolvedViaStops: ViaStop[] = viaStops
                 .filter(v => v.station)
@@ -164,6 +210,7 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
             const toStationData = stations.find(s => s.name === toStation);
 
             onSubmit(patchId, {
+                kind: 'route',
                 fromStation,
                 fromStationCode: fromStationData?.code || '',
                 fromTrack,
@@ -231,6 +278,15 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
     };
 
     const getTitle = () => {
+        if (kind === 'area') {
+            const lat = parseFloat(areaLat);
+            const lon = parseFloat(areaLon);
+            const r = parseFloat(areaRadius);
+            if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(r)) {
+                return 'New Area Patch';
+            }
+            return `Area · ${r}m @ ${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+        }
         if (!fromStation || !toStation) return 'New Patch';
         const fromText = fromStation + (fromTrack ? ` (${fromTrack})` : '');
         const toText = toStation + (toTrack ? ` (${toTrack})` : '');
@@ -265,11 +321,70 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
                 </div>
 
                 <form onSubmit={handleSubmit} className={styles.form}>
+                    <div className={styles.tabs}>
+                        <button
+                            type="button"
+                            onClick={() => setKind('route')}
+                            className={`${styles.tab} ${kind === 'route' ? styles.tabActive : ''}`}
+                        >
+                            Route (A → B)
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setKind('area')}
+                            className={`${styles.tab} ${kind === 'area' ? styles.tabActive : ''}`}
+                        >
+                            Area (lat / lon / radius)
+                        </button>
+                    </div>
+
                     <div className={styles.preview}>
                         <div className={styles.previewLabel}>Patch Title:</div>
                         <div className={styles.previewTitle}>{getTitle()}</div>
                     </div>
 
+                    {kind === 'area' && (
+                        <div className={styles.section}>
+                            <h3 className={styles.sectionTitle}>Area</h3>
+                            <div className={styles.inputGroup}>
+                                <label className={styles.label}>
+                                    Latitude *
+                                    <input
+                                        type="text"
+                                        value={areaLat}
+                                        onInput={(e) => setAreaLat((e.target as HTMLInputElement).value)}
+                                        placeholder="52.0801"
+                                        className={styles.input}
+                                        required
+                                    />
+                                </label>
+                                <label className={styles.label}>
+                                    Longitude *
+                                    <input
+                                        type="text"
+                                        value={areaLon}
+                                        onInput={(e) => setAreaLon((e.target as HTMLInputElement).value)}
+                                        placeholder="4.3250"
+                                        className={styles.input}
+                                        required
+                                    />
+                                </label>
+                            </div>
+                            <label className={styles.label}>
+                                Radius (meters, max 5000) *
+                                <input
+                                    type="text"
+                                    value={areaRadius}
+                                    onInput={(e) => setAreaRadius((e.target as HTMLInputElement).value)}
+                                    placeholder="300"
+                                    className={styles.input}
+                                    required
+                                />
+                            </label>
+                        </div>
+                    )}
+
+                    {kind === 'route' && (
                     <div className={styles.section}>
                         <label className={styles.label}>
                             Journey shortcode
@@ -291,7 +406,9 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
                             </div>
                         </label>
                     </div>
+                    )}
 
+                    {kind === 'route' && (
                     <button
                         type="button"
                         onClick={handleSuggestRoute}
@@ -300,7 +417,8 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
                     >
                         {suggesting ? 'Finding route...' : 'Suggest a route'}
                     </button>
-                    {suggestion && (
+                    )}
+                    {kind === 'route' && suggestion && (
                         <div className={styles.suggestionInfo}>
                             {suggestion.line_description || `Line ${suggestion.line_ref}`}
                             {' — '}
@@ -308,6 +426,8 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
                         </div>
                     )}
 
+                    {kind === 'route' && (
+                    <>
                     <div className={styles.section}>
                         <h3 className={styles.sectionTitle}>From Station</h3>
                         <div className={styles.inputGroup}>
@@ -448,6 +568,8 @@ function PatchCreator({ onClose, onSubmit }: PatchCreatorProps) {
                             </label>
                         </div>
                     </div>
+                    </>
+                    )}
 
                     <div className={styles.section}>
                         <label className={styles.label}>

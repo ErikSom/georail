@@ -1,4 +1,5 @@
 export type PatchStatus = 'editing' | 'pending' | 'approved' | 'declined';
+export type PatchKind = 'route' | 'area';
 
 export interface Patch {
     id: number;
@@ -8,13 +9,23 @@ export interface Patch {
     reviewed_at?: string;
     reviewed_by?: string;
     decline_reason?: string;
-    // Route information
+    // Route information (route patches)
     from_station?: string;
     from_track?: string;
     to_station?: string;
     to_track?: string;
     via_stops?: ViaStop[];
     description?: string;
+    // Area information (area patches)
+    center_lat?: number | null;
+    center_lon?: number | null;
+    radius_m?: number | null;
+}
+
+export interface AreaInfo {
+    lat: number;
+    lon: number;
+    radiusM: number;
 }
 
 export interface PatchData {
@@ -47,6 +58,10 @@ export interface SubmitPatchInput {
     toTrack?: string;
     viaStops?: ViaStop[];
     description?: string;
+    // Area patches: present when creating an area-typed patch
+    centerLat?: number;
+    centerLon?: number;
+    radiusM?: number;
 }
 
 export interface ViaStop {
@@ -56,6 +71,8 @@ export interface ViaStop {
 }
 
 export interface RouteInfo {
+    /** Discriminator: 'route' (default) loads via station path; 'area' loads all rail in a circle. */
+    kind?: PatchKind;
     fromStation: string;
     fromStationCode: string;
     fromTrack: string;
@@ -64,6 +81,8 @@ export interface RouteInfo {
     toTrack: string;
     viaStops?: ViaStop[];
     description?: string;
+    /** Set when kind === 'area'. */
+    area?: AreaInfo;
 }
 
 export interface LineCoverage {

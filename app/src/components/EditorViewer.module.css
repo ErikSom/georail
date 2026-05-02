@@ -112,6 +112,34 @@
     cursor: pointer;
 }
 
+.nodeDetails input[type="number"] {
+    background: #1f1f1f;
+    border: 1px solid #3a3a3a;
+    border-radius: 4px;
+    color: #fff;
+    padding: 4px 6px;
+    font-size: 13px;
+    font-family: inherit;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.nodeDetails input[type="number"]:focus {
+    outline: none;
+    border-color: #3b82f6;
+}
+
+.nodeDetails input[type="number"]::placeholder {
+    color: #666;
+    font-style: italic;
+}
+
+.marquee {
+    border: 1px dashed #3b82f6;
+    background-color: rgba(59, 130, 246, 0.12);
+    z-index: 100;
+}
+
 .nodeSliderContainer {
     padding: 12px 20px;
     border-bottom: 1px solid #3a3a3a;

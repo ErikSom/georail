@@ -4,8 +4,11 @@ import PatchManagement from './PatchManagement';
 import ReviewModal from './ReviewModal';
 import type { RouteInfo } from '../lib/types/Patch';
 import type { Tiles3DAttributionCredits } from './HUD/Tiles3DAttribution';
+import type { NodeData } from '../lib/editor/RouteEditor';
 
 import styles from './EditorViewer.module.css';
+
+const MARQUEE_THRESHOLD_PX = 6;
 
 function EditorViewer() {
     const mountRef = useRef<HTMLDivElement | null>(null);
@@ -13,21 +16,26 @@ function EditorViewer() {
     const [credits, setCredits] = useState<Tiles3DAttributionCredits>(null);
     const [showPatchManagement, setShowPatchManagement] = useState(true);
     const [activePatchId, setActivePatchId] = useState<number | null>(null);
-    const [selectedNodeData, setSelectedNodeData] = useState<any>(null);
+    const [selectedNodes, setSelectedNodes] = useState<NodeData[]>([]);
     const [modifiedNodesCount, setModifiedNodesCount] = useState(0);
     const [reviewMode, setReviewMode] = useState(false);
     const [currentPatchDeclineReason, setCurrentPatchDeclineReason] = useState<string | undefined>(undefined);
     const [currentNodeIndex, setCurrentNodeIndex] = useState(-1);
     const [totalNodes, setTotalNodes] = useState(0);
+    const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+    const marqueeRef = useRef<{
+        startX: number; startY: number; active: boolean; gizmoDragging: boolean; shiftHeld: boolean;
+    } | null>(null);
 
     useEffect(() => {
         if (mountRef.current && !editorRef.current) {
             const editor = new Editor(mountRef.current, setCredits);
             editor.init();
 
-            // Wire up callbacks
-            editor.onNodeSelected = (nodeData) => {
-                setSelectedNodeData(nodeData);
+            const routeEditor = editor.getRouteEditor();
+
+            editor.onSelectionChanged = (nodes: NodeData[]) => {
+                setSelectedNodes(nodes);
             };
 
             editor.onNodesModified = (count) => {
@@ -38,6 +46,7 @@ function EditorViewer() {
                 setCurrentNodeIndex(index);
                 setTotalNodes(total);
             };
+            void routeEditor;
 
             editorRef.current = editor;
         }
@@ -47,6 +56,83 @@ function EditorViewer() {
             editorRef.current = null;
         };
 
+    }, []);
+
+    // Marquee drag handling — listens on the canvas wrapper.
+    useEffect(() => {
+        const wrapper = mountRef.current;
+        if (!wrapper) return;
+
+        // Effect-scoped so the flag is honoured regardless of whether
+        // 'transform-dragging' (pointer events) fires before or after the
+        // first 'mousedown' (mouse events).
+        let gizmoDragging = false;
+        let lastRect: { left: number; top: number; right: number; bottom: number } | null = null;
+
+        const onTransformDragging = (e: Event) => {
+            gizmoDragging = (e as CustomEvent).detail === true;
+            if (gizmoDragging) {
+                marqueeRef.current = null;
+                setMarquee(null);
+                lastRect = null;
+            }
+        };
+
+        const onMouseDown = (e: MouseEvent) => {
+            if (e.button !== 0) return;
+            if (gizmoDragging) return; // Don't start a marquee on top of a gizmo drag.
+            const rect = wrapper.getBoundingClientRect();
+            marqueeRef.current = {
+                startX: e.clientX - rect.left,
+                startY: e.clientY - rect.top,
+                active: false,
+                gizmoDragging: false,
+                shiftHeld: e.shiftKey,
+            };
+            lastRect = null;
+        };
+
+        const onMouseMove = (e: MouseEvent) => {
+            const m = marqueeRef.current;
+            if (!m || gizmoDragging) return;
+            const rect = wrapper.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const dx = Math.abs(x - m.startX);
+            const dy = Math.abs(y - m.startY);
+            if (!m.active && (dx > MARQUEE_THRESHOLD_PX || dy > MARQUEE_THRESHOLD_PX)) m.active = true;
+            if (!m.active) return;
+            lastRect = {
+                left: Math.min(m.startX, x), top: Math.min(m.startY, y),
+                right: Math.max(m.startX, x), bottom: Math.max(m.startY, y),
+            };
+            setMarquee({ x: lastRect.left, y: lastRect.top, w: lastRect.right - lastRect.left, h: lastRect.bottom - lastRect.top });
+        };
+
+        const onMouseUp = () => {
+            const m = marqueeRef.current;
+            marqueeRef.current = null;
+            setMarquee(null);
+            if (gizmoDragging || !m || !m.active || !lastRect) {
+                lastRect = null;
+                return;
+            }
+            const re = editorRef.current?.getRouteEditor();
+            re?.selectNodesInScreenRect(lastRect, m.shiftHeld ? 'add' : 'replace');
+            lastRect = null;
+        };
+
+        wrapper.addEventListener('transform-dragging', onTransformDragging);
+        wrapper.addEventListener('mousedown', onMouseDown);
+        wrapper.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+
+        return () => {
+            wrapper.removeEventListener('transform-dragging', onTransformDragging);
+            wrapper.removeEventListener('mousedown', onMouseDown);
+            wrapper.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
     }, []);
 
     const handleStartEditingPatch = async (patchId: number, routeInfo: RouteInfo, isReviewMode: boolean = false, declineReason?: string) => {
@@ -71,7 +157,7 @@ function EditorViewer() {
     const handleClosePatchEditor = () => {
         setActivePatchId(null);
         setReviewMode(false);
-        setSelectedNodeData(null);
+        setSelectedNodes([]);
         setModifiedNodesCount(0);
         setCurrentPatchDeclineReason(undefined);
 
@@ -116,14 +202,38 @@ function EditorViewer() {
         }
     };
 
-    const handleToggleKeyNode = () => {
-        if (!editorRef.current || !selectedNodeData) return;
+    // Bulk-edit helpers — operate on the entire current selection.
+    const handleToggleKeyNode = (e: Event) => {
+        if (!editorRef.current) return;
+        const re = editorRef.current.getRouteEditor();
+        if (!re) return;
+        const checked = (e.target as HTMLInputElement).checked;
+        re.setKeyNodeForSelection(checked);
+    };
 
-        const routeEditor = editorRef.current.getRouteEditor();
-        if (!routeEditor) return;
+    const commitOffset = (axis: 'east' | 'up' | 'north', raw: string) => {
+        if (!editorRef.current) return;
+        const re = editorRef.current.getRouteEditor();
+        if (!re) return;
+        const v = parseFloat(raw);
+        if (!Number.isFinite(v)) return;
+        re.setOffsetForSelection(axis, v);
+    };
 
-        const nodeKey = `${selectedNodeData.segment_id}-${selectedNodeData.index}`;
-        routeEditor.toggleKeyNode(nodeKey);
+    const sharedAxisValue = (axis: 'x' | 'y' | 'z'): { value: string; mixed: boolean } => {
+        if (selectedNodes.length === 0) return { value: '', mixed: false };
+        const first = selectedNodes[0].world_offset[axis];
+        for (const n of selectedNodes) {
+            if (Math.abs(n.world_offset[axis] - first) > 1e-6) return { value: '', mixed: true };
+        }
+        return { value: first.toFixed(4), mixed: false };
+    };
+
+    const keynodeState = (): { checked: boolean; indeterminate: boolean } => {
+        if (selectedNodes.length === 0) return { checked: false, indeterminate: false };
+        const allKey = selectedNodes.every(n => n.isKeyNode);
+        const noneKey = selectedNodes.every(n => !n.isKeyNode);
+        return { checked: allKey, indeterminate: !allKey && !noneKey };
     };
 
     const [showReviewModal, setShowReviewModal] = useState(false);
@@ -171,6 +281,20 @@ function EditorViewer() {
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
             <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
 
+            {marquee && (
+                <div
+                    className={styles.marquee}
+                    style={{
+                        position: 'absolute',
+                        left: marquee.x,
+                        top: marquee.y,
+                        width: marquee.w,
+                        height: marquee.h,
+                        pointerEvents: 'none',
+                    }}
+                />
+            )}
+
             <div className={styles.credits}>
                 {credits ? credits.latLonStr : 'No coordinates available'}
             </div>
@@ -200,28 +324,74 @@ function EditorViewer() {
                                 </button>
                             </div>
 
-                            {!reviewMode && selectedNodeData && (
-                                <div className={styles.nodeInfo}>
-                                    <h4>Selected Node</h4>
-                                    <div className={styles.nodeDetails}>
-                                        <div>Segment: {selectedNodeData.segment_id}</div>
-                                        <div>Index: {selectedNodeData.index}</div>
-                                        <div>East: {selectedNodeData.world_offset.x.toFixed(2)}m</div>
-                                        <div>Up: {selectedNodeData.world_offset.y.toFixed(2)}m</div>
-                                        <div>North: {selectedNodeData.world_offset.z.toFixed(2)}m</div>
-                                        <div>
+                            {!reviewMode && selectedNodes.length > 0 && (() => {
+                                const east = sharedAxisValue('x');
+                                const up = sharedAxisValue('y');
+                                const north = sharedAxisValue('z');
+                                const ks = keynodeState();
+                                const onAxisChange = (axis: 'east' | 'up' | 'north') => (e: Event) => {
+                                    const t = e.target as HTMLInputElement;
+                                    if ((e as KeyboardEvent).type === 'keydown' && (e as KeyboardEvent).key !== 'Enter') return;
+                                    commitOffset(axis, t.value);
+                                };
+                                return (
+                                    <div className={styles.nodeInfo}>
+                                        <h4>{selectedNodes.length === 1 ? 'Selected Node' : `${selectedNodes.length} Nodes Selected`}</h4>
+                                        <div className={styles.nodeDetails}>
+                                            {selectedNodes.length === 1 && (
+                                                <>
+                                                    <div>Segment: {selectedNodes[0].segment_id}</div>
+                                                    <div>Index: {selectedNodes[0].index}</div>
+                                                </>
+                                            )}
                                             <label>
+                                                East (m)
                                                 <input
-                                                    type="checkbox"
-                                                    checked={selectedNodeData.isKeyNode}
-                                                    onChange={handleToggleKeyNode}
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={east.value}
+                                                    placeholder={east.mixed ? 'mixed' : ''}
+                                                    onBlur={onAxisChange('east')}
+                                                    onKeyDown={onAxisChange('east')}
                                                 />
-                                                {' '}Key Node
                                             </label>
+                                            <label>
+                                                Up (m)
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={up.value}
+                                                    placeholder={up.mixed ? 'mixed' : ''}
+                                                    onBlur={onAxisChange('up')}
+                                                    onKeyDown={onAxisChange('up')}
+                                                />
+                                            </label>
+                                            <label>
+                                                North (m)
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={north.value}
+                                                    placeholder={north.mixed ? 'mixed' : ''}
+                                                    onBlur={onAxisChange('north')}
+                                                    onKeyDown={onAxisChange('north')}
+                                                />
+                                            </label>
+                                            <div>
+                                                <label>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={ks.checked}
+                                                        ref={(el) => { if (el) el.indeterminate = ks.indeterminate; }}
+                                                        onChange={handleToggleKeyNode}
+                                                    />
+                                                    {' '}Key Node{selectedNodes.length > 1 ? ' (whole selection)' : ''}
+                                                </label>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            )}
+                                );
+                            })()}
 
                             {activePatchId && (
                                 <div className={styles.nodeSliderContainer}>
