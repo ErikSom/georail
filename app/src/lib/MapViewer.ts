@@ -352,8 +352,12 @@ export class MapViewer {
         }
 
         // @ts-ignore - GeoUtils types might be outdated or incorrect
-        this._creditsResult!.latLonStr = GeoUtils.toLatLonString(this.tempCartographic.lat, this.tempCartographic.lon, true);
-        this._creditsResult!.source = attributions;
+        const latLonStr = GeoUtils.toLatLonString(this.tempCartographic.lat, this.tempCartographic.lon, true);
+        // Fresh object only when values change so React's ref-equality re-renders.
+        if (this._creditsResult!.latLonStr === latLonStr && this._creditsResult!.source === attributions) {
+            return this._creditsResult;
+        }
+        this._creditsResult = { latLonStr, source: attributions };
         return this._creditsResult;
     }
 }
