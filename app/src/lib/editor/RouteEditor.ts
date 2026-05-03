@@ -640,6 +640,32 @@ export class RouteEditor {
     }
 
     public autoHeightNode(nodeKey: string): boolean {
+        if (!this.snapNodeToTerrain(nodeKey, true)) return false;
+        this.interpolateBetweenKeyNodes(nodeKey);
+        if (this.selectedNodes.has(nodeKey)) this.emitSelection();
+        this.notifyModification();
+        return true;
+    }
+
+    public autoHeightSelection(): boolean {
+        if (this.selectedNodes.size === 0) return false;
+        let any = false;
+        let pushedUndo = false;
+        for (const key of this.selectedNodes) {
+            if (this.snapNodeToTerrain(key, !pushedUndo)) {
+                any = any || true;
+                pushedUndo = true;
+            }
+        }
+        if (!any) return false;
+        for (const key of this.selectedNodes) this.interpolateBetweenKeyNodes(key);
+        this.attachTransformControls();
+        this.emitSelection();
+        this.notifyModification();
+        return true;
+    }
+
+    private snapNodeToTerrain(nodeKey: string, pushUndo: boolean): boolean {
         const nodeData = this.nodes.get(nodeKey);
         const nodeIndicator = this.nodeIndicators.get(nodeKey);
         if (!nodeData || !nodeIndicator || !nodeData.originalGeoCoords) return false;
@@ -647,19 +673,37 @@ export class RouteEditor {
         const tilesGroup = (this.mapViewer as any).tiles?.group;
         if (!tilesGroup) return false;
 
-        const origin = nodeData.position.clone();
-        origin.y += 100;
+        // Sample three points along the rail (centre, +50cm forward, -50cm)
+        // and take the lowest hit so a high outlier (canopy/wire/sign) doesn't
+        // pull the rail above ground.
+        const SAMPLE_OFFSET_M = 0.5;
+        const forward = new Vector3(0, 0, 1).applyQuaternion(nodeIndicator.mesh.quaternion);
+        forward.y = 0;
+        const horizLen = forward.length();
+        if (horizLen > 1e-6) forward.multiplyScalar(SAMPLE_OFFSET_M / horizLen);
+        else forward.set(0, 0, 0);
+
+        const samplePositions = [
+            nodeData.position.clone(),
+            nodeData.position.clone().add(forward),
+            nodeData.position.clone().sub(forward),
+        ];
         const direction = new Vector3(0, -1, 0);
+        let lowestY: number | null = null;
+        for (const sample of samplePositions) {
+            const origin = sample.clone();
+            origin.y += 100;
+            const raycaster = new Raycaster(origin, direction, 0, 500);
+            const intersects = raycaster.intersectObject(tilesGroup, true);
+            const hit = intersects[0];
+            if (!hit) continue;
+            if (lowestY === null || hit.point.y < lowestY) lowestY = hit.point.y;
+        }
+        if (lowestY === null) return false;
 
-        const raycaster = new Raycaster(origin, direction, 0, 500);
-        const intersects = raycaster.intersectObject(tilesGroup, true);
+        if (pushUndo) this.pushUndoState();
 
-        const terrainHit = intersects[0];
-        if (!terrainHit) return false;
-
-        this.pushUndoState();
-
-        const dy = terrainHit.point.y - nodeData.originalPosition.y;
+        const dy = lowestY - nodeData.originalPosition.y;
         nodeData.world_offset.y = dy;
 
         const newPos = applyENUOffset(nodeData.originalGeoCoords, nodeData.world_offset, this.mapViewer);
@@ -667,13 +711,6 @@ export class RouteEditor {
             nodeData.position.copy(newPos);
             nodeIndicator.mesh.position.copy(newPos);
         }
-
-        this.interpolateBetweenKeyNodes(nodeKey);
-
-        if (this.selectedNodes.has(nodeKey)) {
-            this.emitSelection();
-        }
-        this.notifyModification();
         return true;
     }
 
@@ -1067,6 +1104,11 @@ export class RouteEditor {
         if (Input.isPressed('KeyK') && this.selectedNodes.size > 0) {
             const allKey = this.getSelectedNodes().every(n => n.isKeyNode);
             this.setKeyNodeForSelection(!allKey);
+        }
+
+        // Press R to snap every selected node to the terrain underneath.
+        if (Input.isPressed('KeyR') && this.selectedNodes.size > 0) {
+            this.autoHeightSelection();
         }
 
         // Animate station beams
