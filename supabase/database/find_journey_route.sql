@@ -334,7 +334,8 @@ BEGIN
         b.segment_id,
         ST_MakePoint(ST_X(b.original_point_geom), ST_Y(b.original_point_geom)) AS point_geom_2d,
         COALESCE(ovr.world_offset, ARRAY[0.0, COALESCE(ST_Z(b.original_point_geom), 0.0), 0.0]::double precision[]) AS world_offset,
-        COALESCE((rl.properties->>'maxspeed')::int, 0) AS max_speed
+        COALESCE((rl.properties->>'maxspeed')::int, 0) AS max_speed,
+        ovr.source AS source
       FROM route_points_base b
       LEFT JOIN rail_point_overrides ovr ON ovr.segment_id = b.segment_id AND ovr.point_index = b.original_point_index
       JOIN rail_lines rl ON rl.id = b.segment_id
@@ -343,7 +344,7 @@ BEGIN
       SELECT
         json_agg(json_build_array(ST_X(fp.point_geom_2d), ST_Y(fp.point_geom_2d), fp.world_offset[1], fp.world_offset[2], fp.world_offset[3]) ORDER BY fp.path_seq, fp.point_index_in_route) AS route_arr,
         json_agg(json_build_object('segment_id', fp.segment_id, 'index', fp.original_point_index) ORDER BY fp.path_seq, fp.point_index_in_route) AS editor_arr,
-        json_agg(json_build_object('max_speed', fp.max_speed) ORDER BY fp.path_seq, fp.point_index_in_route) AS metadata_arr
+        json_agg(json_build_object('max_speed', fp.max_speed, 'source', fp.source) ORDER BY fp.path_seq, fp.point_index_in_route) AS metadata_arr
       FROM final_points_data AS fp
     )
     SELECT ca.route_arr, ca.editor_arr, ca.metadata_arr

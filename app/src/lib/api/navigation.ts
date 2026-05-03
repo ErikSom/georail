@@ -10,6 +10,7 @@ export interface JourneyStopInput {
 
 export interface RoutePointMetadata {
     max_speed: number | null;
+    source: 'manual' | 'seed' | null;
 }
 
 export interface JourneyRouteData {

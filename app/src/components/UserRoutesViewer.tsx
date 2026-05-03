@@ -94,7 +94,7 @@ function buildRouteDataForSave(
     const route = coords.map(([lon, lat]) => [lon, lat, 0, 0, 0]);
     const metadata = pointWayIds.map(wid => {
         const way = graph.ways.get(wid);
-        return { max_speed: parseMaxSpeedKmh(way?.maxspeed ?? null) ?? 120 };
+        return { max_speed: parseMaxSpeedKmh(way?.maxspeed ?? null) ?? 120, source: null };
     });
     const orderedStops = candidates
         .filter(c => selectedStopIds.has(c.stop.osm_node_id))
