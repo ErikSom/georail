@@ -12,7 +12,9 @@ export const trainInstance = signal<Train | null>(null);
 export const trainDoorsOpen = signal(false);
 export const trainHeadlightsOn = signal(false);
 export const trainControlsOpen = signal(true);
-export const trainDebugMode = signal(false); // Enable debug visualization
+export const trainDebugMode = signal(
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('trainDebug')
+);
 
 // Train geographic position - stored as integers to preserve precision
 // lat/lon are multiplied by 1e7 (0.0000001 degree precision ~ 1cm)
