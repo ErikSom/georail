@@ -48,6 +48,8 @@ interface RouteLookupEntry {
     lat: number;
 }
 
+const EXTRAPOLATION_BASELINE_M = 20;
+
 function buildRouteLookup(route: number[][], path: { getDistanceAtPointIndex: (i: number) => number; getTotalLength: () => number }): RouteLookupEntry[] {
     const entries: RouteLookupEntry[] = [];
     for (let i = 0; i < route.length; i++) {
@@ -68,10 +70,13 @@ function interpolateAtDistance(lookup: RouteLookupEntry[], distance: number, out
     if (lookup.length === 0) { out.lat = 0; out.lon = 0; return; }
     if (lookup.length === 1) { out.lat = lookup[0].lat; out.lon = lookup[0].lon; return; }
 
-    // Extrapolate before start
+    // OSM rail has sub-metre micro-segments at platforms; pick a baseline at
+    // least EXTRAPOLATION_BASELINE_M away so the slope isn't degenerate.
     if (distance <= lookup[0].distance) {
         const a = lookup[0];
-        const b = lookup[1];
+        let bIdx = 1;
+        while (bIdx < lookup.length - 1 && lookup[bIdx].distance - a.distance < EXTRAPOLATION_BASELINE_M) bIdx++;
+        const b = lookup[bIdx];
         const segLen = b.distance - a.distance;
         if (segLen <= 0) { out.lat = a.lat; out.lon = a.lon; return; }
         const t = (distance - a.distance) / segLen;
@@ -80,10 +85,11 @@ function interpolateAtDistance(lookup: RouteLookupEntry[], distance: number, out
         return;
     }
 
-    // Extrapolate past end
     if (distance >= lookup[lookup.length - 1].distance) {
-        const a = lookup[lookup.length - 2];
         const b = lookup[lookup.length - 1];
+        let aIdx = lookup.length - 2;
+        while (aIdx > 0 && b.distance - lookup[aIdx].distance < EXTRAPOLATION_BASELINE_M) aIdx--;
+        const a = lookup[aIdx];
         const segLen = b.distance - a.distance;
         if (segLen <= 0) { out.lat = b.lat; out.lon = b.lon; return; }
         const t = (distance - a.distance) / segLen;
@@ -114,13 +120,12 @@ function interpolateAtDistance(lookup: RouteLookupEntry[], distance: number, out
 const _front = { lat: 0, lon: 0 };
 const _back = { lat: 0, lon: 0 };
 
-interface CarRenderData {
-    type: 'cab' | 'wagon' | 'rearCab';
-    cx: number; // screen x
-    cy: number; // screen y
-    bearing: number; // degrees
-    sizePx: number; // pixel size scaled to zoom
-}
+// Fixed raster size for car-icon DOM elements. Sizing is applied via
+// `transform: scale()` rather than width/height so the SVG mask is rasterized
+// only once per element (changing width/height re-rasterizes the mask, which
+// previously caused 200+ PaintImage events per second). 64px keeps the scale
+// factor near 1 across the typical 6–200 px on-screen range.
+const CAR_ICON_BASE_PX = 64;
 
 function Maps2D() {
     const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -133,8 +138,8 @@ function Maps2D() {
     // Use refs instead of state for per-frame values to avoid 60fps re-renders
     const trainBearingRef = useRef(0);
     const cameraYawRef = useRef(0);
-    const carRendersRef = useRef<CarRenderData[]>([]);
     const carDivsRef = useRef<HTMLDivElement | null>(null);
+    const carTypesRef = useRef<string[]>([]);
     const compassRef = useRef<HTMLDivElement | null>(null);
     const fallbackIconRef = useRef<HTMLDivElement | null>(null);
     const northUpRef = useRef(false);
@@ -305,11 +310,21 @@ function Maps2D() {
             const clusterFront = distanceTraveled + totalRealMeters / 2;
 
             // Ensure we have the right number of child divs
+            const carTypes = carTypesRef.current;
             while (container.children.length < consist.length) {
-                container.appendChild(document.createElement('div'));
+                const d = document.createElement('div');
+                // Fixed-size box; dynamic sizing applied via transform: scale().
+                d.style.position = 'absolute';
+                d.style.left = '0';
+                d.style.top = '0';
+                d.style.width = `${CAR_ICON_BASE_PX}px`;
+                d.style.height = `${CAR_ICON_BASE_PX}px`;
+                container.appendChild(d);
+                carTypes.push('');
             }
             while (container.children.length > consist.length) {
                 container.removeChild(container.lastChild!);
+                carTypes.pop();
             }
 
             let cursor = clusterFront;
@@ -335,14 +350,14 @@ function Maps2D() {
                 const rotation = car.type === 'rearCab' ? carBearing + 180 : carBearing;
 
                 const div = container.children[i] as HTMLDivElement;
-                div.className = car.type === 'cab' ? styles.cabIcon
-                    : car.type === 'rearCab' ? styles.rearCabIcon
-                        : styles.wagonIcon;
-                div.style.left = `${cx}px`;
-                div.style.top = `${cy}px`;
-                div.style.width = `${sizePx}px`;
-                div.style.height = `${sizePx}px`;
-                div.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+                if (carTypes[i] !== car.type) {
+                    div.className = car.type === 'cab' ? styles.cabIcon
+                        : car.type === 'rearCab' ? styles.rearCabIcon
+                            : styles.wagonIcon;
+                    carTypes[i] = car.type;
+                }
+                const scale = sizePx / CAR_ICON_BASE_PX;
+                div.style.transform = `translate(${cx}px, ${cy}px) translate(-50%, -50%) rotate(${rotation}deg) scale(${scale})`;
 
                 cursor = carBackDist;
             }
