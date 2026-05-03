@@ -10,9 +10,15 @@ export interface PerformanceConfig {
 
     tilesErrorTarget: number;
     tilesMaxDepth: number;
+    tilesCacheMinBytes: number;
+    tilesCacheMaxBytes: number;
+    tilesDownloadJobs: number;
+    tilesParseJobs: number;
 
     tier?: 'ultra' | 'high' | 'medium' | 'low' | 'potato';
 }
+
+const MB = 1024 * 1024;
 
 export const PERFORMANCE_PRESETS = {
     /**
@@ -24,6 +30,10 @@ export const PERFORMANCE_PRESETS = {
         farPlane: 1e7,
         tilesErrorTarget: 20,
         tilesMaxDepth: Infinity, // No limit - maximum detail
+        tilesCacheMinBytes: 300 * MB,
+        tilesCacheMaxBytes: 400 * MB,
+        tilesDownloadJobs: 25,
+        tilesParseJobs: 5,
         tier: 'ultra',
 
     } as PerformanceConfig,
@@ -37,6 +47,10 @@ export const PERFORMANCE_PRESETS = {
         farPlane: 1e7,
         tilesErrorTarget: 20,
         tilesMaxDepth: Infinity, // No limit
+        tilesCacheMinBytes: 300 * MB,
+        tilesCacheMaxBytes: 400 * MB,
+        tilesDownloadJobs: 25,
+        tilesParseJobs: 5,
         tier: 'high',
     } as PerformanceConfig,
 
@@ -49,6 +63,10 @@ export const PERFORMANCE_PRESETS = {
         farPlane: 1e7,
         tilesErrorTarget: 20,
         tilesMaxDepth: Infinity, // No limit - let errorTarget control LOD
+        tilesCacheMinBytes: 300 * MB,
+        tilesCacheMaxBytes: 400 * MB,
+        tilesDownloadJobs: 16,
+        tilesParseJobs: 4,
         tier: 'medium',
     } as PerformanceConfig,
 
@@ -61,6 +79,10 @@ export const PERFORMANCE_PRESETS = {
         farPlane: 1e7,
         tilesErrorTarget: 20,
         tilesMaxDepth: 25, // Limit depth on low-end devices
+        tilesCacheMinBytes: 300 * MB,
+        tilesCacheMaxBytes: 400 * MB,
+        tilesDownloadJobs: 16,
+        tilesParseJobs: 4,
         tier: 'low',
     } as PerformanceConfig,
 
@@ -73,6 +95,10 @@ export const PERFORMANCE_PRESETS = {
         farPlane: 1e7,
         tilesErrorTarget: 20,
         tilesMaxDepth: 20, // Strict limit for potato mode
+        tilesCacheMinBytes: 300 * MB,
+        tilesCacheMaxBytes: 400 * MB,
+        tilesDownloadJobs: 16,
+        tilesParseJobs: 4,
         tier: 'potato',
     } as PerformanceConfig,
 };

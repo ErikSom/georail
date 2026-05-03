@@ -19,10 +19,11 @@ import {
 } from 'three';
 import { MapViewer } from './MapViewer';
 import { GameCamera } from './GameCamera';
-import { type RouteData } from './api/navigation';
+import { type RouteData, type RoutePointMetadata } from './api/navigation';
 import { routePointToWorldPosition } from './utils/CoordinateHelpers';
 import { Sky } from './Sky';
 import { Train } from './train/Train';
+import { RailCorrector } from './train/RailCorrector';
 import { Input } from './utils/Input';
 import { FlightControls } from './utils/FlightControls';
 import Path from './utils/Path';
@@ -50,6 +51,7 @@ export class World {
     private gameCamera!: GameCamera;
     private flightControls: FlightControls | null = null;
     private train!: Train;
+    private railCorrector: RailCorrector | null = null;
     private mapViewer!: MapViewer;
     private sky!: Sky;
     private stats!: Stats;
@@ -64,6 +66,17 @@ export class World {
     private freeFlyCameraMode: boolean = false;
     private stationIndicator: StationIndicator | null = null;
     private boundaryWall: BoundaryWall | null = null;
+
+    // Look-ahead camera tuning. Tiles in front of the train must be high-LOD
+    // by the time we get there, so we run a second virtual camera positioned
+    // ~LOOKAHEAD_SECONDS of travel ahead on the path, capped by LOOKAHEAD_MAX_M.
+    private static readonly LOOKAHEAD_SECONDS = 4;
+    private static readonly LOOKAHEAD_MAX_M = 300;
+    private static readonly LOOKAHEAD_MIN_VELOCITY_MS = 1;
+    private static readonly LOOKAHEAD_AIM_OFFSET_M = 50;
+    private static readonly LOOKAHEAD_HEIGHT_OFFSET_M = 30;
+    private _lookaheadPos = new Vector3();
+    private _lookaheadAim = new Vector3();
 
 
     constructor(mountElement: HTMLDivElement, setCreditsCallback: (credits: Tiles3DAttributionCredits) => void, routeData?: RouteData) {
@@ -202,6 +215,8 @@ export class World {
 
         this.sky.cleanup();
         this.mapViewer.cleanup();
+        this.railCorrector?.dispose();
+        this.railCorrector = null;
         this.train.cleanup();
         this.gameCamera.cleanup();
 
@@ -269,11 +284,15 @@ export class World {
             }
             this.mapViewer.reorient(startLat, startLon, 0);
 
-            const pathPoints = pathCoordinates
-                .map((routePoint: number[]) => {
-                    return routePointToWorldPosition(routePoint, this.mapViewer);
-                })
-                .filter((p: Vector3 | null): p is Vector3 => p !== null);
+            // Build pathPoints + aligned metadata in one pass so indices stay 1-to-1.
+            const pathPoints: Vector3[] = [];
+            const alignedMetadata: (RoutePointMetadata | null | undefined)[] = [];
+            for (let idx = 0; idx < pathCoordinates.length; idx++) {
+                const wp = routePointToWorldPosition(pathCoordinates[idx], this.mapViewer);
+                if (wp === null) continue;
+                pathPoints.push(wp);
+                alignedMetadata.push(routeData.geometry.metadata?.[idx]);
+            }
 
             if (pathPoints.length < 2) {
                 console.error('Not enough valid coordinates for path.');
@@ -285,6 +304,8 @@ export class World {
                 path.setSegmentBoundaries(routeData.geometry.turnaround_indices);
             }
             this.train.setPath(path);
+
+            this.railCorrector = new RailCorrector(path, alignedMetadata, this.mapViewer, this.train);
 
             // Position train at first station (or at resume checkpoint, if any).
             // The path may have extra nodes before the first station as padding.
@@ -388,6 +409,33 @@ export class World {
         this.activeWallSegmentIndex = segIdx;
     }
 
+    private updateLookaheadCamera(): void {
+        const path = this.train?.getPath();
+        if (!path || this.freeFlyCameraMode) {
+            this.mapViewer.setLookahead(null, null);
+            return;
+        }
+
+        const velocity = Math.abs(this.train.getVelocity());
+        if (velocity < World.LOOKAHEAD_MIN_VELOCITY_MS) {
+            // Stationary or near-stop — no extra refinement budget needed.
+            this.mapViewer.setLookahead(null, null);
+            return;
+        }
+
+        const lookahead = Math.min(velocity * World.LOOKAHEAD_SECONDS, World.LOOKAHEAD_MAX_M);
+        const totalLen = path.getTotalLength();
+        const aheadDist = Math.min(this.train.distanceTraveled + lookahead, totalLen);
+
+        path.getPointAtDistance(aheadDist, this._lookaheadPos);
+        path.getPointAtDistance(aheadDist + World.LOOKAHEAD_AIM_OFFSET_M, this._lookaheadAim);
+
+        // Lift slightly so the frustum picks up tiles around train height + above.
+        this._lookaheadPos.y += World.LOOKAHEAD_HEIGHT_OFFSET_M;
+
+        this.mapViewer.setLookahead(this._lookaheadPos, this._lookaheadAim);
+    }
+
     private handleInput(): void {
         if (Input.isPressed('KeyC')) {
             this.gameCamera.cycleMode();
@@ -424,6 +472,7 @@ export class World {
 
         this.sky.update(deltaTime, this.camera);
         this.mapViewer.update();
+        this.railCorrector?.tick(performance.now());
         this.train.update(deltaTime);
 
         if (this.freeFlyCameraMode && this.flightControls) {
@@ -431,6 +480,8 @@ export class World {
         } else {
             this.gameCamera.update(deltaTime, this.train);
         }
+
+        this.updateLookaheadCamera();
 
         if (this.boundaryWall && trainPath.value) {
             if (this.train.getCurrentSegmentIndex() !== this.activeWallSegmentIndex) {

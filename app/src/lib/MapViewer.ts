@@ -41,6 +41,7 @@ export class MapViewer {
     public tiles: TilesRenderer | null = null;
     private reorientationPlugin: ReorientationPlugin | null = null;
     private groundPlane: Mesh | null = null;
+    private lookaheadCamera: PerspectiveCamera | null = null;
     public initialized: boolean = false;
 
     // Reorientation origin tracking
@@ -90,6 +91,10 @@ export class MapViewer {
     }
 
     public cleanup(): void {
+        if (this.lookaheadCamera) {
+            this.tiles?.deleteCamera(this.lookaheadCamera);
+            this.lookaheadCamera = null;
+        }
         this.tiles?.dispose();
 
         if (this.groundPlane) {
@@ -104,6 +109,46 @@ export class MapViewer {
         this.tiles = null;
         this.reorientationPlugin = null;
         this.initialized = false;
+    }
+
+    /**
+     * Register (or update / remove) a virtual "look-ahead" camera that the
+     * tiles renderer uses purely for tile selection. We never render through
+     * it — its only job is to add screen-space-error contribution from a
+     * future train pose so high-LOD tiles arrive before the train does.
+     *
+     * Pass null/null to remove.
+     */
+    public setLookahead(position: Vector3 | null, lookAt: Vector3 | null): void {
+        if (!this.tiles || !this.camera || !this.renderer) return;
+
+        if (position === null || lookAt === null) {
+            if (this.lookaheadCamera) {
+                this.tiles.deleteCamera(this.lookaheadCamera);
+                this.lookaheadCamera = null;
+            }
+            return;
+        }
+
+        if (!this.lookaheadCamera) {
+            this.lookaheadCamera = new PerspectiveCamera();
+            this.tiles.setCamera(this.lookaheadCamera);
+            this.tiles.setResolutionFromRenderer(this.lookaheadCamera, this.renderer);
+        }
+
+        // Mirror the main camera's intrinsics so SSE math stays consistent.
+        const lc = this.lookaheadCamera;
+        if (lc.fov !== this.camera.fov || lc.aspect !== this.camera.aspect ||
+            lc.near !== this.camera.near || lc.far !== this.camera.far) {
+            lc.fov = this.camera.fov;
+            lc.aspect = this.camera.aspect;
+            lc.near = this.camera.near;
+            lc.far = this.camera.far;
+            lc.updateProjectionMatrix();
+        }
+        lc.position.copy(position);
+        lc.lookAt(lookAt);
+        lc.updateMatrixWorld();
     }
 
     private reinstantiateTiles(lat?: number, lon?: number, height?: number): void {
@@ -153,6 +198,24 @@ export class MapViewer {
         if (this.perfConfig) {
             this.tiles.errorTarget = this.perfConfig.tilesErrorTarget;
             this.tiles.maxDepth = this.perfConfig.tilesMaxDepth;
+            // Cap external (GPU/CPU) tile-cache bytes. The library default is
+            // 0.3–0.4 GB which lets V8 accumulate enough external memory to
+            // trigger 500ms+ MajorGC hitches.
+            const tilesAny = this.tiles as any;
+            const lru = tilesAny.lruCache;
+            if (lru) {
+                lru.minBytesSize = this.perfConfig.tilesCacheMinBytes;
+                lru.maxBytesSize = this.perfConfig.tilesCacheMaxBytes;
+            }
+            // Throttle the load pipeline. Library defaults (download=25,
+            // parse=5) saturate the network and main thread fast enough that
+            // V8's external-memory pressure threshold trips repeatedly.
+            if (tilesAny.downloadQueue) {
+                tilesAny.downloadQueue.maxJobs = this.perfConfig.tilesDownloadJobs;
+            }
+            if (tilesAny.parseQueue) {
+                tilesAny.parseQueue.maxJobs = this.perfConfig.tilesParseJobs;
+            }
         }
 
         // Prepare tile meshes: reset color to white (color is baked in textures)
@@ -328,6 +391,9 @@ export class MapViewer {
         }
 
         this.tiles.setResolutionFromRenderer(this.camera, this.renderer);
+        if (this.lookaheadCamera) {
+            this.tiles.setResolutionFromRenderer(this.lookaheadCamera, this.renderer);
+        }
         this.tiles.update();
     }
 
