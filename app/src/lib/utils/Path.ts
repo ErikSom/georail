@@ -40,6 +40,10 @@ export default class Path {
     // Sorted arc-length distances of sub-path boundaries (terminal buffers).
     private segmentBoundaries: Float64Array = new Float64Array(0);
 
+    // Per-input-point Y correction applied at render time only — does not
+    // change cumulativeLengths or curve LUTs.
+    private correctionY!: Float32Array;
+
     constructor(points: Vector3[]) {
         this.points = points;
         const loopingEpsilon = 1e-5;
@@ -47,6 +51,21 @@ export default class Path {
             this.looping = true;
         }
         this.precompute();
+        this.correctionY = new Float32Array(points.length);
+    }
+
+    public getCorrectionY(pointIndex: number): number {
+        if (pointIndex < 0 || pointIndex >= this.correctionY.length) return 0;
+        return this.correctionY[pointIndex];
+    }
+
+    public setCorrectionY(pointIndex: number, dy: number): void {
+        if (pointIndex < 0 || pointIndex >= this.correctionY.length) return;
+        this.correctionY[pointIndex] = dy;
+    }
+
+    public clearCorrections(): void {
+        this.correctionY.fill(0);
     }
 
     public setSegmentBoundaries(pointIndices: number[]): void {
@@ -401,6 +420,7 @@ export default class Path {
         const normalizedDist = (distance - cum[i]) * this.invSegmentLengths[i];
         const pIdx = this.segPointIndices[i];
         const pts = this.points;
+        const corr = this.correctionY;
 
         if (this.segTypes[i] === SEG_LINEAR) {
             const a = pts[pIdx];
@@ -410,6 +430,9 @@ export default class Path {
                 a.y + (b.y - a.y) * normalizedDist,
                 a.z + (b.z - a.z) * normalizedDist
             );
+            const ca = corr[pIdx] || 0;
+            const cb = corr[pIdx + 1] || 0;
+            out.y += ca + (cb - ca) * normalizedDist;
         } else {
             const offset = this.segLUTOffsets[i];
             const scaled = normalizedDist * LUT_STEPS;
@@ -442,6 +465,11 @@ export default class Path {
                 c0 * p0.y + c1 * cy + c2 * p2.y,
                 c0 * p0.z + c1 * cz + c2 * p2.z
             );
+            // Curve corrections interpolate between the two endpoints (mid
+            // control point inherits whatever Y the underlying p0/p2 had).
+            const c0y = corr[pIdx] || 0;
+            const c2y = corr[pIdx + 2] || 0;
+            out.y += c0y * (1 - t) + c2y * t;
         }
 
         return out;
