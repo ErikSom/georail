@@ -43,6 +43,8 @@ export const hasActiveSession = signal<boolean>(false);
 // path position, not at stop 0. Cleared after the path is built.
 export const resumeCheckpointStopIndex = signal<number | null>(null);
 
+export const pendingDoorOpen = signal<boolean>(false);
+
 export async function refreshActiveSession(): Promise<void> {
     hasActiveSession.value = (await fetchActiveJourneySession()) !== null;
 }
@@ -105,6 +107,7 @@ export function updateStopStatuses(): void {
     }
 
     let newStatuses: typeof stopStatuses.value | null = null;
+    let needsDoorPrompt = false;
 
     // Phase-gated index range. For one-way trips (turnaroundIdx === null) this spans all stops.
     // Forward phase: 0 .. turnaroundIdx (or last stop if one-way).
@@ -124,6 +127,10 @@ export function updateStopStatuses(): void {
             : trainCenterKm > stopZone.end;
 
         const current = (newStatuses ?? stopStatuses.value)[i];
+
+        if (!current.arrived && isInStopZone && isStopped && !trainDoorsOpen.value) {
+            needsDoorPrompt = true;
+        }
 
         if (!current.arrived && isInStopZone && isStopped && trainDoorsOpen.value) {
             if (!newStatuses) newStatuses = [...stopStatuses.value];
@@ -157,6 +164,9 @@ export function updateStopStatuses(): void {
 
     if (newStatuses) {
         stopStatuses.value = newStatuses;
+    }
+    if (pendingDoorOpen.value !== needsDoorPrompt) {
+        pendingDoorOpen.value = needsDoorPrompt;
     }
 }
 

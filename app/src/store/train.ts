@@ -11,6 +11,7 @@ export const trainBraking = signal(false); // True when dial opposes gear direct
 export const trainInstance = signal<Train | null>(null);
 export const trainDoorsOpen = signal(false);
 export const trainHeadlightsOn = signal(false);
+export const trainControlsOpen = signal(true);
 export const trainDebugMode = signal(false); // Enable debug visualization
 
 // Train geographic position - stored as integers to preserve precision

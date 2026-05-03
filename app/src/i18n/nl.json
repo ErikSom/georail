@@ -131,6 +131,7 @@
             "horn": "Toeter",
             "direction": "Rijrichting omdraaien"
         },
+        "doorPrompt": "Open de deuren zodat passagiers in en uit kunnen stappen",
         "attribution": {
             "loading": "Laden ...",
             "loadingFull": "Locatie en bronnen laden...",

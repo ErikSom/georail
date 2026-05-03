@@ -3,11 +3,12 @@ import styles from './TrainControls.module.css';
 import BipolarDial from './BipolarDial';
 import IconButton from './IconButton';
 import { Input } from '../../lib/utils/Input';
-import { trainPower, trainPowerPercent, trainVelocityKmh, trainDoorsOpen, trainHeadlightsOn, trainInstance, trainBraking, trainDirection, updateTick, deltaTimeMs } from '../../store/train';
+import { trainPower, trainPowerPercent, trainVelocityKmh, trainDoorsOpen, trainHeadlightsOn, trainInstance, trainBraking, trainDirection, updateTick, deltaTimeMs, trainControlsOpen } from '../../store/train';
 import { t } from '../../i18n';
 
 function TrainControls() {
-    const [isOpen, setIsOpen] = useState(true);
+    const isOpen = trainControlsOpen.value;
+    const setIsOpen = (v: boolean) => { trainControlsOpen.value = v; };
     const [dialError, setDialError] = useState(false);
     const [doorError, setDoorError] = useState(false);
     const [directionError, setDirectionError] = useState(false);

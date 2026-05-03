@@ -6,6 +6,7 @@ import GameMenu from './HUD/GameMenu';
 import Maps2D from './HUD/Maps2D';
 import Transit from './HUD/Transit';
 import DebugPanel from './HUD/DebugPanel';
+import DoorPrompt from './HUD/DoorPrompt';
 import Tiles3DAttribution, { type Tiles3DAttributionCredits } from './HUD/Tiles3DAttribution';
 import TrainSpinner from './TrainSpinner';
 import styles from './ThreeViewer.module.css';
@@ -82,6 +83,7 @@ function ThreeViewer() {
                     {hudSettings.value.showMap2D && <Maps2D />}
                     {hudSettings.value.showTransit && <Transit />}
                     {hudSettings.value.showSpeedometer && <Speedometer />}
+                    <DoorPrompt />
                     <DebugPanel />
                 </>
             )}

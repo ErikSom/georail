@@ -131,6 +131,7 @@
             "horn": "Sound horn",
             "direction": "Toggle direction"
         },
+        "doorPrompt": "Open the doors to let passengers on and off",
         "attribution": {
             "loading": "Loading ...",
             "loadingFull": "Loading location and data sources...",
