@@ -25,6 +25,7 @@ import {
 } from 'three';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { type PerformanceConfig } from './utils/PerformanceConfig';
+import { isAdrenoGPU, applyAdrenoArrayCopyFix } from './utils/AdrenoArrayCopyFix';
 import { ATMOSPHERE_COLOR } from '../store/globals';
 import type { Tiles3DAttributionCredits } from '../components/HUD/Tiles3DAttribution';
 
@@ -175,10 +176,14 @@ export class MapViewer {
         });
         this.applySceneStencil(sceneMat);
 
-        this.tiles.registerPlugin(new BatchedTilesPlugin({
+        const batchedTilesPlugin = new BatchedTilesPlugin({
             renderer: this.renderer,
             material: sceneMat,
-        } as any));
+        } as any);
+        this.tiles.registerPlugin(batchedTilesPlugin);
+        if (isAdrenoGPU(this.renderer)) {
+            applyAdrenoArrayCopyFix(batchedTilesPlugin, this.renderer);
+        }
 
         let finalLat = lat;
         let finalLon = lon;
