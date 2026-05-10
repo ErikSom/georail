@@ -13,6 +13,8 @@ const MIN_TILE_DEPTH = 6;
 const TILE_STABLE_MS = 600;
 const LATERAL_SAMPLE_M = 0.5;
 const MAX_PER_NODE_DROP_M = 5.0;
+const MAX_PER_NODE_RISE_M = 1.0;
+const UP_KINK_THRESHOLD_M = 1.5;
 const RAY_ORIGIN_HEIGHT_M = 100;
 const RAY_RANGE_M = 500;
 
@@ -157,15 +159,25 @@ export class RailCorrector {
 
         // Decide what correction to apply (if any) — and remember the outcome for
         // debug coloring.
-        let outcome: 'no-hit' | 'no-change' | 'applied' | 'skipped-up' = 'no-hit';
+        let outcome: 'no-hit' | 'no-change' | 'applied' | 'rejected-up-guard' = 'no-hit';
         if (lowestY != null) {
             let dy = lowestY - effectiveY;
-            if (dy >= -0.005) {
-                outcome = dy < 0.005 ? 'no-change' : 'skipped-up';
-            } else {
+            if (Math.abs(dy) < 0.005) {
+                outcome = 'no-change';
+            } else if (dy < 0) {
                 if (dy < -MAX_PER_NODE_DROP_M) dy = -MAX_PER_NODE_DROP_M;
                 this.path.setCorrectionY(i, corrCur + dy);
                 outcome = 'applied';
+            } else {
+                if (dy > MAX_PER_NODE_RISE_M) dy = MAX_PER_NODE_RISE_M;
+                const prevEffectiveY = prev.y + this.path.getCorrectionY(i - 1);
+                const candidateEffectiveY = effectiveY + dy;
+                if (candidateEffectiveY > prevEffectiveY + UP_KINK_THRESHOLD_M) {
+                    outcome = 'rejected-up-guard';
+                } else {
+                    this.path.setCorrectionY(i, corrCur + dy);
+                    outcome = 'applied';
+                }
             }
         }
 
@@ -173,8 +185,8 @@ export class RailCorrector {
             this.clearNodeSpheres(i);
             if (lowestY != null) {
                 // Green = correction applied (or no-change). Orange = wanted to rise
-                // but up corrections are disabled — train sits below this sphere.
-                const color = outcome === 'skipped-up' ? 'orange' : 'green';
+                // but smooth-up guard refused — train will sit below this sphere.
+                const color = outcome === 'rejected-up-guard' ? 'orange' : 'green';
                 this.dropDebugSphere(cur.x, lowestY, cur.z, color, tilesGroup, i);
                 for (let k = 0; k < sampleResults.length; k++) {
                     const r = sampleResults[k];
