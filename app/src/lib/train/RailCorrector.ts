@@ -13,8 +13,7 @@ const MIN_TILE_DEPTH = 6;
 const TILE_STABLE_MS = 600;
 const LATERAL_SAMPLE_M = 0.5;
 const MAX_PER_NODE_DROP_M = 5.0;
-const MAX_PER_NODE_RISE_M = 1.0;
-const UP_KINK_THRESHOLD_M = 1.5;
+const UP_KINK_THRESHOLD_M = 5.0;
 const RAY_ORIGIN_HEIGHT_M = 100;
 const RAY_RANGE_M = 500;
 
@@ -169,7 +168,6 @@ export class RailCorrector {
                 this.path.setCorrectionY(i, corrCur + dy);
                 outcome = 'applied';
             } else {
-                if (dy > MAX_PER_NODE_RISE_M) dy = MAX_PER_NODE_RISE_M;
                 const prevEffectiveY = prev.y + this.path.getCorrectionY(i - 1);
                 const candidateEffectiveY = effectiveY + dy;
                 if (candidateEffectiveY > prevEffectiveY + UP_KINK_THRESHOLD_M) {
