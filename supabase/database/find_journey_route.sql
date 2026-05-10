@@ -77,7 +77,7 @@ BEGIN
   -- Long multi-stop journeys (28+ stops) loop pgr_withPoints per pair and can
   -- exceed the role-default 8s statement_timeout. SET LOCAL overrides it for
   -- this transaction only, regardless of pool/role config.
-  SET LOCAL statement_timeout = '60s';
+  SET LOCAL statement_timeout = '30s';
 
   stop_count := jsonb_array_length(stops);
 
