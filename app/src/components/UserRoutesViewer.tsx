@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { Editor } from '../lib/editor/Editor';
-import { fetchOverpassRoute, type OverpassRouteResponse, type OverpassStop } from '../lib/api/overpass';
+import { fetchOverpassRoute, searchOverpassRoutes, ROUTE_TYPES, type OverpassRouteResponse, type OverpassStop, type OverpassSearchResult, type RouteType } from '../lib/api/overpass';
 import { buildGraph, snapStopToNode, type RouteGraph, type NodeId, type WayId } from '../lib/editor/routeGraph';
 import {
     createTraversal, pickBranch, undoLast, pathToCoords, snapStopToPath,
@@ -153,7 +153,13 @@ function UserRoutesViewer() {
 
     const [credits, setCredits] = useState<Tiles3DAttributionCredits>(null);
     const [phase, setPhase] = useState<Phase>('empty');
-    const [refInput, setRefInput] = useState('ICE 26');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchTypes, setSearchTypes] = useState<Set<RouteType>>(() => new Set(ROUTE_TYPES));
+    const [searchResults, setSearchResults] = useState<OverpassSearchResult[] | null>(null);
+    const [searchLoading, setSearchLoading] = useState(false);
+    const [searchError, setSearchError] = useState<string | null>(null);
+    const [showAdvanced, setShowAdvanced] = useState(false);
+    const [relationIdInput, setRelationIdInput] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -420,12 +426,41 @@ function UserRoutesViewer() {
         else setError(null);
     };
 
-    const handleFetch = async () => {
+    const handleSearch = async () => {
+        const q = searchQuery.trim();
+        if (q.length < 2) {
+            setSearchError('Type at least 2 characters');
+            return;
+        }
+        setSearchLoading(true);
+        setSearchError(null);
+        try {
+            const results = await searchOverpassRoutes(q, [...searchTypes]);
+            setSearchResults(results);
+            if (results.length === 0) setSearchError('No routes matched. Try fewer filters or a different term.');
+        } catch (err) {
+            setSearchError(err instanceof Error ? err.message : 'Search failed');
+            setSearchResults(null);
+        } finally {
+            setSearchLoading(false);
+        }
+    };
+
+    const toggleSearchType = (t: RouteType) => {
+        setSearchTypes(prev => {
+            const next = new Set(prev);
+            if (next.has(t)) next.delete(t);
+            else next.add(t);
+            return next;
+        });
+    };
+
+    const handleLoadRelation = async (relationId: number) => {
         if (!editorRef.current) return;
         setLoading(true);
         setError(null);
         try {
-            const resp = await fetchOverpassRoute(refInput.trim());
+            const resp = await fetchOverpassRoute({ relationId });
 
             const seenStopIds = new Set<number>();
             const uniqueStops = resp.stops.filter(s => {
@@ -579,29 +614,142 @@ function UserRoutesViewer() {
                 {phase === 'empty' && (
                     <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto' }}>
                         <div>
-                            <label style={{ fontSize: 13, color: '#ccc' }}>
-                                OSM route ref
-                                <input
-                                    type="text"
-                                    value={refInput}
-                                    onInput={(e) => setRefInput((e.target as HTMLInputElement).value)}
-                                    placeholder="e.g. ICE 26"
-                                    style={{
-                                        width: '100%', marginTop: 6, padding: 8,
-                                        background: '#222', color: '#fff',
-                                        border: '1px solid #3a3a3a', borderRadius: 6,
-                                    }}
-                                />
-                            </label>
+                            <div style={{ fontSize: 13, color: '#fff', fontWeight: 600, marginBottom: 8 }}>
+                                Find a route on OpenStreetMap
+                            </div>
+
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                                placeholder="e.g. ICE 26, Museumstoomtram, Sprinter Amsterdam"
+                                style={{
+                                    width: '100%', padding: 8,
+                                    background: '#222', color: '#fff',
+                                    border: '1px solid #3a3a3a', borderRadius: 6,
+                                }}
+                            />
+
+                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 8 }}>
+                                {ROUTE_TYPES.map((t) => {
+                                    const active = searchTypes.has(t);
+                                    return (
+                                        <button
+                                            key={t}
+                                            onClick={() => toggleSearchType(t)}
+                                            style={{
+                                                padding: '4px 10px', fontSize: 11,
+                                                background: active ? '#2563eb' : '#222',
+                                                color: active ? '#fff' : '#888',
+                                                border: '1px solid ' + (active ? '#2563eb' : '#3a3a3a'),
+                                                borderRadius: 999, cursor: 'pointer',
+                                                textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em',
+                                            }}
+                                        >
+                                            {t.replace('_', ' ')}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
                             <button
-                                onClick={handleFetch}
-                                disabled={loading || !refInput.trim()}
+                                onClick={handleSearch}
+                                disabled={searchLoading || !searchQuery.trim()}
                                 className={styles.saveButton}
                                 style={{ width: '100%', marginTop: 10 }}
                             >
-                                {loading ? 'Fetching…' : 'Fetch new route from OSM'}
+                                {searchLoading ? 'Searching…' : 'Search'}
                             </button>
+
+                            {searchError && <div style={{ color: '#f87171', fontSize: 13, marginTop: 6 }}>{searchError}</div>}
                             {error && <div style={{ color: '#f87171', fontSize: 13, marginTop: 6 }}>{error}</div>}
+
+                            {searchResults && searchResults.length > 0 && (
+                                <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 360, overflowY: 'auto' }}>
+                                    {searchResults.map((r) => (
+                                        <div
+                                            key={r.id}
+                                            style={{
+                                                padding: 10, background: '#1f1f1f',
+                                                border: '1px solid #2a2a2a', borderRadius: 6,
+                                                display: 'flex', flexDirection: 'column', gap: 4,
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                {r.route && (
+                                                    <span style={{
+                                                        fontSize: 10, padding: '2px 6px', borderRadius: 999,
+                                                        background: '#2563eb', color: '#fff', textTransform: 'uppercase',
+                                                        fontWeight: 700, letterSpacing: '0.04em',
+                                                    }}>{r.route.replace('_', ' ')}</span>
+                                                )}
+                                                {r.ref && <span style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}>{r.ref}</span>}
+                                            </div>
+                                            <div style={{ fontSize: 13, color: '#fff' }}>{r.name || '(no name)'}</div>
+                                            {(r.from || r.to) && (
+                                                <div style={{ fontSize: 11, color: '#bbb' }}>
+                                                    {r.from || '?'} → {r.to || '?'}
+                                                </div>
+                                            )}
+                                            {r.operator && <div style={{ fontSize: 11, color: '#888' }}>{r.operator}</div>}
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                                                <a
+                                                    href={`https://www.openstreetmap.org/relation/${r.id}`}
+                                                    target="_blank"
+                                                    rel="noopener"
+                                                    style={{ fontSize: 11, color: '#666', textDecoration: 'none' }}
+                                                >
+                                                    OSM #{r.id} ↗
+                                                </a>
+                                                <button
+                                                    onClick={() => handleLoadRelation(r.id)}
+                                                    disabled={loading}
+                                                    className={styles.saveButton}
+                                                    style={{ padding: '4px 12px', fontSize: 12 }}
+                                                >
+                                                    {loading ? 'Loading…' : 'Load'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div style={{ marginTop: 12, fontSize: 11 }}>
+                                <button
+                                    onClick={() => setShowAdvanced(v => !v)}
+                                    style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', padding: 0, fontSize: 11 }}
+                                >
+                                    {showAdvanced ? '▾' : '▸'} Load by relation ID
+                                </button>
+                                {showAdvanced && (
+                                    <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                                        <input
+                                            type="text"
+                                            value={relationIdInput}
+                                            onInput={(e) => setRelationIdInput((e.target as HTMLInputElement).value)}
+                                            placeholder="e.g. 11192081"
+                                            style={{
+                                                flex: 1, padding: 6, fontSize: 12,
+                                                background: '#222', color: '#fff',
+                                                border: '1px solid #3a3a3a', borderRadius: 4,
+                                            }}
+                                        />
+                                        <button
+                                            onClick={() => {
+                                                const n = Number(relationIdInput.trim());
+                                                if (Number.isFinite(n) && n > 0) handleLoadRelation(n);
+                                            }}
+                                            disabled={loading || !/^\d+$/.test(relationIdInput.trim())}
+                                            className={styles.saveButton}
+                                            style={{ padding: '4px 10px', fontSize: 12 }}
+                                        >
+                                            Load
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <div style={{ borderTop: '1px solid #3a3a3a', paddingTop: 12 }}>

@@ -41,8 +41,53 @@ export interface OverpassRouteResponse {
     stops: OverpassStop[];
 }
 
-export const fetchOverpassRoute = async (ref: string): Promise<OverpassRouteResponse> => {
-    const url = `${import.meta.env.PUBLIC_GEORAIL_URL}/overpass/route?ref=${encodeURIComponent(ref)}`;
+export type OverpassLookup =
+    | { ref: string }
+    | { name: string }
+    | { relationId: number };
+
+export type RouteType = 'train' | 'light_rail' | 'tracks' | 'tram' | 'subway' | 'monorail';
+
+export interface OverpassSearchResult {
+    id: number;
+    name: string | null;
+    ref: string | null;
+    route: string | null;
+    operator: string | null;
+    network: string | null;
+    from: string | null;
+    to: string | null;
+    service: string | null;
+}
+
+export const ROUTE_TYPES: RouteType[] = ['train', 'light_rail', 'tracks', 'tram', 'subway', 'monorail'];
+
+export const searchOverpassRoutes = async (q: string, types: RouteType[]): Promise<OverpassSearchResult[]> => {
+    const params = new URLSearchParams({ q });
+    if (types.length > 0) params.set('types', types.join(','));
+    const url = `${import.meta.env.PUBLIC_GEORAIL_URL}/overpass/search?${params.toString()}`;
+    const response = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });
+    if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || `Search failed: ${response.status}`);
+    }
+    const data = await response.json();
+    return (data.results || []) as OverpassSearchResult[];
+};
+
+export const fetchOverpassRoute = async (lookup: OverpassLookup | string): Promise<OverpassRouteResponse> => {
+    // String overload preserves the original `fetchOverpassRoute("ICE 26")` API.
+    const params = new URLSearchParams();
+    if (typeof lookup === 'string') {
+        params.set('ref', lookup);
+    } else if ('ref' in lookup) {
+        params.set('ref', lookup.ref);
+    } else if ('name' in lookup) {
+        params.set('name', lookup.name);
+    } else {
+        params.set('relationId', String(lookup.relationId));
+    }
+    const url = `${import.meta.env.PUBLIC_GEORAIL_URL}/overpass/route?${params.toString()}`;
 
     const response = await fetch(url, {
         method: 'GET',

@@ -560,7 +560,8 @@ export function startJourney(
 const STATION_NAME_NOISE = /\b(hauptbahnhof|hbf|bahnhof|bhf|station|centraal|central)\b/gi;
 const SHORT_CODE_PATTERN = /^[A-Z]{1,5}$/;
 
-function shortCodeFromName(name: string): string {
+function shortCodeFromName(name: string | null | undefined): string {
+    if (!name || typeof name !== 'string') return 'STA';
     const cleaned = name.replace(STATION_NAME_NOISE, '').replace(/[()]/g, ' ').trim();
     const letters = cleaned.replace(/[^A-Za-zÀ-ÿ]/g, '');
     return letters.slice(0, 3).toUpperCase() || 'STA';
@@ -574,12 +575,17 @@ export function startUserRouteJourney(route: RouteData, userRouteId: string): vo
     const stationCoords: [number, number][] = stopsArr.map((_, i) => {
         const ptIdx = stopIndices[i] ?? 0;
         const pt = route.geometry.route[ptIdx];
+        if (!pt) {
+            console.warn('[startUserRouteJourney] missing route point for stop', i, 'ptIdx', ptIdx);
+            return [0, 0];
+        }
         return [pt[0], pt[1]];
     });
 
-    const displayCodes = stopsArr.map(s =>
-        SHORT_CODE_PATTERN.test(s.code) ? s.code : shortCodeFromName(s.station)
-    );
+    const displayCodes = stopsArr.map(s => {
+        const code = s.code ?? '';
+        return SHORT_CODE_PATTERN.test(code) ? code : shortCodeFromName(s.station);
+    });
 
     const timedStops = calculateStopTimes(
         stopsArr.map(s => s.station),
