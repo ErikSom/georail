@@ -4,6 +4,7 @@ import { supabase } from '../lib/Supabase';
 import { fetchUserProfile, clearProfileCache, type UserProfile } from '../lib/api/profile';
 import MenuScreen from './MenuScreen';
 import ThreeViewer from './ThreeViewer';
+import TrainPicker from './TrainPicker';
 import BottomTabs, { type TabId } from './BottomTabs';
 import SplashOverlay from './SplashOverlay';
 import LanguageSelector from './LanguageSelector';
@@ -98,6 +99,13 @@ export default function App() {
     }, [session, loading]);
 
     useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const params = new URLSearchParams(window.location.search);
+        if (!params.has('train-picker')) return;
+        appScreen.value = 'train-picker';
+    }, []);
+
+    useEffect(() => {
         if (loading) return;
         if (!session) return;
         if (typeof window === 'undefined') return;
@@ -185,13 +193,21 @@ export default function App() {
         }
     };
 
+    const splash = showSplash
+        ? <SplashOverlay ready={!loading} onDone={() => setShowSplash(false)} />
+        : null;
+
     if (appScreen.value === 'game') {
-        return <ThreeViewer />;
+        return <>{splash}<ThreeViewer /></>;
+    }
+
+    if (appScreen.value === 'train-picker') {
+        return <>{splash}<TrainPicker /></>;
     }
 
     return (
         <>
-            {showSplash && <SplashOverlay ready={!loading} onDone={() => setShowSplash(false)} />}
+            {splash}
             <LanguageSelector floating />
             <MenuScreen
                 session={session}

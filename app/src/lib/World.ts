@@ -30,9 +30,10 @@ import Path from './utils/Path';
 import { dummyVec3, dummyVec3B } from './utils/Helper';
 import { StationIndicator } from './StationIndicator';
 import { BoundaryWall } from './BoundaryWall';
-import { getTrainConfiguration, nssgmTrainType } from './train/configs/TrainConfigurations.secure';
+import { getTrainConfiguration } from './train/configs/TrainConfigurations.secure';
+import { getCatalogEntry, getDefaultCatalogEntry } from './train/configs/TrainCatalog';
 import Stats from 'stats-gl';
-import { trainInstance, updateTrainState, trainDebugMode, trainLatE7, trainLonE7, trainFrontLatE7, trainFrontLonE7, trainBackLatE7, trainBackLonE7, cameraYawRelativeToTrain, trainMaxSpeedKmh } from '../store/train';
+import { trainInstance, updateTrainState, trainDebugMode, trainLatE7, trainLonE7, trainFrontLatE7, trainFrontLonE7, trainBackLatE7, trainBackLonE7, cameraYawRelativeToTrain, trainMaxSpeedKmh, selectedTrainId } from '../store/train';
 import { getPerformanceConfig, type PerformanceConfig } from './utils/PerformanceConfig';
 import type { Tiles3DAttributionCredits } from '../components/HUD/Tiles3DAttribution';
 import { Pane } from 'tweakpane';
@@ -152,7 +153,8 @@ export class World {
                 break;
         }
 
-        const trainConfig = getTrainConfiguration(nssgmTrainType);
+        const catalogEntry = getCatalogEntry(selectedTrainId.value) ?? getDefaultCatalogEntry();
+        const trainConfig = getTrainConfiguration(catalogEntry.trainType);
         this.train = new Train(trainConfig, trainDebugMode.value);
         this.scene.add(this.train.group);
 

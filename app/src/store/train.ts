@@ -1,5 +1,29 @@
 import { signal, computed, effect } from "@preact/signals";
 import type { Train } from "../lib/train/Train";
+import { getDefaultCatalogEntry, getCatalogEntry } from "../lib/train/configs/TrainCatalog";
+
+const SELECTED_TRAIN_STORAGE_KEY = 'georail.selectedTrainId';
+
+function loadInitialSelectedTrainId(): string {
+    if (typeof window === 'undefined') return getDefaultCatalogEntry().id;
+    try {
+        const stored = window.localStorage.getItem(SELECTED_TRAIN_STORAGE_KEY);
+        if (stored && getCatalogEntry(stored)) return stored;
+    } catch {
+    }
+    return getDefaultCatalogEntry().id;
+}
+
+export const selectedTrainId = signal<string>(loadInitialSelectedTrainId());
+
+if (typeof window !== 'undefined') {
+    effect(() => {
+        try {
+            window.localStorage.setItem(SELECTED_TRAIN_STORAGE_KEY, selectedTrainId.value);
+        } catch {
+        }
+    });
+}
 
 // Train state signals
 export const trainPower = signal(0); // -1 to 1 — dial value: positive = accelerate, negative = brake

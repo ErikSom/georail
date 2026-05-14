@@ -1,4 +1,11 @@
 {
+    "display": {
+        "name": "SGM-III",
+        "operator": "NS",
+        "topSpeedKmh": 125,
+        "era": "1975–2021",
+        "description": "Stadsgewestelijk Materieel — commuter EMU used across the Randstad."
+    },
     "cab": {
         "length": 25,
         "weight": 37.5,

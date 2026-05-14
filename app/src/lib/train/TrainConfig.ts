@@ -144,7 +144,19 @@ export interface TrainGeneralConfig {
     maxSpeed?: number; // Maximum speed in km/h - defaults to 120
 }
 
+export type TrainOperator = 'NS' | 'British Rail';
+
+export interface TrainDisplayConfig {
+    name: string;
+    operator: TrainOperator;
+    topSpeedKmh: number;
+    era?: string;
+    creator?: string;
+    description?: string;
+}
+
 export interface TrainConfig {
+    display: TrainDisplayConfig;
     general?: TrainGeneralConfig;
     cab: CabConfig;
     wagons: WagonConfig[];
@@ -155,6 +167,11 @@ export interface TrainConfig {
 // Default configuration
 export function getDefaultTrainConfig(): TrainConfig {
     return {
+        display: {
+            name: 'Untitled Train',
+            operator: 'NS',
+            topSpeedKmh: 120,
+        },
         cab: {
             length: 10.0,
             weight: 40.0,

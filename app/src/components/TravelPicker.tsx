@@ -497,7 +497,7 @@ export default function TravelPicker() {
             };
 
             startJourney(routeData, routeData.properties.startTime, returnToStart);
-            appScreen.value = 'game';
+            appScreen.value = 'train-picker';
         } catch (err) {
             setError(err instanceof Error ? err.message : t('travel.errors.fetchRoute'));
             console.error(err);
@@ -702,7 +702,7 @@ export default function TravelPicker() {
                 };
 
                 startJourney(routeData, routeData.properties.startTime);
-                appScreen.value = 'game';
+                appScreen.value = 'train-picker';
             } catch (err) {
                 setError(err instanceof Error ? err.message : t('travel.errors.fetchRoute'));
                 console.error('Failed to fetch journey route:', err);

@@ -1,6 +1,6 @@
 import { signal } from "@preact/signals";
 
-export type AppScreen = 'menu' | 'game';
+export type AppScreen = 'menu' | 'train-picker' | 'game';
 
 export const appScreen = signal<AppScreen>('menu');
 

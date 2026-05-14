@@ -1,0 +1,407 @@
+.root {
+    position: fixed;
+    inset: 0;
+    background: #05080d;
+    color: var(--menu-light);
+    overflow: hidden;
+}
+
+.canvasMount {
+    position: absolute;
+    inset: 0;
+}
+
+.canvasMount>canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.spinnerWrap {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 5;
+}
+
+.topBar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px 28px;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.55) 0%, transparent 100%);
+    pointer-events: none;
+}
+
+.topBar>* {
+    pointer-events: auto;
+}
+
+.backButton {
+    background: #1a1d24;
+    border: none;
+    color: var(--menu-light);
+    padding: 10px 16px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: filter 0.15s ease;
+}
+
+.backButton:hover {
+    filter: brightness(1.3);
+}
+
+.title {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+    flex: 1;
+    text-align: center;
+}
+
+.titleSpacer {
+    width: 120px;
+}
+
+.operatorTabs {
+    position: absolute;
+    top: 72px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.operatorTab {
+    pointer-events: auto;
+    background: #1a1d24;
+    border: none;
+    color: var(--menu-light-06);
+    padding: 8px 16px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, filter 0.15s ease;
+}
+
+.operatorTab:hover {
+    color: var(--menu-light);
+    filter: brightness(1.3);
+}
+
+.operatorTabActive {
+    background: var(--menu-accent);
+    color: var(--menu-light);
+}
+
+.operatorTabActive:hover {
+    background: var(--menu-accent);
+    color: var(--menu-light);
+    filter: brightness(1.08);
+}
+
+.detailPanel {
+    position: absolute;
+    left: 48px;
+    top: 30%;
+    transform: translateY(-50%);
+    max-width: 380px;
+    pointer-events: none;
+    text-shadow: 0 2px 18px rgba(0, 0, 0, 0.9), 0 1px 4px rgba(0, 0, 0, 0.7);
+}
+
+.detailOperator {
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(243, 244, 246, 0.55);
+    margin: 0 0 6px;
+}
+
+.detailName {
+    font-size: 44px;
+    font-weight: 700;
+    margin: 0 0 12px;
+    line-height: 1;
+    letter-spacing: -0.5px;
+}
+
+.detailStats {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 14px;
+}
+
+.detailStat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.detailStatLabel {
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: rgba(243, 244, 246, 0.5);
+}
+
+.detailStatValue {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.detailDescription {
+    font-size: 14px;
+    line-height: 1.5;
+    color: rgba(243, 244, 246, 0.75);
+    margin: 0;
+}
+
+.cardStrip {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 14px 32px 18px;
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-behavior: smooth;
+    background: linear-gradient(0deg, rgba(0, 0, 0, 0.65) 0%, transparent 100%);
+    scrollbar-width: none;
+}
+
+.cardStrip::-webkit-scrollbar {
+    display: none;
+}
+
+.card {
+    flex: 0 0 160px;
+    background: #1a1d24;
+    border: none;
+    border-radius: 12px;
+    padding: 12px 16px;
+    cursor: pointer;
+    color: var(--menu-light);
+    text-align: left;
+    font: inherit;
+    transition: filter 0.15s ease, background 0.15s ease;
+}
+
+.card:hover {
+    filter: brightness(1.3);
+}
+
+.cardActive {
+    background: var(--menu-accent);
+    color: var(--menu-light);
+}
+
+.cardActive:hover {
+    background: var(--menu-accent);
+    color: var(--menu-light);
+    filter: brightness(1.08);
+}
+
+.cardOperator {
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    opacity: 0.7;
+    margin-bottom: 4px;
+}
+
+.cardName {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 3px;
+    line-height: 1;
+}
+
+.cardTopSpeed {
+    font-size: 11px;
+    opacity: 0.75;
+}
+
+.cardSoon {
+    flex: 0 0 160px;
+    background: #14171c;
+    border-radius: 12px;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    color: var(--menu-dim);
+    pointer-events: none;
+}
+
+.cardSoonLabel {
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.cardSoonSub {
+    font-size: 11px;
+    opacity: 0.75;
+    margin-top: 2px;
+}
+
+.selectButton {
+    position: absolute;
+    right: 48px;
+    bottom: 240px;
+    padding: 14px 28px;
+    font-size: 16px;
+    font-weight: 700;
+    background: var(--menu-accent);
+    color: var(--menu-light);
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: transform 0.15s ease, filter 0.15s ease;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+}
+
+.selectButton:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.08);
+}
+
+@media (max-height: 620px) {
+    .detailDescription {
+        display: none;
+    }
+
+    .detailName {
+        font-size: 36px;
+    }
+}
+
+@media (max-width: 768px) {
+    .canvasMount {
+        bottom: 280px;
+    }
+
+    .topBar {
+        padding: 12px 16px;
+        gap: 12px;
+    }
+
+    .title {
+        font-size: 14px;
+        letter-spacing: 0.5px;
+    }
+
+    .backButton {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+
+    .titleSpacer {
+        display: none;
+    }
+
+    .operatorTabs {
+        top: 56px;
+        gap: 6px;
+    }
+
+    .operatorTab {
+        padding: 4px 12px;
+        font-size: 12px;
+    }
+
+    .detailPanel {
+        left: 16px;
+        right: 16px;
+        top: auto;
+        transform: none;
+        bottom: 200px;
+        max-width: none;
+        max-height: none;
+        overflow: visible;
+    }
+
+    .detailOperator {
+        font-size: 10px;
+        margin-bottom: 2px;
+    }
+
+    .detailName {
+        font-size: 28px;
+        margin-bottom: 8px;
+    }
+
+    .detailStats {
+        gap: 16px;
+        margin-bottom: 6px;
+    }
+
+    .detailStatValue {
+        font-size: 15px;
+    }
+
+    .detailDescription {
+        display: none;
+    }
+
+    .selectButton {
+        left: 16px;
+        right: 16px;
+        top: auto;
+        transform: none;
+        bottom: 130px;
+        padding: 12px 20px;
+        text-align: center;
+        font-size: 15px;
+    }
+
+    .selectButton:hover {
+        transform: translateY(-2px);
+    }
+
+    .cardStrip {
+        padding: 14px 16px 18px;
+        gap: 10px;
+    }
+
+    .card {
+        flex: 0 0 140px;
+        padding: 10px 14px;
+    }
+
+    .cardOperator {
+        font-size: 9px;
+        margin-bottom: 4px;
+    }
+
+    .cardName {
+        font-size: 16px;
+    }
+
+    .cardTopSpeed {
+        font-size: 11px;
+    }
+
+    .cardSoon {
+        flex: 0 0 140px;
+        padding: 10px 14px;
+    }
+
+    .cardSoonLabel {
+        font-size: 13px;
+    }
+}
