@@ -1,5 +1,55 @@
 # Changelog
 
+## 0.6.0 (2026-05-14)
+
+### style
+
+* **picker:** white active state for cards/tabs and taller back button 
+
+### refactor
+
+* **picker:** inline per-locale description on train config with English fallback 
+
+### Performance
+
+* **hud:** scale Maps2D car icons via transform to avoid SVG re-rasterization 
+* **routes:** lower statement_timeout from 60s to 30s 
+* **routes:** set local statement_timeout to 60s for long multi-stop journeys 
+
+### Features
+
+* **editor:** edit areas, multi-select with marquee, per-track colors 
+* **editor:** R snaps the whole selection to terrain with smarter sampling 
+* **faq:** add /faq and /nl/faq pages with footer and early-access links 
+* **Game:** persisted metric/imperial unit toggle 
+* **hud:** F3 panel shows current track segment 
+* **hud:** warn when stopped at a station with doors closed 
+* **i18n:** EN/NL multi-language routing with persisted preference 
+* **i18n:** finish translating in-game HUD and station picker 
+* **i18n:** localize app screens to English and Dutch 
+* **overpass:** search rail routes by name or relation id with type filters 
+* **picker:** add train picker between route selection and journey start 
+* **picker:** localize train picker strings via i18n 
+* **rail:** trains follow real terrain across the Netherlands 
+* **routes:** expose rail point override source (manual/seed) via API and DB 
+* **seed:** replace AHN with ProRail PVS_Verticale_Elementen as altitude source 
+* **tiles:** look-ahead camera, LRU caps, and rail corrector wiring 
+* **Train Editor:** enable debug visualization via ?trainDebug URL param 
+* **Train Editor:** expose ready promise resolved on initial model load 
+* **Train Editor:** rail corrector snaps path Y to terrain at runtime 
+* **travel:** map-based station picker with mobile two-tap select 
+
+### Bug Fixes
+
+* **archive:** dedupe in-progress sessions for same route and cap visible history at 20 
+* **Game:** ensure max speed sign is inside viewport 
+* **hud:** keep coordinates and tile credits in sync with the camera 
+* **routing:** tolerate trailing slash on /faq and /credits route checks 
+* **Train Editor:** only apply downward rail corrections, never upward 
+* **Train Editor:** restore bounded upward rail corrections (1m rise cap, 1.5m kink guard) 
+* **Train Editor:** revert rail corrector bounds to original 5m up-kink threshold 
+* **travel:** anchor archive badge to its label
+
 ## 0.5.0 (2026-05-02)
 
 ### Features
