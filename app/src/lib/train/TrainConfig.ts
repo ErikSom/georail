@@ -144,6 +144,8 @@ export interface TrainGeneralConfig {
     maxSpeed?: number; // Maximum speed in km/h - defaults to 120
 }
 
+import type { LocalizedString } from '../../i18n';
+
 export type TrainOperator = 'NS' | 'British Rail';
 
 export interface TrainDisplayConfig {
@@ -152,7 +154,7 @@ export interface TrainDisplayConfig {
     topSpeedKmh: number;
     era?: string;
     creator?: string;
-    descriptionKey?: string;
+    description?: LocalizedString;
 }
 
 export interface TrainConfig {

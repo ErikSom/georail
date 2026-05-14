@@ -109,11 +109,6 @@
         "soon": {
             "label": "Meer treinen",
             "sub": "binnenkort"
-        },
-        "trains": {
-            "nssgm": {
-                "description": "Stadsgewestelijk Materieel — forenzentrein gebruikt in de Randstad."
-            }
         }
     },
     "settings": {

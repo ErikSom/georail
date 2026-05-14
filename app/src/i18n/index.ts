@@ -51,3 +51,13 @@ export function t(key: string, vars?: Record<string, string | number>): string {
     }
     return s;
 }
+
+// Per-record translations: either a plain string or a map keyed by locale.
+// Falls back to English when the active locale is missing.
+export type LocalizedString = string | ({ en: string } & Partial<Record<Locale, string>>);
+
+export function localized(value: LocalizedString | undefined, current: Locale = locale.value): string | undefined {
+    if (value == null) return undefined;
+    if (typeof value === 'string') return value;
+    return value[current] ?? value.en;
+}

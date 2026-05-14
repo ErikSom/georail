@@ -4,7 +4,7 @@ import { TrainPickerWorld } from '../lib/TrainPickerWorld';
 import { trainCatalog, getOperators, type TrainOperator, type TrainCatalogEntry } from '../lib/train/configs/TrainCatalog';
 import { selectedTrainId } from '../store/train';
 import { appScreen } from '../store/app';
-import { t, locale } from '../i18n';
+import { t, locale, localized } from '../i18n';
 import TrainSpinner from './TrainSpinner';
 import styles from './TrainPicker.module.css';
 
@@ -112,8 +112,8 @@ export default function TrainPicker() {
                         </div>
                     )}
                 </div>
-                {previewedEntry.descriptionKey && (
-                    <p className={styles.detailDescription}>{t(previewedEntry.descriptionKey)}</p>
+                {previewedEntry.description && (
+                    <p className={styles.detailDescription}>{localized(previewedEntry.description)}</p>
                 )}
             </div>
 

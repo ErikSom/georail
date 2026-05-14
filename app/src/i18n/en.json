@@ -109,11 +109,6 @@
         "soon": {
             "label": "More trains",
             "sub": "coming soon"
-        },
-        "trains": {
-            "nssgm": {
-                "description": "Stadsgewestelijk Materieel — commuter EMU used across the Randstad."
-            }
         }
     },
     "settings": {
