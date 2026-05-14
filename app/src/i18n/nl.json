@@ -95,6 +95,27 @@
         "openMap": "Kaart openen",
         "mapPickerTitle": "Kies een station op de kaart"
     },
+    "picker": {
+        "title": "Kies je trein",
+        "back": "Andere route",
+        "filter": {
+            "all": "Alle"
+        },
+        "stats": {
+            "topSpeed": "Topsnelheid",
+            "era": "Tijdperk"
+        },
+        "select": "Kies {name}",
+        "soon": {
+            "label": "Meer treinen",
+            "sub": "binnenkort"
+        },
+        "trains": {
+            "nssgm": {
+                "description": "Stadsgewestelijk Materieel — forenzentrein gebruikt in de Randstad."
+            }
+        }
+    },
     "settings": {
         "language": "Taal",
         "units": "Eenheden",

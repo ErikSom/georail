@@ -4,6 +4,7 @@ import { TrainPickerWorld } from '../lib/TrainPickerWorld';
 import { trainCatalog, getOperators, type TrainOperator, type TrainCatalogEntry } from '../lib/train/configs/TrainCatalog';
 import { selectedTrainId } from '../store/train';
 import { appScreen } from '../store/app';
+import { t, locale } from '../i18n';
 import TrainSpinner from './TrainSpinner';
 import styles from './TrainPicker.module.css';
 
@@ -17,6 +18,9 @@ export default function TrainPicker() {
     const previewing = useSignal<string>(initialId);
     const [operatorFilter, setOperatorFilter] = useState<OperatorFilter>('all');
     const [loading, setLoading] = useState(true);
+
+    // Touch the locale signal so t() output re-renders on language change.
+    void locale.value;
 
     useEffect(() => {
         if (!mountRef.current || worldRef.current) return;
@@ -67,9 +71,9 @@ export default function TrainPicker() {
 
             <div className={styles.topBar}>
                 <button className={styles.backButton} onClick={handleBack}>
-                    ← Change route
+                    ← {t('picker.back')}
                 </button>
-                <h1 className={styles.title}>Select your train</h1>
+                <h1 className={styles.title}>{t('picker.title')}</h1>
                 <div className={styles.titleSpacer} />
             </div>
 
@@ -79,7 +83,7 @@ export default function TrainPicker() {
                         className={`${styles.operatorTab} ${operatorFilter === 'all' ? styles.operatorTabActive : ''}`}
                         onClick={() => setOperatorFilter('all')}
                     >
-                        All
+                        {t('picker.filter.all')}
                     </button>
                     {operators.map(op => (
                         <button
@@ -98,23 +102,23 @@ export default function TrainPicker() {
                 <h2 className={styles.detailName}>{previewedEntry.name}</h2>
                 <div className={styles.detailStats}>
                     <div className={styles.detailStat}>
-                        <span className={styles.detailStatLabel}>Top speed</span>
+                        <span className={styles.detailStatLabel}>{t('picker.stats.topSpeed')}</span>
                         <span className={styles.detailStatValue}>{previewedEntry.topSpeedKmh} km/h</span>
                     </div>
                     {previewedEntry.era && (
                         <div className={styles.detailStat}>
-                            <span className={styles.detailStatLabel}>Era</span>
+                            <span className={styles.detailStatLabel}>{t('picker.stats.era')}</span>
                             <span className={styles.detailStatValue}>{previewedEntry.era}</span>
                         </div>
                     )}
                 </div>
-                {previewedEntry.description && (
-                    <p className={styles.detailDescription}>{previewedEntry.description}</p>
+                {previewedEntry.descriptionKey && (
+                    <p className={styles.detailDescription}>{t(previewedEntry.descriptionKey)}</p>
                 )}
             </div>
 
             <button className={styles.selectButton} onClick={handleConfirm}>
-                Select {previewedEntry.name} →
+                {t('picker.select', { name: previewedEntry.name })} →
             </button>
 
             <div className={styles.cardStrip}>
@@ -130,8 +134,8 @@ export default function TrainPicker() {
                     </button>
                 ))}
                 <div className={styles.cardSoon} aria-disabled="true">
-                    <div className={styles.cardSoonLabel}>More trains</div>
-                    <div className={styles.cardSoonSub}>coming soon</div>
+                    <div className={styles.cardSoonLabel}>{t('picker.soon.label')}</div>
+                    <div className={styles.cardSoonSub}>{t('picker.soon.sub')}</div>
                 </div>
             </div>
         </div>

@@ -4,7 +4,7 @@
         "operator": "NS",
         "topSpeedKmh": 125,
         "era": "1975–2021",
-        "description": "Stadsgewestelijk Materieel — commuter EMU used across the Randstad."
+        "descriptionKey": "picker.trains.nssgm.description"
     },
     "cab": {
         "length": 25,

@@ -152,7 +152,7 @@ export interface TrainDisplayConfig {
     topSpeedKmh: number;
     era?: string;
     creator?: string;
-    description?: string;
+    descriptionKey?: string;
 }
 
 export interface TrainConfig {
