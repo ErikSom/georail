@@ -47,7 +47,7 @@
     background: #1a1d24;
     border: none;
     color: var(--menu-light);
-    padding: 10px 16px;
+    padding: 14px 18px;
     border-radius: 12px;
     font-size: 14px;
     font-weight: 500;
@@ -101,14 +101,14 @@
 }
 
 .operatorTabActive {
-    background: var(--menu-accent);
-    color: var(--menu-light);
+    background: var(--menu-light);
+    color: var(--menu-dark);
 }
 
 .operatorTabActive:hover {
-    background: var(--menu-accent);
-    color: var(--menu-light);
-    filter: brightness(1.08);
+    background: var(--menu-light);
+    color: var(--menu-dark);
+    filter: brightness(0.95);
 }
 
 .detailPanel {
@@ -205,14 +205,14 @@
 }
 
 .cardActive {
-    background: var(--menu-accent);
-    color: var(--menu-light);
+    background: var(--menu-light);
+    color: var(--menu-dark);
 }
 
 .cardActive:hover {
-    background: var(--menu-accent);
-    color: var(--menu-light);
-    filter: brightness(1.08);
+    background: var(--menu-light);
+    color: var(--menu-dark);
+    filter: brightness(0.95);
 }
 
 .cardOperator {
