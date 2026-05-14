@@ -18,6 +18,11 @@ export class RollingStock {
     protected config: RollingStockConfig;
     private _targetRotation = new Quaternion();
     private model: Group | null = null;
+    public onModelReady: (() => void) | null = null;
+
+    public hasModel(): boolean {
+        return this.model !== null;
+    }
 
     private animator: RollingStockAnimator | null = null;
 
@@ -222,6 +227,7 @@ export class RollingStock {
         this.group.add(this.model!);
         this.findBogieEntities();
         this.onModelLoaded();
+        this.onModelReady?.();
     }
 
     protected onModelLoaded(): void { }

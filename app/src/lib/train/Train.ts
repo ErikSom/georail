@@ -36,6 +36,8 @@ export class Train implements IPhysicsTarget {
     private lastNonZeroDirection: -1 | 1 = 1;
     private readonly _cabinWorldPos = new Vector3();
 
+    public readonly ready: Promise<void>;
+
     constructor(config: TrainConfig, debug: boolean = false) {
 
         this.debug = debug;
@@ -58,6 +60,22 @@ export class Train implements IPhysicsTarget {
 
         // sets train on track;
         this.updateConfig(config);
+
+        const pieces = [this.cab as Cab | Wagon, ...this.wagons];
+        if (this.rearCab) pieces.push(this.rearCab);
+        let remaining = pieces.length;
+        this.ready = new Promise(resolve => {
+            if (remaining === 0) { resolve(); return; }
+            for (const p of pieces) {
+                if (p.hasModel()) {
+                    if (--remaining === 0) resolve();
+                    continue;
+                }
+                p.onModelReady = () => {
+                    if (--remaining === 0) resolve();
+                };
+            }
+        });
 
         // Initialize audio engine with configuration
         this.audio.initialize(config.audio).catch((error) => {
