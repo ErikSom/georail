@@ -19,10 +19,8 @@ import {
     Color,
 } from 'three';
 import { Train } from './train/Train';
-import type { TrainConfig } from './train/TrainConfig';
 import Path from './utils/Path';
-import { getTrainConfiguration } from './train/configs/TrainConfigurations.secure';
-import { getCatalogEntry } from './train/configs/TrainCatalog';
+import { getCatalogEntry, getDefaultCatalogEntry, resolveTrainEntry } from './train/configs/TrainCatalog';
 import { audioListener } from '../store/globals';
 import { trainVelocityKmh, trainPower } from '../store/train';
 
@@ -79,6 +77,7 @@ export class TrainPickerWorld {
     private mountElement: HTMLDivElement;
     private swapTimeoutId: number | null = null;
     private onLoadingChange: LoadingChangeCallback | null;
+    private currentDispose: (() => void) | null = null;
 
     private currentTrainId: string;
     private pendingTrainId: string;
@@ -101,7 +100,7 @@ export class TrainPickerWorld {
         this.onWindowResize = this.onWindowResize.bind(this);
     }
 
-    public init(): void {
+    public async init(): Promise<void> {
         this.scene = new Scene();
         this.scene.background = new Color(FOG_COLOR);
         this.scene.fog = new Fog(FOG_COLOR, 14, 160);
@@ -141,8 +140,10 @@ export class TrainPickerWorld {
 
         this.buildRail();
 
-        const initialConfig = this.resolveConfig(this.currentTrainId);
-        this.train = new Train(initialConfig, false);
+        this.onLoadingChange?.(true);
+        const initial = await this.resolveByCatalogId(this.currentTrainId);
+        this.currentDispose = initial.dispose;
+        this.train = new Train(initial.config, false);
         this.scene.add(this.train.group);
 
         const path = new Path(this.buildStraightPath());
@@ -162,22 +163,19 @@ export class TrainPickerWorld {
         window.addEventListener('resize', this.onWindowResize);
         this.animate();
 
-        this.onLoadingChange?.(true);
         const minDelay = new Promise<void>(resolve => setTimeout(resolve, INITIAL_SPINNER_MIN_MS));
-        Promise.all([this.train.ready, minDelay]).then(() => {
+        Promise.all([this.train.ready, minDelay]).then(async () => {
             if (this.rafId === null) return;
-            this.applyPendingConfig();
+            await this.applyPendingConfig();
             this.onLoadingChange?.(false);
             this.startEnter();
         });
     }
 
-    private resolveConfig(trainId: string): TrainConfig {
-        const entry = getCatalogEntry(trainId);
-        if (!entry) {
-            throw new Error(`TrainPickerWorld: unknown catalog id "${trainId}"`);
-        }
-        return getTrainConfiguration(entry.trainType);
+    private async resolveByCatalogId(trainId: string) {
+        const entry = getCatalogEntry(trainId) ?? getDefaultCatalogEntry();
+        if (!entry) throw new Error(`TrainPickerWorld: unknown catalog id "${trainId}"`);
+        return resolveTrainEntry(entry);
     }
 
     private buildStraightPath(): Vector3[] {
@@ -259,21 +257,25 @@ export class TrainPickerWorld {
         this.phase = 'swapping';
         this.setAudioMoving(false);
         this.onLoadingChange?.(true);
-        this.swapTimeoutId = window.setTimeout(() => {
+        this.swapTimeoutId = window.setTimeout(async () => {
             this.swapTimeoutId = null;
+            await this.applyPendingConfig();
             this.onLoadingChange?.(false);
-            this.applyPendingConfig();
             this.startEnter();
         }, SWAP_SPINNER_MIN_MS);
     }
 
-    private applyPendingConfig(): void {
+    private async applyPendingConfig(): Promise<void> {
         if (this.pendingTrainId === this.currentTrainId) return;
-        const prev = getCatalogEntry(this.currentTrainId);
         const next = getCatalogEntry(this.pendingTrainId);
-        if (next && prev?.trainType !== next.trainType) {
-            this.train.updateConfig(getTrainConfiguration(next.trainType));
+        if (!next) {
+            this.currentTrainId = this.pendingTrainId;
+            return;
         }
+        const resolved = await resolveTrainEntry(next);
+        this.train.updateConfig(resolved.config);
+        this.currentDispose?.();
+        this.currentDispose = resolved.dispose;
         this.currentTrainId = this.pendingTrainId;
     }
 
@@ -395,6 +397,8 @@ export class TrainPickerWorld {
 
         this.setAudioMoving(false);
         this.train.cleanup();
+        this.currentDispose?.();
+        this.currentDispose = null;
         this.renderer.dispose();
 
         if (this.mountElement && this.renderer.domElement.parentElement === this.mountElement) {

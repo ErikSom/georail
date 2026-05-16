@@ -1,5 +1,6 @@
 {
     "display": {
+        "id": "b0186e60-7a31-4d3a-9c4b-1b7e1b7e1b7e",
         "name": "SGM-III",
         "operator": "NS",
         "topSpeedKmh": 125,
@@ -105,7 +106,7 @@
                     "z": 62.5
                 },
                 "color": 16775089,
-                "intensity": 600,
+                "intensity": 100,
                 "distance": 300,
                 "angle": 0.45,
                 "penumbra": 0.4,
@@ -126,7 +127,7 @@
                     "z": 62.5
                 },
                 "color": 16775089,
-                "intensity": 600,
+                "intensity": 100,
                 "distance": 300,
                 "angle": 0.45,
                 "penumbra": 0.4,
@@ -146,8 +147,8 @@
                     "z": 62.5
                 },
                 "color": 16775089,
-                "intensity": 1000,
-                "distance": 300,
+                "intensity": 100,
+                "distance": 0,
                 "angle": 0.45,
                 "penumbra": 0.4,
                 "decay": 2,
@@ -393,6 +394,145 @@
             "pattern": "inside",
             "emissiveColor": 16757072,
             "emissiveIntensity": 1
+        },
+        "lights": [
+            {
+                "role": "headlight",
+                "offset": {
+                    "x": -0.59,
+                    "y": 1.53,
+                    "z": 12.45
+                },
+                "target": {
+                    "x": -0.59,
+                    "y": 0,
+                    "z": 62.5
+                },
+                "color": 16775089,
+                "intensity": 100,
+                "distance": 300,
+                "angle": 0.45,
+                "penumbra": 0.4,
+                "decay": 2,
+                "lensFlareSize": 355,
+                "meshPattern": "headlight"
+            },
+            {
+                "role": "headlight",
+                "offset": {
+                    "x": 0.59,
+                    "y": 1.53,
+                    "z": 12.45
+                },
+                "target": {
+                    "x": 0.59,
+                    "y": 0,
+                    "z": 62.5
+                },
+                "color": 16775089,
+                "intensity": 100,
+                "distance": 300,
+                "angle": 0.45,
+                "penumbra": 0.4,
+                "decay": 2,
+                "lensFlareSize": 355
+            },
+            {
+                "role": "headlight",
+                "offset": {
+                    "x": 0,
+                    "y": 2.34,
+                    "z": 12.2
+                },
+                "target": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 62.5
+                },
+                "color": 16775089,
+                "intensity": 100,
+                "distance": 0,
+                "angle": 0.45,
+                "penumbra": 0.4,
+                "decay": 2,
+                "lensFlareSize": 355
+            },
+            {
+                "role": "taillight",
+                "offset": {
+                    "x": -0.87,
+                    "y": 1.52,
+                    "z": 12.45
+                },
+                "target": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 48
+                },
+                "color": 16711680,
+                "intensity": 1000,
+                "distance": 0,
+                "angle": 0.45,
+                "penumbra": 0.4,
+                "decay": 2,
+                "lensFlareSize": 355,
+                "meshPattern": "headlight"
+            },
+            {
+                "role": "taillight",
+                "offset": {
+                    "x": 0.87,
+                    "y": 1.52,
+                    "z": 12.45
+                },
+                "target": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 48
+                },
+                "color": 16711680,
+                "intensity": 1000,
+                "distance": 0,
+                "angle": 0.45,
+                "penumbra": 0.4,
+                "decay": 2,
+                "lensFlareSize": 355,
+                "meshPattern": ""
+            }
+        ],
+        "emissiveTextures": {
+            "headlight:headlight": {
+                "shapes": [
+                    {
+                        "type": "circle",
+                        "center": {
+                            "x": 0.0546875,
+                            "y": 0.83154296875
+                        },
+                        "radius": 0.03149319432929121
+                    }
+                ],
+                "blur": 4,
+                "resolution": 512,
+                "color": 16775089,
+                "intensity": 0.4
+            },
+            "taillight:headlight": {
+                "shapes": [
+                    {
+                        "type": "circle",
+                        "center": {
+                            "x": 0.15625,
+                            "y": 0.82958984375
+                        },
+                        "radius": 0.03601384553630034
+                    }
+                ],
+                "blur": 3,
+                "resolution": 512,
+                "color": 16774368,
+                "intensity": 0.4
+            }
         },
         "cabinPosition": {
             "x": 0,

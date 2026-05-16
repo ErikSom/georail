@@ -28,7 +28,7 @@ function ThreeViewer() {
         if (!mountRef.current || worldRef.current || !route) return;
 
         worldRef.current = new World(mountRef.current, setAttribution, route);
-        worldRef.current.init();
+        void worldRef.current.init();
 
         return () => {
             worldRef.current?.cleanup();

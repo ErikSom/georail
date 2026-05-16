@@ -30,8 +30,7 @@ import Path from './utils/Path';
 import { dummyVec3, dummyVec3B } from './utils/Helper';
 import { StationIndicator } from './StationIndicator';
 import { BoundaryWall } from './BoundaryWall';
-import { getTrainConfiguration } from './train/configs/TrainConfigurations.secure';
-import { getCatalogEntry, getDefaultCatalogEntry } from './train/configs/TrainCatalog';
+import { getCatalogEntry, getDefaultCatalogEntry, resolveTrainEntry } from './train/configs/TrainCatalog';
 import Stats from 'stats-gl';
 import { trainInstance, updateTrainState, trainDebugMode, trainLatE7, trainLonE7, trainFrontLatE7, trainFrontLonE7, trainBackLatE7, trainBackLonE7, cameraYawRelativeToTrain, trainMaxSpeedKmh, selectedTrainId } from '../store/train';
 import { getPerformanceConfig, type PerformanceConfig } from './utils/PerformanceConfig';
@@ -92,7 +91,9 @@ export class World {
         this.onWindowResize = this.onWindowResize.bind(this);
     }
 
-    public init(): void {
+    private trainDispose: (() => void) | null = null;
+
+    public async init(): Promise<void> {
         this.scene = new Scene();
         this.clock = new Clock();
 
@@ -154,7 +155,9 @@ export class World {
         }
 
         const catalogEntry = getCatalogEntry(selectedTrainId.value) ?? getDefaultCatalogEntry();
-        const trainConfig = getTrainConfiguration(catalogEntry.trainType);
+        const resolved = await resolveTrainEntry(catalogEntry);
+        const trainConfig = resolved.config;
+        this.trainDispose = resolved.dispose;
         this.train = new Train(trainConfig, trainDebugMode.value);
         this.scene.add(this.train.group);
 
@@ -220,6 +223,8 @@ export class World {
         this.railCorrector?.dispose();
         this.railCorrector = null;
         this.train.cleanup();
+        this.trainDispose?.();
+        this.trainDispose = null;
         this.gameCamera.cleanup();
 
         if (this.flightControls) {

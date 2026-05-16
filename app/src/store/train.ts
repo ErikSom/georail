@@ -1,6 +1,7 @@
 import { signal, computed, effect } from "@preact/signals";
 import type { Train } from "../lib/train/Train";
 import { getDefaultCatalogEntry, getCatalogEntry } from "../lib/train/configs/TrainCatalog";
+import { hydrateUserTrains } from "../lib/train/configs/UserTrainsCatalog";
 
 const SELECTED_TRAIN_STORAGE_KEY = 'georail.selectedTrainId';
 
@@ -8,7 +9,7 @@ function loadInitialSelectedTrainId(): string {
     if (typeof window === 'undefined') return getDefaultCatalogEntry().id;
     try {
         const stored = window.localStorage.getItem(SELECTED_TRAIN_STORAGE_KEY);
-        if (stored && getCatalogEntry(stored)) return stored;
+        if (stored) return stored; // Optimistic; user-train ids hydrate async.
     } catch {
     }
     return getDefaultCatalogEntry().id;
@@ -21,6 +22,13 @@ if (typeof window !== 'undefined') {
         try {
             window.localStorage.setItem(SELECTED_TRAIN_STORAGE_KEY, selectedTrainId.value);
         } catch {
+        }
+    });
+
+    // After user trains hydrate from IndexedDB, drop persisted ids that no longer resolve.
+    hydrateUserTrains().then(() => {
+        if (!getCatalogEntry(selectedTrainId.value)) {
+            selectedTrainId.value = getDefaultCatalogEntry().id;
         }
     });
 }

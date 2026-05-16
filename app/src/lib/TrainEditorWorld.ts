@@ -46,7 +46,6 @@ export class TrainEditorWorld {
     private mountElement: HTMLDivElement;
     private pane: Pane | null = null;
     private trainControlParams = {
-        power: 0,
         velocityKmh: 0,
     };
     private sceneParams = {
@@ -71,6 +70,14 @@ export class TrainEditorWorld {
         this.animate = this.animate.bind(this);
         this.onWindowResize = this.onWindowResize.bind(this);
         this.boundOnWheel = this.onWheel.bind(this);
+    }
+
+    private initialConfig: TrainConfig | null = null;
+    private configDispose: (() => void) | null = null;
+
+    public setInitialConfig(config: TrainConfig, dispose: (() => void) | null = null): void {
+        this.initialConfig = config;
+        this.configDispose = dispose;
     }
 
     public init(): void {
@@ -128,15 +135,19 @@ export class TrainEditorWorld {
         // Debug UI
         this.createDebugUI();
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlTrain = urlParams.get('train');
-
-        let trainConfig: TrainConfig = getDefaultTrainConfig();
-        if (urlTrain) {
-            try {
-                trainConfig = getTrainConfiguration(urlTrain);
-            } catch (e) {
-                console.error(`Failed to load train configuration for type "${urlTrain}". Using default configuration.`, e);
+        let trainConfig: TrainConfig;
+        if (this.initialConfig) {
+            trainConfig = this.initialConfig;
+        } else {
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlTrain = urlParams.get('train');
+            trainConfig = getDefaultTrainConfig();
+            if (urlTrain) {
+                try {
+                    trainConfig = getTrainConfiguration(urlTrain);
+                } catch (e) {
+                    console.error(`Failed to load train configuration for type "${urlTrain}". Using default configuration.`, e);
+                }
             }
         }
 
@@ -210,23 +221,9 @@ export class TrainEditorWorld {
         // Train Controls
         const trainFolder = this.pane.addFolder({ title: 'Train Controls' });
 
-        trainFolder.addBinding(this.trainControlParams, 'power', {
-            label: 'Power',
-            min: -1,
-            max: 1,
-            step: 0.01,
-        }).on('change', (ev) => {
-            this.train.setPower(ev.value);
-        });
-
         trainFolder.addBinding(this.trainControlParams, 'velocityKmh', {
             label: 'Speed (km/h)',
             readonly: true,
-        });
-
-        trainFolder.addButton({ title: 'Reset' }).on('click', () => {
-            this.trainControlParams.power = 0;
-            this.train.setPower(0);
         });
 
         // Camera controls
@@ -411,7 +408,6 @@ export class TrainEditorWorld {
 
         // Update display values for debug pane
         this.trainControlParams.velocityKmh = this.train.getVelocityKmh();
-        this.trainControlParams.power = this.train.getPower();
         this.pane?.refresh();
 
         // Update camera based on mode
@@ -527,6 +523,19 @@ export class TrainEditorWorld {
 
     }
 
+    public getCurrentConfig(): TrainConfig {
+        return this.train.exportConfig();
+    }
+
+    public swapConfig(config: TrainConfig, dispose: (() => void) | null = null): void {
+        this.train.updateConfig(config);
+        this.configDispose?.();
+        this.configDispose = dispose;
+        trainMaxSpeedKmh.value = config.general?.maxSpeed ?? 120;
+        this.controls.target.copy(this.train.group.position);
+        this.controls.update();
+    }
+
     public cleanup(): void {
         if (this.rafId) {
             cancelAnimationFrame(this.rafId);
@@ -539,6 +548,8 @@ export class TrainEditorWorld {
         trainInstance.value = null;
 
         this.train.cleanup();
+        this.configDispose?.();
+        this.configDispose = null;
         this.controls.dispose();
 
         if (this.flightControls) {

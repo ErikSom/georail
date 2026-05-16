@@ -87,6 +87,17 @@ export class Train implements IPhysicsTarget {
         }
     }
 
+    public exportConfig(): TrainConfig {
+        return {
+            display: this.config.display,
+            general: this.config.general,
+            cab: this.cab.exportConfig(),
+            wagons: this.wagons.map(wagon => wagon.exportConfig()),
+            rearCab: this.rearCab ? this.rearCab.exportConfig() : undefined,
+            audio: this.config.audio,
+        };
+    }
+
     public updateConfig(config: TrainConfig): void {
         this.config = config;
 
@@ -384,14 +395,7 @@ export class Train implements IPhysicsTarget {
         miscButtons.on('click', (ev: any) => {
             const [x] = ev.index;
             if (x === 0) {
-                // Export config with animation groups and audio
-                const exportedConfig: TrainConfig = {
-                    cab: this.cab.exportConfig(),
-                    wagons: this.wagons.map(wagon => wagon.exportConfig()),
-                    rearCab: this.rearCab ? this.rearCab.exportConfig() : undefined,
-                    audio: this.config.audio
-                };
-                const configJson = JSON.stringify(exportedConfig, null, 2);
+                const configJson = JSON.stringify(this.exportConfig(), null, 2);
                 navigator.clipboard.writeText(configJson).then(() => {
                     console.log('Configuration copied to clipboard:', configJson);
                     alert('Configuration copied to clipboard!');

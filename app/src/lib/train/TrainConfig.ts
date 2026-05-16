@@ -149,6 +149,7 @@ import type { LocalizedString } from '../../i18n';
 export type TrainOperator = 'NS' | 'British Rail';
 
 export interface TrainDisplayConfig {
+    id: string;
     name: string;
     operator: TrainOperator;
     topSpeedKmh: number;
@@ -170,6 +171,9 @@ export interface TrainConfig {
 export function getDefaultTrainConfig(): TrainConfig {
     return {
         display: {
+            id: typeof crypto !== 'undefined' && 'randomUUID' in crypto
+                ? crypto.randomUUID()
+                : `train-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
             name: 'Untitled Train',
             operator: 'NS',
             topSpeedKmh: 120,

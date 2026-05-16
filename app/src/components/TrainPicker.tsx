@@ -35,14 +35,15 @@ export default function TrainPicker() {
         };
     }, []);
 
+    const catalog = trainCatalog.value;
     const operators = getOperators();
     const showOperatorTabs = operators.length > 1;
     const visibleTrains = operatorFilter === 'all'
-        ? trainCatalog
-        : trainCatalog.filter(e => e.operator === operatorFilter);
+        ? catalog
+        : catalog.filter(e => e.operator === operatorFilter);
 
     const previewedEntry: TrainCatalogEntry =
-        trainCatalog.find(e => e.id === previewing.value) ?? trainCatalog[0];
+        catalog.find(e => e.id === previewing.value) ?? catalog[0];
 
     const handlePreview = (id: string) => {
         if (previewing.value === id) return;
