@@ -259,7 +259,7 @@ const compressTextures = async (document) => {
     if (imageBuffer) {
       const name = texture.getName() || 'unnamed';
       try {
-        const newBuffer = await sharp(imageBuffer, { failOn: 'none' })
+        const newBuffer = await sharp(imageBuffer, { failOn: 'none', unlimited: true })
           .resize({
             width: CONFIG.textureOptions.size[0],
             height: CONFIG.textureOptions.size[1],
