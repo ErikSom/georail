@@ -51,8 +51,14 @@ export class RollingStockAnimator {
         this.root = root;
         this.mixer = new AnimationMixer(root);
 
-        if (animations.length > 0) {
+        // fbx2gltf emits one AnimationClip per animated node — merge their tracks
+        // into a single master so pattern matching can address any node by name.
+        if (animations.length === 1) {
             this.masterClip = animations[0];
+        } else if (animations.length > 1) {
+            const tracks = animations.flatMap(c => c.tracks);
+            const duration = animations.reduce((d, c) => Math.max(d, c.duration), 0);
+            this.masterClip = new AnimationClip('__master__', duration, tracks);
         }
     }
 
