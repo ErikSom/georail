@@ -1,0 +1,483 @@
+{
+  "display": {
+    "id": "46e059c6-9055-41b1-89c3-ce687d94c69f",
+    "name": "Untitled Train",
+    "operator": "NS",
+    "topSpeedKmh": 120
+  },
+  "cab": {
+    "length": 25.7,
+    "weight": 45,
+    "height": 4,
+    "width": 3,
+    "modelPath": "train/NS-DM90/ns-dm90-abk.glb",
+    "scale": 1,
+    "modelOffset": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "modelForwardAxis": {
+      "x": 0,
+      "y": 0,
+      "z": -1
+    },
+    "reverseOnTrack": false,
+    "frontBogie": {
+      "zOffset": 8.3,
+      "wheelOffsetFront": 1,
+      "wheelOffsetRear": -1,
+      "entityName": "1_2000_bo01",
+      "boneForwardAxis": {
+        "x": 0,
+        "y": -1,
+        "z": -5.551115123125783e-17
+      }
+    },
+    "rearBogie": {
+      "zOffset": -9.6,
+      "wheelOffsetFront": 1,
+      "wheelOffsetRear": -1,
+      "entityName": "1_2000_bo02",
+      "boneForwardAxis": {
+        "x": 0,
+        "y": -1,
+        "z": -5.551115123125783e-17
+      }
+    },
+    "couplerLengthFront": 0,
+    "couplerLengthRear": 0.2,
+    "engine": true,
+    "enginePower": 640,
+    "brakingPower": 120,
+    "animationGroups": [
+      {
+        "name": "doors",
+        "pattern": "door",
+        "speed": 1,
+        "reverse": true,
+        "autoPlay": false,
+        "loop": false,
+        "alternate": false
+      }
+    ],
+    "wheels": [
+      {
+        "pattern": "wh0",
+        "rotationAxis": {
+          "x": -1,
+          "y": 0,
+          "z": 0
+        },
+        "radius": 0.5
+      }
+    ],
+    "interiorMaterial": {
+      "pattern": "inside",
+      "emissiveColor": 16757072,
+      "emissiveIntensity": 1
+    },
+    "internal": true,
+    "cabinPosition": {
+      "x": 0.34,
+      "y": 2.5,
+      "z": 11.74
+    },
+    "lights": [
+      {
+        "role": "headlight",
+        "offset": {
+          "x": -0.76,
+          "y": 1.52,
+          "z": 12.85
+        },
+        "target": {
+          "x": 0,
+          "y": 0,
+          "z": 62.85
+        },
+        "color": 16775089,
+        "intensity": 100,
+        "distance": 300,
+        "angle": 0.45,
+        "penumbra": 0.4,
+        "decay": 2,
+        "lensFlareSize": 355,
+        "meshPattern": "headlight"
+      },
+      {
+        "role": "headlight",
+        "offset": {
+          "x": 0.76,
+          "y": 1.52,
+          "z": 12.85
+        },
+        "target": {
+          "x": 0,
+          "y": 0,
+          "z": 62.85
+        },
+        "color": 16775089,
+        "intensity": 100,
+        "distance": 300,
+        "angle": 0.45,
+        "penumbra": 0.4,
+        "decay": 2,
+        "lensFlareSize": 355
+      },
+      {
+        "role": "headlight",
+        "offset": {
+          "x": 0,
+          "y": 2.30,
+          "z": 12.85
+        },
+        "target": {
+          "x": 0,
+          "y": 0,
+          "z": 62.85
+        },
+        "color": 16775089,
+        "intensity": 100,
+        "distance": 0,
+        "angle": 0.45,
+        "penumbra": 0.4,
+        "decay": 2,
+        "lensFlareSize": 355,
+        "meshPattern": "headlight"
+      },
+      {
+        "role": "taillight",
+        "offset": {
+          "x": -0.43,
+          "y": 1.52,
+          "z": 12.85
+        },
+        "target": {
+          "x": 0,
+          "y": 0,
+          "z": 62.85
+        },
+        "color": 16711680,
+        "intensity": 100,
+        "distance": 0,
+        "angle": 0.45,
+        "penumbra": 0.4,
+        "decay": 2,
+        "lensFlareSize": 355,
+        "meshPattern": "headlight"
+      },
+      {
+        "role": "taillight",
+        "offset": {
+          "x": 0.43,
+          "y": 1.52,
+          "z": 12.85
+        },
+        "target": {
+          "x": 0,
+          "y": 0,
+          "z": 62.85
+        },
+        "color": 16711680,
+        "intensity": 100,
+        "distance": 0,
+        "angle": 0.45,
+        "penumbra": 0.4,
+        "decay": 2,
+        "lensFlareSize": 355,
+        "meshPattern": "headlight"
+      }
+    ],
+    "emissiveTextures": {
+      "headlight:headlight": {
+        "shapes": [
+          {
+            "type": "circle",
+            "center": {
+              "x": 0.0458984375,
+              "y": 0.44189453125
+            },
+            "radius": 0.025465634395322848
+          },
+          {
+            "type": "circle",
+            "center": {
+              "x": 0.2275390625,
+              "y": 0.44384765625
+            },
+            "radius": 0.025012204052472065
+          },
+          {
+            "type": "circle",
+            "center": {
+              "x": 0.3193359375,
+              "y": 0.44189453125
+            },
+            "radius": 0.018425744398548053
+          }
+        ],
+        "blur": 4,
+        "resolution": 512,
+        "color": 16774368,
+        "intensity": 0.4
+      },
+      "taillight:headlight": {
+        "shapes": [
+          {
+            "type": "circle",
+            "center": {
+              "x": 0.1376953125,
+              "y": 0.44580078125
+            },
+            "radius": 0.028168369339562415
+          }
+        ],
+        "blur": 4,
+        "resolution": 512,
+        "color": 16774368,
+        "intensity": 0.4
+      }
+    }
+  },
+  "wagons": [],
+  "rearCab": {
+    "length": 25.7,
+    "weight": 45,
+    "height": 4,
+    "width": 3,
+    "modelPath": "train/NS-DM90/ns-dm90-bk.glb",
+    "scale": 1,
+    "modelOffset": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "modelForwardAxis": {
+      "x": 0,
+      "y": 0,
+      "z": -1
+    },
+    "reverseOnTrack": true,
+    "frontBogie": {
+      "zOffset": 8.3,
+      "wheelOffsetFront": 1,
+      "wheelOffsetRear": -1,
+      "entityName": "1_2000_bo01",
+      "boneForwardAxis": {
+        "x": 0,
+        "y": -1,
+        "z": -5.551115123125783e-17
+      }
+    },
+    "rearBogie": {
+      "zOffset": -9.6,
+      "wheelOffsetFront": 1,
+      "wheelOffsetRear": -1,
+      "entityName": "1_2000_bo02",
+      "boneForwardAxis": {
+        "x": 0,
+        "y": -1,
+        "z": -5.551115123125783e-17
+      }
+    },
+    "couplerLengthFront": 0,
+    "couplerLengthRear": 0.2,
+    "engine": true,
+    "enginePower": 640,
+    "brakingPower": 120,
+    "animationGroups": [
+      {
+        "name": "doors",
+        "pattern": "door",
+        "speed": 1,
+        "reverse": true,
+        "autoPlay": false,
+        "loop": false,
+        "alternate": false
+      }
+    ],
+    "wheels": [
+      {
+        "pattern": "wh0",
+        "rotationAxis": {
+          "x": -1,
+          "y": 0,
+          "z": 0
+        },
+        "radius": 0.5
+      }
+    ],
+    "interiorMaterial": {
+      "pattern": "inside",
+      "emissiveColor": 16757072,
+      "emissiveIntensity": 1
+    },
+    "internal": true,
+    "cabinPosition": {
+      "x": 0.34,
+      "y": 2.5,
+      "z": 11.74
+    },
+    "lights": [
+      {
+        "role": "headlight",
+        "offset": {
+          "x": -0.76,
+          "y": 1.52,
+          "z": 12.85
+        },
+        "target": {
+          "x": 0,
+          "y": 0,
+          "z": 62.85
+        },
+        "color": 16775089,
+        "intensity": 100,
+        "distance": 300,
+        "angle": 0.45,
+        "penumbra": 0.4,
+        "decay": 2,
+        "lensFlareSize": 355,
+        "meshPattern": "headlight"
+      },
+      {
+        "role": "headlight",
+        "offset": {
+          "x": 0.76,
+          "y": 1.52,
+          "z": 12.85
+        },
+        "target": {
+          "x": 0,
+          "y": 0,
+          "z": 62.85
+        },
+        "color": 16775089,
+        "intensity": 100,
+        "distance": 300,
+        "angle": 0.45,
+        "penumbra": 0.4,
+        "decay": 2,
+        "lensFlareSize": 355
+      },
+      {
+        "role": "headlight",
+        "offset": {
+          "x": 0,
+          "y": 2.30,
+          "z": 12.85
+        },
+        "target": {
+          "x": 0,
+          "y": 0,
+          "z": 62.85
+        },
+        "color": 16775089,
+        "intensity": 100,
+        "distance": 0,
+        "angle": 0.45,
+        "penumbra": 0.4,
+        "decay": 2,
+        "lensFlareSize": 355,
+        "meshPattern": "headlight"
+      },
+      {
+        "role": "taillight",
+        "offset": {
+          "x": -0.43,
+          "y": 1.52,
+          "z": 12.85
+        },
+        "target": {
+          "x": 0,
+          "y": 0,
+          "z": 62.85
+        },
+        "color": 16711680,
+        "intensity": 100,
+        "distance": 0,
+        "angle": 0.45,
+        "penumbra": 0.4,
+        "decay": 2,
+        "lensFlareSize": 355,
+        "meshPattern": "headlight"
+      },
+      {
+        "role": "taillight",
+        "offset": {
+          "x": 0.43,
+          "y": 1.52,
+          "z": 12.85
+        },
+        "target": {
+          "x": 0,
+          "y": 0,
+          "z": 62.85
+        },
+        "color": 16711680,
+        "intensity": 100,
+        "distance": 0,
+        "angle": 0.45,
+        "penumbra": 0.4,
+        "decay": 2,
+        "lensFlareSize": 355,
+        "meshPattern": "headlight"
+      }
+    ],
+    "emissiveTextures": {
+      "headlight:headlight": {
+        "shapes": [
+          {
+            "type": "circle",
+            "center": {
+              "x": 0.0458984375,
+              "y": 0.44189453125
+            },
+            "radius": 0.025465634395322848
+          },
+          {
+            "type": "circle",
+            "center": {
+              "x": 0.2275390625,
+              "y": 0.44384765625
+            },
+            "radius": 0.025012204052472065
+          },
+          {
+            "type": "circle",
+            "center": {
+              "x": 0.3193359375,
+              "y": 0.44189453125
+            },
+            "radius": 0.018425744398548053
+          }
+        ],
+        "blur": 0,
+        "resolution": 512,
+        "color": 16774368,
+        "intensity": 0.5
+      },
+      "taillight:headlight": {
+        "shapes": [
+          {
+            "type": "circle",
+            "center": {
+              "x": 0.1376953125,
+              "y": 0.44580078125
+            },
+            "radius": 0.028168369339562415
+          }
+        ],
+        "blur": 0,
+        "resolution": 512,
+        "color": 16774368,
+        "intensity": 0.5
+      }
+    }
+  },
+  "audio": {
+    "files": [],
+    "compositions": []
+  }
+}
