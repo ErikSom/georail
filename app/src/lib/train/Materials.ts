@@ -2,7 +2,7 @@ import { FrontSide, MeshStandardMaterial } from "three";
 
 export const glassMaterial = new MeshStandardMaterial({
     name: "Train_Glass",
-    color: 0x88ccff,
+    color: 0xffffff,
 
     transparent: true,
     opacity: 0.3,

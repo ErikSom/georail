@@ -158,10 +158,10 @@ export class RollingStock {
                 materials.forEach((mat) => {
                     const name = mat.name?.toLowerCase() || '';
 
-                    if (name.includes('glass') || name.includes('window') && !name.includes('frame')) {
+                    if (name.includes('glass')) {
                         child.material = glassMaterial;
                     }
-                    else if (name.includes('frame') || name.includes('symbols')) {
+                    else if (name.includes('alpha')) {
                         const standardMat = mat as MeshStandardMaterial;
 
                         standardMat.alphaTest = 0.5;
