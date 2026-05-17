@@ -278,6 +278,10 @@ export class TrainPickerWorld {
         this.phase = 'swapping';
         this.setAudioMoving(false);
         this.onLoadingChange?.(true);
+        // Hide while we swap configs. updateConfig() repositions kept-over
+        // rolling stock with the new train's offsets, which can land their
+        // (still-old) GLBs in the visible area before the new models load in.
+        this.train.group.visible = false;
         this.swapTimeoutId = window.setTimeout(async () => {
             this.swapTimeoutId = null;
             await this.applyPendingConfig();
@@ -295,6 +299,10 @@ export class TrainPickerWorld {
         }
         const resolved = await resolveTrainEntry(next);
         this.train.updateConfig(resolved.config);
+        // Wait for every rolling stock's new GLB to be parsed and swapped in
+        // before allowing the enter tween — otherwise the old meshes drive on
+        // and pop into the new ones mid-animation.
+        await this.train.assetsReady();
         this.currentDispose?.();
         this.currentDispose = resolved.dispose;
         this.currentTrainId = this.pendingTrainId;
@@ -304,6 +312,7 @@ export class TrainPickerWorld {
         const showcase = this.showcaseDistance();
         this.train.distanceTraveled = showcase + SPAWN_OFFSET;
         this.train.positionOnPath();
+        this.train.group.visible = true;
 
         this.phase = 'entering';
         this.phaseStartMs = performance.now();

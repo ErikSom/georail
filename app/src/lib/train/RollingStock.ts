@@ -20,6 +20,12 @@ export class RollingStock {
     private model: Group | null = null;
     public onModelReady: (() => void) | null = null;
 
+    // Resolves when the most recent loadModel() finishes (success or failure).
+    // Always reflects the latest load; await it after updateConfig to know
+    // the new GLB is parsed and swapped into the scene.
+    public modelReady: Promise<void> = Promise.resolve();
+    private resolveModelReady: (() => void) | null = null;
+
     public hasModel(): boolean {
         return this.model !== null;
     }
@@ -236,6 +242,9 @@ export class RollingStock {
     private async loadModel(path: string, isInternal: boolean = false): Promise<void> {
         const loader = getGLTFLoader();
 
+        this.modelReady = new Promise<void>(resolve => { this.resolveModelReady = resolve; });
+        const settle = () => { this.resolveModelReady?.(); this.resolveModelReady = null; };
+
         if (isInternal && !path.startsWith(blobString)) {
             try {
                 const mangledFileName = getProtectedAssetPath(path);
@@ -249,14 +258,17 @@ export class RollingStock {
                     './',
                     (gltf) => {
                         this.setupLoadedModel(gltf, true);
+                        settle();
                     },
                     (error) => {
                         console.error('[RollingStock] Parse error:', error);
+                        settle();
                     }
                 );
 
             } catch (err) {
                 console.error(`[RollingStock] Failed to load secure asset: ${path}`, err);
+                settle();
             }
         }
 
@@ -265,10 +277,12 @@ export class RollingStock {
                 path,
                 (gltf) => {
                     this.setupLoadedModel(gltf, isInternal);
+                    settle();
                 },
                 undefined,
                 (error) => {
                     console.warn('Failed to load model:', path, error);
+                    settle();
                 }
             );
         }

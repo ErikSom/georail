@@ -87,6 +87,15 @@ export class Train implements IPhysicsTarget {
         }
     }
 
+    // Resolves once every rolling stock's pending model load has finished
+    // (success or failure). Use after updateConfig() to know the new GLBs
+    // are parsed and live in the scene.
+    public assetsReady(): Promise<void> {
+        const promises: Promise<void>[] = [this.cab.modelReady, ...this.wagons.map(w => w.modelReady)];
+        if (this.rearCab) promises.push(this.rearCab.modelReady);
+        return Promise.all(promises).then(() => undefined);
+    }
+
     public exportConfig(): TrainConfig {
         return {
             display: this.config.display,
