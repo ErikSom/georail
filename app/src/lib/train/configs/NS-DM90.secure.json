@@ -1,9 +1,14 @@
 {
   "display": {
     "id": "46e059c6-9055-41b1-89c3-ce687d94c69f",
-    "name": "Untitled Train",
+    "name": "DM'90 Buffel",
     "operator": "NS",
-    "topSpeedKmh": 120
+    "topSpeedKmh": 140,
+    "era": "1996–2017",
+    "description": {
+      "en": "Dieselmaterieel '90 — diesel multiple unit nicknamed Buffel, built for non-electrified regional lines.",
+      "nl": "Dieselmaterieel '90 — bijgenaamd de Buffel, ingezet op niet-geëlektrificeerde regionale lijnen."
+    }
   },
   "cab": {
     "length": 25.7,
@@ -80,7 +85,7 @@
     "internal": true,
     "cabinPosition": {
       "x": 0.34,
-      "y": 2.5,
+      "y": 2.8,
       "z": 11.74
     },
     "lights": [
@@ -316,7 +321,7 @@
     "internal": true,
     "cabinPosition": {
       "x": 0.34,
-      "y": 2.5,
+      "y": 2.8,
       "z": 11.74
     },
     "lights": [
