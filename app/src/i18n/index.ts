@@ -59,5 +59,7 @@ export type LocalizedString = string | ({ en: string } & Partial<Record<Locale, 
 export function localized(value: LocalizedString | undefined, current: Locale = locale.value): string | undefined {
     if (value == null) return undefined;
     if (typeof value === 'string') return value;
-    return value[current] ?? value.en;
+    // Treat empty strings as "missing translation" so the editor can stage
+    // empty language slots without surfacing blanks in the UI.
+    return value[current] || value.en || undefined;
 }

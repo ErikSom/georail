@@ -146,7 +146,9 @@ export interface TrainGeneralConfig {
 
 import type { LocalizedString } from '../../i18n';
 
-export type TrainOperator = 'NS' | 'British Rail';
+// Free-form operator label (e.g. "NS", "British Rail", "DB"). Kept as a string
+// so users can author trains for any operator without code changes.
+export type TrainOperator = string;
 
 export interface TrainDisplayConfig {
     id: string;

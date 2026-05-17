@@ -1,6 +1,6 @@
 import { Group, Scene, Vector3 } from 'three';
 import { Pane, type FolderApi } from 'tweakpane';
-import type { CabConfig, TrainConfig, WagonConfig } from './TrainConfig';
+import type { CabConfig, TrainConfig, TrainDisplayConfig, WagonConfig } from './TrainConfig';
 import { Cab } from './Cab';
 import { Wagon } from './Wagon';
 import type Path from '../utils/Path';
@@ -308,6 +308,94 @@ export class Train implements IPhysicsTarget {
         this.audio.registerPlugins(this.pane);
 
         const rootPath = ['Train Configuration'];
+
+        // Display info (what shows up in the picker). The id is intentionally
+        // omitted — it's the train's stable identity and shouldn't be edited.
+        const displayKey = getFolderKey([...rootPath, 'Display']);
+        const displayFolder = this.pane.addFolder({
+            title: 'Display',
+            expanded: this.getFolderExpanded(displayKey, false),
+        });
+        this.registerFolder(displayFolder, displayKey);
+
+        const displayParams = {
+            name: this.config.display.name,
+            operator: this.config.display.operator,
+            topSpeedKmh: this.config.display.topSpeedKmh,
+            era: this.config.display.era ?? '',
+            creator: this.config.display.creator ?? '',
+        };
+
+        displayFolder.addBinding(displayParams, 'name', { label: 'Name' })
+            .on('change', ev => { this.config.display.name = ev.value.trim() || 'Untitled'; });
+        displayFolder.addBinding(displayParams, 'operator', { label: 'Operator' })
+            .on('change', ev => { this.config.display.operator = ev.value.trim() || 'Unknown'; });
+        displayFolder.addBinding(displayParams, 'topSpeedKmh', {
+            label: 'Top speed (km/h)', min: 0, max: 400, step: 1,
+        }).on('change', ev => { this.config.display.topSpeedKmh = ev.value; });
+        displayFolder.addBinding(displayParams, 'era', { label: 'Era' })
+            .on('change', ev => { this.config.display.era = ev.value.trim() || undefined; });
+        displayFolder.addBinding(displayParams, 'creator', { label: 'Creator' })
+            .on('change', ev => { this.config.display.creator = ev.value.trim() || undefined; });
+
+        // Description: per-language rows with add/remove. Normalize to a
+        // Record<lang, text> for editing; rebuild the folder on add/remove.
+        const descriptionByLang: Record<string, string> = (() => {
+            const d = this.config.display.description;
+            if (typeof d === 'string') return { en: d };
+            if (d) return { ...d };
+            return {};
+        })();
+
+        const writeDescription = () => {
+            const cleaned: Record<string, string> = {};
+            for (const [lang, text] of Object.entries(descriptionByLang)) {
+                cleaned[lang] = text.trim();
+            }
+            const keys = Object.keys(cleaned);
+            if (keys.length === 0) {
+                this.config.display.description = undefined;
+                return;
+            }
+            // LocalizedString invariant: must have `en`. If the user removed
+            // or cleared EN, backfill from the first language that does have
+            // content; if everything is empty, leave EN empty.
+            if (!cleaned.en) {
+                const firstWithText = keys.find(k => cleaned[k] !== '');
+                cleaned.en = firstWithText ? cleaned[firstWithText] : '';
+            }
+            this.config.display.description = cleaned as TrainDisplayConfig['description'];
+        };
+
+        const descriptionFolder = displayFolder.addFolder({
+            title: 'Description',
+            expanded: this.getFolderExpanded(getFolderKey([...rootPath, 'Display', 'Description']), true),
+        });
+        this.registerFolder(descriptionFolder, getFolderKey([...rootPath, 'Display', 'Description']));
+
+        for (const lang of Object.keys(descriptionByLang)) {
+            descriptionFolder.addBinding(descriptionByLang, lang, { label: lang.toUpperCase() })
+                .on('change', writeDescription);
+            descriptionFolder.addButton({ title: `Remove ${lang.toUpperCase()}` }).on('click', () => {
+                delete descriptionByLang[lang];
+                writeDescription();
+                this.createDebugUI();
+            });
+        }
+        descriptionFolder.addButton({ title: '+ Add language' }).on('click', () => {
+            const code = prompt('Language code (e.g. "de", "fr"):');
+            if (!code) return;
+            const norm = code.trim().toLowerCase();
+            if (!norm) return;
+            if (norm in descriptionByLang) {
+                alert(`Language "${norm}" already exists.`);
+                return;
+            }
+            descriptionByLang[norm] = '';
+            writeDescription();
+            this.createDebugUI();
+        });
+
         const physicalKey = getFolderKey([...rootPath, 'Visual & Physics']);
 
         // changing physical and visual parameters
