@@ -103,7 +103,8 @@
         },
         "stats": {
             "topSpeed": "Topsnelheid",
-            "era": "Tijdperk"
+            "era": "Tijdperk",
+            "creator": "Maker"
         },
         "select": "Kies {name}",
         "soon": {

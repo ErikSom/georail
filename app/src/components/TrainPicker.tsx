@@ -112,6 +112,12 @@ export default function TrainPicker() {
                             <span className={styles.detailStatValue}>{previewedEntry.era}</span>
                         </div>
                     )}
+                    {previewedEntry.creator && (
+                        <div className={styles.detailStat}>
+                            <span className={styles.detailStatLabel}>{t('picker.stats.creator')}</span>
+                            <span className={styles.detailStatValue}>{previewedEntry.creator}</span>
+                        </div>
+                    )}
                 </div>
                 {previewedEntry.description && (
                     <p className={styles.detailDescription}>{localized(previewedEntry.description)}</p>

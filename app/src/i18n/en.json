@@ -103,7 +103,8 @@
         },
         "stats": {
             "topSpeed": "Top speed",
-            "era": "Era"
+            "era": "Era",
+            "creator": "Creator"
         },
         "select": "Select {name}",
         "soon": {
