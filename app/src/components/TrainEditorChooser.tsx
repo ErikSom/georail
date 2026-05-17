@@ -10,7 +10,8 @@ import {
     toggleEnabled,
     renameSaved,
     exportSaved,
-    importFromFile,
+    previewImport,
+    commitImport,
 } from '../store/savedTrains';
 import { userTrainRecords } from '../lib/train/configs/UserTrainsCatalog';
 import styles from './TrainEditorChooser.module.css';
@@ -56,15 +57,19 @@ export default function TrainEditorChooser({ canClose, onChoose }: Props) {
         setError(null);
         const input = e.currentTarget as HTMLInputElement;
         const file = input.files?.[0];
+        input.value = '';
         if (!file) return;
         try {
-            await importFromFile(file);
+            const preview = await previewImport(file);
+            const name = prompt('Name this imported train:', preview.suggestedName);
+            if (name === null) return; // user cancelled
+            const trimmed = name.trim() || preview.suggestedName;
+            await commitImport(preview, trimmed);
             await refresh();
             setTab('saved');
         } catch (err) {
             setError((err as Error).message);
         }
-        input.value = '';
     };
 
     const close = () => {

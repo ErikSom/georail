@@ -87,18 +87,27 @@ export async function exportSaved(id: string): Promise<void> {
     URL.revokeObjectURL(url);
 }
 
-export async function importFromFile(file: File): Promise<string> {
-    const unpacked = await unpackTrain(file);
+export interface ImportPreview {
+    config: SavedTrainRecord['config'];
+    assets: SavedTrainRecord['assets'];
+    suggestedName: string;
+}
+
+export async function previewImport(file: File): Promise<ImportPreview> {
+    return unpackTrain(file);
+}
+
+export async function commitImport(preview: ImportPreview, name: string): Promise<string> {
     // Mint a fresh id on import so a re-import (or someone else's export of
     // the same train) doesn't overwrite a local saved train under the same id.
     const id = crypto.randomUUID();
-    unpacked.config.display = { ...unpacked.config.display, id };
+    const config = { ...preview.config, display: { ...preview.config.display, id, name } };
     const now = Date.now();
     const record: SavedTrainRecord = {
         id,
-        name: unpacked.suggestedName,
-        config: unpacked.config,
-        assets: unpacked.assets,
+        name,
+        config,
+        assets: preview.assets,
         enabled: false,
         createdAt: now,
         updatedAt: now,
