@@ -6,7 +6,7 @@ import type { FolderApi, Pane } from 'tweakpane';
 import { dummy, dummyForward, dummyQuad, dummyUp, dummyVec3, dummyVec3B } from '../utils/Helper';
 import FilePicker from '../utils/FilePicker';
 import { applyDeobfuscation, isDebugAdmin, loadEncryptedAsset, getProtectedAssetPath, blobString } from '../utils/Security.secure';
-import { glassMaterial } from './Materials';
+import { getGlassMaterial } from './Materials';
 import { RollingStockAnimator } from './RollingStockAnimator';
 import { trainAssetsPath } from './configs/TrainConfigurations.secure';
 import { getFolderKey } from './TrainUiUtils';
@@ -151,6 +151,7 @@ export class RollingStock {
     }
 
     private setModelMaterials(scene: Group): void {
+        const glass = getGlassMaterial(!!this.config.internal);
         scene.traverse((child) => {
             if (child instanceof Mesh) {
                 const materials = Array.isArray(child.material) ? child.material : [child.material];
@@ -159,7 +160,7 @@ export class RollingStock {
                     const name = mat.name?.toLowerCase() || '';
 
                     if (name.includes('glass')) {
-                        child.material = glassMaterial;
+                        child.material = glass;
                     }
                     else if (name.includes('alpha')) {
                         const standardMat = mat as MeshStandardMaterial;
