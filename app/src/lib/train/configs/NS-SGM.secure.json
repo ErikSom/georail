@@ -767,8 +767,5 @@
             "door_open": "NS SGM door open.wav",
             "door_close": "NS SGM door close.wav"
         }
-    },
-    "general": {
-        "maxSpeed": 140
     }
 }

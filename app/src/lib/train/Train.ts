@@ -90,7 +90,6 @@ export class Train implements IPhysicsTarget {
     public exportConfig(): TrainConfig {
         return {
             display: this.config.display,
-            general: this.config.general,
             cab: this.cab.exportConfig(),
             wagons: this.wagons.map(wagon => wagon.exportConfig()),
             rearCab: this.rearCab ? this.rearCab.exportConfig() : undefined,

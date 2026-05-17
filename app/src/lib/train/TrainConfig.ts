@@ -140,10 +140,6 @@ export interface WagonConfig extends RollingStockConfig {
     // Additional wagon-specific properties can go here
 }
 
-export interface TrainGeneralConfig {
-    maxSpeed?: number; // Maximum speed in km/h - defaults to 120
-}
-
 import type { LocalizedString } from '../../i18n';
 
 // Free-form operator label (e.g. "NS", "British Rail", "DB"). Kept as a string
@@ -162,7 +158,6 @@ export interface TrainDisplayConfig {
 
 export interface TrainConfig {
     display: TrainDisplayConfig;
-    general?: TrainGeneralConfig;
     cab: CabConfig;
     wagons: WagonConfig[];
     rearCab?: CabConfig;

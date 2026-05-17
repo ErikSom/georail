@@ -170,7 +170,7 @@ export class World {
         }
 
         trainInstance.value = this.train;
-        trainMaxSpeedKmh.value = trainConfig.general?.maxSpeed ?? 120;
+        trainMaxSpeedKmh.value = trainConfig.display.topSpeedKmh;
 
         this.gameCamera = new GameCamera(this.camera, this.renderer.domElement);
         this.gameCamera.snapTo(this.train.group.position);

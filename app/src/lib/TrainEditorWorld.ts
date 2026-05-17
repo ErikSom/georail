@@ -107,7 +107,7 @@ export class TrainEditorWorld {
         audioListener.value = this.audioListener;
 
         // Lighting
-        this.ambientLight = new AmbientLight(0xffffff, 0.6);;
+        this.ambientLight = new AmbientLight(0xffffff, 1.0);;
         this.scene.add(this.ambientLight);
 
         this.directionalLight = new DirectionalLight(0xffffff, 0.8);;
@@ -158,7 +158,7 @@ export class TrainEditorWorld {
 
         // Set train instance in store for controls to use
         trainInstance.value = this.train;
-        trainMaxSpeedKmh.value = trainConfig.general?.maxSpeed ?? 120;
+        trainMaxSpeedKmh.value = trainConfig.display.topSpeedKmh;
 
         // Controls - initialize before setting path
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -531,7 +531,7 @@ export class TrainEditorWorld {
         this.train.updateConfig(config);
         this.configDispose?.();
         this.configDispose = dispose;
-        trainMaxSpeedKmh.value = config.general?.maxSpeed ?? 120;
+        trainMaxSpeedKmh.value = config.display.topSpeedKmh;
         this.controls.target.copy(this.train.group.position);
         this.controls.update();
     }
