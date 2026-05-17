@@ -1,0 +1,16 @@
+import bpy
+
+# Find all materials
+materials = bpy.data.materials
+
+for mat in materials:
+    # Check if the material name ends with .001, .002, etc.
+    if mat.name[-3:].isdigit() and mat.name[-4] == ".":
+        # Get the base name (everything before the dot)
+        base_name = mat.name[:-4]
+        
+        # Check if the original material exists
+        if base_name in materials:
+            target_mat = materials[base_name]
+            # Replace the duplicate material with the original on all objects
+            mat.user_remap(target_mat)

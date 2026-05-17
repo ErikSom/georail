@@ -53,7 +53,7 @@
     "couplerLengthFront": 0,
     "couplerLengthRear": 0.2,
     "engine": true,
-    "enginePower": 640,
+    "enginePower": 1000,
     "brakingPower": 120,
     "animationGroups": [
       {
