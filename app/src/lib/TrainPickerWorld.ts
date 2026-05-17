@@ -7,7 +7,9 @@ import {
     Fog,
     AmbientLight,
     DirectionalLight,
+    DirectionalLightHelper,
     SpotLight,
+    SpotLightHelper,
     SRGBColorSpace,
     NeutralToneMapping,
     Mesh,
@@ -22,13 +24,16 @@ import { Train } from './train/Train';
 import Path from './utils/Path';
 import { getCatalogEntry, getDefaultCatalogEntry, resolveTrainEntry } from './train/configs/TrainCatalog';
 import { audioListener } from '../store/globals';
-import { trainVelocityKmh, trainPower } from '../store/train';
+import { trainVelocityKmh, trainPower, trainDebugMode } from '../store/train';
 
 const TWEEN_AUDIO_VELOCITY_KMH = 55;
 const TWEEN_AUDIO_POWER = 0.45;
 
 const PATH_TOTAL_LENGTH = 1000;
-const SHOWCASE_DISTANCE = 480;
+// Where the cab front nose comes to rest in world Z. Picked to match where
+// NS-SGM (the original built-in) used to stop, so shorter trains line up at
+// the same spot regardless of consist length.
+const TARGET_CAB_NOSE_Z = 18;
 const SPAWN_OFFSET = -240;
 const EXIT_MARGIN = 6;
 const EXIT_DURATION_MS = 650;
@@ -70,6 +75,8 @@ export class TrainPickerWorld {
     private ambient!: AmbientLight;
     private rim!: DirectionalLight;
     private key!: SpotLight;
+    private rimHelper: DirectionalLightHelper | null = null;
+    private keyHelper: SpotLightHelper | null = null;
 
     private showcaseTarget = new Vector3(0, 1.4, 0);
 
@@ -138,6 +145,13 @@ export class TrainPickerWorld {
         this.scene.add(this.key);
         this.scene.add(this.key.target);
 
+        if (trainDebugMode.value) {
+            this.rimHelper = new DirectionalLightHelper(this.rim, 2, 0x66ccff);
+            this.keyHelper = new SpotLightHelper(this.key, 0xffcc44);
+            this.scene.add(this.rimHelper);
+            this.scene.add(this.keyHelper);
+        }
+
         this.buildRail();
 
         this.onLoadingChange?.(true);
@@ -149,12 +163,13 @@ export class TrainPickerWorld {
         const path = new Path(this.buildStraightPath());
         this.train.setPath(path);
 
-        this.train.distanceTraveled = SHOWCASE_DISTANCE;
+        const showcase = this.showcaseDistance();
+        this.train.distanceTraveled = showcase;
         this.train.positionOnPath();
         this.train.group.updateMatrixWorld(true);
         this.showcaseTarget.copy(this.train.getCabinWorldPosition());
 
-        this.train.distanceTraveled = SHOWCASE_DISTANCE + SPAWN_OFFSET;
+        this.train.distanceTraveled = showcase + SPAWN_OFFSET;
         this.train.positionOnPath();
         this.train.setPower(0);
 
@@ -249,8 +264,14 @@ export class TrainPickerWorld {
         this.distanceStart = this.train.distanceTraveled;
         const cameraZRelative = this.camera.position.z - this.showcaseTarget.z;
         const trainLength = this.train.getTotalLength();
-        this.distanceEnd = SHOWCASE_DISTANCE + cameraZRelative + trainLength + EXIT_MARGIN;
+        this.distanceEnd = this.showcaseDistance() + cameraZRelative + trainLength + EXIT_MARGIN;
         this.setAudioMoving(true);
+    }
+
+    // Per-train showcase distance: anchors the cab nose at TARGET_CAB_NOSE_Z in
+    // world space, so a 2-car cab + a 3-car consist both stop at the same spot.
+    private showcaseDistance(): number {
+        return TARGET_CAB_NOSE_Z + PATH_TOTAL_LENGTH / 2 - this.train.getTotalLength() / 2;
     }
 
     private startSwap(): void {
@@ -280,19 +301,20 @@ export class TrainPickerWorld {
     }
 
     private startEnter(): void {
-        this.train.distanceTraveled = SHOWCASE_DISTANCE + SPAWN_OFFSET;
+        const showcase = this.showcaseDistance();
+        this.train.distanceTraveled = showcase + SPAWN_OFFSET;
         this.train.positionOnPath();
 
         this.phase = 'entering';
         this.phaseStartMs = performance.now();
         this.phaseDurationMs = ENTER_DURATION_MS;
-        this.distanceStart = SHOWCASE_DISTANCE + SPAWN_OFFSET;
-        this.distanceEnd = SHOWCASE_DISTANCE;
+        this.distanceStart = showcase + SPAWN_OFFSET;
+        this.distanceEnd = showcase;
         this.setAudioMoving(true);
     }
 
     private finishEnter(): void {
-        this.train.distanceTraveled = SHOWCASE_DISTANCE;
+        this.train.distanceTraveled = this.showcaseDistance();
         this.train.positionOnPath();
         this.phase = 'idle';
         this.setAudioMoving(false);
@@ -353,10 +375,15 @@ export class TrainPickerWorld {
         );
         this.camera.lookAt(lookAtX, lookAtY, lookAtZ);
 
-        this.key.position.set(target.x + 2, target.y + 14, target.z + 4);
+        this.key.position.set(target.x + 2, target.y + 14, target.z + 12);
         this.key.target.position.set(lookAtX, lookAtY - 0.2, lookAtZ);
         this.rim.position.set(lookAtX + 6, lookAtY + 6.6, lookAtZ - 12);
         this.rim.target.position.set(lookAtX, lookAtY - 0.4, lookAtZ);
+
+        this.key.target.updateMatrixWorld();
+        this.rim.target.updateMatrixWorld();
+        this.keyHelper?.update();
+        this.rimHelper?.update();
     }
 
     // With camera offset (X,Y,Z) from showcaseTarget and lookAt at (0,0,-s)
@@ -399,6 +426,18 @@ export class TrainPickerWorld {
         this.train.cleanup();
         this.currentDispose?.();
         this.currentDispose = null;
+
+        if (this.rimHelper) {
+            this.scene.remove(this.rimHelper);
+            this.rimHelper.dispose();
+            this.rimHelper = null;
+        }
+        if (this.keyHelper) {
+            this.scene.remove(this.keyHelper);
+            this.keyHelper.dispose();
+            this.keyHelper = null;
+        }
+
         this.renderer.dispose();
 
         if (this.mountElement && this.renderer.domElement.parentElement === this.mountElement) {
