@@ -23,7 +23,7 @@ import { dummyQuad, dummyVec3 } from './utils/Helper';
 import { FlightControls } from './utils/FlightControls';
 import { Input } from './utils/Input';
 import { trainInstance, updateTrainState, trainMaxSpeedKmh } from '../store/train';
-import { audioListener } from '../store/globals';
+import { audioListener, timeScale } from '../store/globals';
 import { getTrainConfiguration } from './train/configs/TrainConfigurations.secure';
 
 export type PathType = 'straight' | 'circle' | 'oval' | 'figure8' | 'spiral';
@@ -50,6 +50,7 @@ export class TrainEditorWorld {
     };
     private sceneParams = {
         darkness: 0,
+        timeScale: timeScale.value,
     };
     private cameraParams = {
         mode: 'free' as CameraMode,
@@ -251,6 +252,14 @@ export class TrainEditorWorld {
         }).on('change', () => {
             this.applySceneExposure();
         });
+        sceneFolder.addBinding(this.sceneParams, 'timeScale', {
+            label: 'Time scale',
+            min: 0,
+            max: 100,
+            step: 0.1,
+        }).on('change', ev => {
+            timeScale.value = ev.value;
+        });
     }
 
     private applySceneExposure(): void {
@@ -401,7 +410,7 @@ export class TrainEditorWorld {
 
     private animate(): void {
         this.rafId = requestAnimationFrame(this.animate);
-        const deltaTime = this.clock.getDelta();
+        const deltaTime = this.clock.getDelta() * timeScale.value;
 
         // Update train state and trigger React component updates
         updateTrainState();
