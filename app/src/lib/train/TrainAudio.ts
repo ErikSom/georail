@@ -6,12 +6,13 @@ import {
     type AudioUploadFile,
 } from '../tweakpane/AudioUploadPlugin';
 import { getFolderKey } from './TrainUiUtils';
-import type { AudioConfig, AudioSound, AudioCurve } from './TrainConfig';
+import type { AudioConfig, AudioSound, Curve } from './TrainConfig';
 import { AudioLoader, PositionalAudio, Group } from 'three';
-import { trainPower, trainVelocityKmh, trainTractiveEffort, trainDieselRPM } from '../../store/train';
 import { audioListener } from '../../store/globals';
 import { loadEncryptedAsset, getProtectedAssetPath, blobString } from '../utils/Security.secure';
 import { trainAssetsPath } from './configs/TrainConfigurations.secure';
+import { createTrainState, getInputValue, readTrainState, type TrainState } from './TrainState';
+import { interpolateCurve } from '../effects/CurveEvaluator';
 
 function getCurveTitle(curveBlade: CurveBladeApi): string {
     const axis = curveBlade.axis;
@@ -29,14 +30,6 @@ interface AudioInstance {
     compositionTitle: string;
 }
 
-interface TrainState {
-    throttlePower: number;
-    velocityKmh: number;
-    brakePower: number;
-    tractiveEffort: number;
-    dieselRPM: number;
-}
-
 export class TrainAudio {
     private audioInstances: AudioInstance[] = [];
     private audioLoader: AudioLoader;
@@ -44,7 +37,7 @@ export class TrainAudio {
     private isEnabled: boolean = false;
     private currentInitializationId: number = 0;
     private opusSupported: boolean = true;
-    private _trainState: TrainState = { throttlePower: 0, velocityKmh: 0, brakePower: 0, tractiveEffort: 0, dieselRPM: 0 };
+    private _trainState: TrainState = createTrainState();
     private _volumeValues: number[] = [];
     private _pitchValues: number[] = [];
     private oneShotBuffers: Map<string, AudioBuffer> = new Map();
@@ -120,7 +113,7 @@ export class TrainAudio {
             });
         };
 
-        const defaultCurve = (): AudioCurve => ({
+        const defaultCurve = (): Curve => ({
             points: [
                 { x: 0, y: 0 },
                 { x: 1, y: 0 },
@@ -509,33 +502,13 @@ export class TrainAudio {
         }
     }
 
-    public update(): void {
+    public update(state?: TrainState): void {
         if (!this.isEnabled || this.audioInstances.length === 0) return;
 
-        const trainState = this.getTrainState();
+        const trainState = state ?? readTrainState(this._trainState);
         for (const instance of this.audioInstances) {
             this.updateAudioInstance(instance, trainState);
         }
-    }
-
-    private getTrainState(): TrainState {
-        const power = trainPower.value;
-        const velocityKmh = trainVelocityKmh.value;
-
-        let brakePower = 0;
-        if ((velocityKmh > 0 && power < -0.1) || (velocityKmh < 0 && power > 0.1)) {
-            brakePower = 1.0;
-        } else if (Math.abs(power) <= 0.1 && Math.abs(velocityKmh) > 0.1) {
-            brakePower = 0.3;
-        }
-
-        this._trainState.throttlePower = Math.abs(power);
-        this._trainState.velocityKmh = Math.abs(velocityKmh);
-        this._trainState.brakePower = brakePower;
-        this._trainState.tractiveEffort = trainTractiveEffort.value;
-        this._trainState.dieselRPM = trainDieselRPM.value;
-
-        return this._trainState;
     }
 
     private updateAudioInstance(instance: AudioInstance, trainState: TrainState): void {
@@ -548,10 +521,10 @@ export class TrainAudio {
             const xAxis = curve.axis?.x.label || '';
             const yAxis = curve.axis?.y.label || '';
 
-            const inputValue = this.getInputValue(trainState, xAxis);
+            const inputValue = getInputValue(trainState, xAxis);
             if (inputValue === null) continue;
 
-            const outputValue = this.interpolateCurve(curve, inputValue);
+            const outputValue = interpolateCurve(curve, inputValue);
             if (yAxis === 'Volume') {
                 volumeValues.push(outputValue);
             } else if (yAxis === 'Pitch') {
@@ -559,7 +532,6 @@ export class TrainAudio {
             }
         }
 
-        // Lowest value wins; default to 1.0 if no curves control a property
         let finalVolume = 1.0;
         for (let i = 0; i < volumeValues.length; i++) {
             if (volumeValues[i] < finalVolume) finalVolume = volumeValues[i];
@@ -581,57 +553,6 @@ export class TrainAudio {
         } else {
             instance.audio.setPlaybackRate(1.0);
         }
-    }
-
-    private getInputValue(trainState: TrainState, axisLabel: string): number | null {
-        switch (axisLabel) {
-            case 'Throttle Power':
-                return trainState.throttlePower;
-            case 'Velocity (km/h)':
-                return trainState.velocityKmh;
-            case 'Brake Power':
-                return trainState.brakePower;
-            case 'Tractive Effort':
-                return trainState.tractiveEffort;
-            case 'Diesel RPM':
-                return trainState.dieselRPM;
-            default:
-                console.warn(`TrainAudio: Unknown input axis "${axisLabel}"`);
-                return null;
-        }
-    }
-
-    private interpolateCurve(curve: AudioCurve, inputValue: number): number {
-        const points = curve.points;
-        if (points.length === 0) return 0;
-        if (points.length === 1) return points[0].y;
-
-        if (!(curve as any)._sorted) {
-            points.sort((a, b) => a.x - b.x);
-            (curve as any)._sorted = true;
-        }
-
-        const minX = points[0].x;
-        const maxX = points[points.length - 1].x;
-        const clampedInput = Math.max(minX, Math.min(maxX, inputValue));
-
-        let leftPoint = points[0];
-        let rightPoint = points[points.length - 1];
-
-        for (let i = 0; i < points.length - 1; i++) {
-            if (clampedInput >= points[i].x && clampedInput <= points[i + 1].x) {
-                leftPoint = points[i];
-                rightPoint = points[i + 1];
-                break;
-            }
-        }
-
-        if (leftPoint.x === rightPoint.x) {
-            return leftPoint.y;
-        }
-
-        const t = (clampedInput - leftPoint.x) / (rightPoint.x - leftPoint.x);
-        return leftPoint.y + t * (rightPoint.y - leftPoint.y);
     }
 
     public playSound(role: string): void {

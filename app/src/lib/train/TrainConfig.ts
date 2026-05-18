@@ -28,16 +28,16 @@ export interface InteriorMaterialConfig {
     emissiveIntensity: number; // 0-1 range
 }
 
-export type AudioCurvePoint = { x: number; y: number };
-export type AudioCurveAxis = { min: number; max: number; label?: string };
-export type AudioCurveAxes = { x: AudioCurveAxis; y: AudioCurveAxis };
-export interface AudioCurve {
-    points: AudioCurvePoint[];
-    axis?: AudioCurveAxes;
+export type CurvePoint = { x: number; y: number };
+export type CurveAxis = { min: number; max: number; label?: string };
+export type CurveAxes = { x: CurveAxis; y: CurveAxis };
+export interface Curve {
+    points: CurvePoint[];
+    axis?: CurveAxes;
 }
 export interface AudioSound {
     file: string;
-    curves: AudioCurve[];
+    curves: Curve[];
 }
 export interface AudioComposition {
     title: string;
