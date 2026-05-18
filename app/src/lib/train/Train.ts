@@ -9,6 +9,7 @@ import { TrainPhysics, type IPhysicsTarget } from './TrainPhysics';
 import { getFolderKey } from './TrainUiUtils';
 import { TrainAudio } from './TrainAudio';
 import { createPowertrain, type Powertrain } from './Powertrain';
+import { createTrainState, readTrainState, type TrainState } from './TrainState';
 import { trainDoorsOpen, trainDieselRPM, trainPowertrainType } from '../../store/train';
 import { stopDistances, stopStatuses } from '../../store/journey';
 import { type ConsistCar } from '../../store/train';
@@ -37,6 +38,11 @@ export class Train implements IPhysicsTarget {
     private powertrain: Powertrain | null = null;
     private lightsOn: boolean = false;
     private readonly _cabinWorldPos = new Vector3();
+    private readonly _trainState: TrainState = createTrainState();
+    private readonly _worldVel = new Vector3();
+    private readonly _prevCabWorldPos = new Vector3();
+    private _hasPrevCabPos = false;
+    private _elapsedTime = 0;
 
     public readonly ready: Promise<void>;
 
@@ -165,11 +171,34 @@ export class Train implements IPhysicsTarget {
         trainDieselRPM.value = this.powertrain?.getRPM() ?? 0;
         trainPowertrainType.value = this.config.powertrain?.type ?? null;
 
+        const scene = this.group.parent as Scene | null;
+        if (scene && (scene as Scene).isScene) {
+            this.rebuildAllEmitters(scene);
+        }
+
         if (this.path && this.path.points.length > 0) {
             this.positionOnPath();
         }
 
         this.pane?.refresh();
+    }
+
+    public setScene(scene: Scene): void {
+        this.rebuildAllEmitters(scene);
+    }
+
+    private rebuildAllEmitters(scene: Scene): void {
+        this.cab.rebuildEmitters(scene);
+        this.wagons.forEach(w => w.rebuildEmitters(scene));
+        this.rearCab?.rebuildEmitters(scene);
+    }
+
+    public getActiveParticleCount(): number {
+        const t = this._elapsedTime;
+        let n = this.cab.getActiveParticleCount(t);
+        for (const w of this.wagons) n += w.getActiveParticleCount(t);
+        if (this.rearCab) n += this.rearCab.getActiveParticleCount(t);
+        return n;
     }
 
     private currentSegmentIndex = 0;
@@ -627,6 +656,7 @@ export class Train implements IPhysicsTarget {
                 emissiveColor: 0xffffff,
                 emissiveIntensity: 1.0,
             },
+            particles: [],
         };
 
         this.config.wagons.push(defaultWagon);
@@ -966,6 +996,8 @@ export class Train implements IPhysicsTarget {
     }
 
     public update(delta: number): void {
+        this._elapsedTime += delta;
+
         // Update physics simulation (this will directly update distanceTraveled)
         this.physics.update(delta);
 
@@ -988,10 +1020,21 @@ export class Train implements IPhysicsTarget {
             this.positionOnPath();
         }
 
-        // Update rolling stock animations and wheel rotation
-        this.cab?.update(delta, distanceDelta);
-        this.wagons.forEach(wagon => wagon.update(delta, distanceDelta));
-        this.rearCab?.update(delta, distanceDelta);
+        readTrainState(this._trainState);
+
+        this.cab.group.getWorldPosition(this._cabinWorldPos);
+        if (this._hasPrevCabPos && delta > 0) {
+            this._worldVel.copy(this._cabinWorldPos).sub(this._prevCabWorldPos).divideScalar(delta);
+        } else {
+            this._worldVel.set(0, 0, 0);
+        }
+        this._prevCabWorldPos.copy(this._cabinWorldPos);
+        this._hasPrevCabPos = true;
+
+        const t = this._elapsedTime;
+        this.cab?.update(delta, distanceDelta, this._trainState, this._worldVel, t);
+        this.wagons.forEach(wagon => wagon.update(delta, distanceDelta, this._trainState, this._worldVel, t));
+        this.rearCab?.update(delta, distanceDelta, this._trainState, this._worldVel, t);
 
         // Update light direction based on velocity
         this.setTrainLightDirection();

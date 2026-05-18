@@ -160,6 +160,7 @@ export class World {
         this.trainDispose = resolved.dispose;
         this.train = new Train(trainConfig, trainDebugMode.value);
         this.scene.add(this.train.group);
+        this.train.setScene(this.scene);
 
         const ditherOverlay = new DitherOverlay();
         ditherOverlay.setPixelRatio(this.renderer.getPixelRatio());

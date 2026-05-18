@@ -1,5 +1,34 @@
-import { Group, Mesh, Object3D, SphereGeometry, BoxGeometry, MeshBasicMaterial, Vector3, MeshStandardMaterial, CylinderGeometry, Quaternion, Color, AlwaysStencilFunc, ZeroStencilOp, IncrementStencilOp, KeepStencilOp } from 'three';
-import type { BogieConfig, RollingStockConfig, TrainConfig, WheelConfig } from './TrainConfig';
+import { Group, Mesh, Object3D, Scene, SphereGeometry, BoxGeometry, MeshBasicMaterial, Vector3, MeshStandardMaterial, CylinderGeometry, Quaternion, Color, AlwaysStencilFunc, ZeroStencilOp, IncrementStencilOp, KeepStencilOp } from 'three';
+import type { BogieConfig, ParticleEmitterConfig, RollingStockConfig, TrainConfig, WheelConfig } from './TrainConfig';
+import { ParticleEmitter } from '../effects/ParticleEmitter';
+import type { TrainState } from './TrainState';
+import { type CurveBladeApi, PARTICLE_Y_OPTIONS, DEFAULT_X_OPTIONS } from '../tweakpane/CurvePlugin';
+
+function defaultEmitterConfig(): ParticleEmitterConfig {
+    const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `emitter-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    return {
+        id,
+        name: 'Smoke',
+        offset: { x: 0, y: 3, z: 0 },
+        texturePath: '/textures/particles/smoke.png',
+        poolSize: 1024,
+        blendMode: 'normal',
+        baseColor: 0xcccccc,
+        baseColorEnd: 0x888888,
+        baseSize: 0.6,
+        sizeOverLife: { start: 0.5, end: 2.5 },
+        baseLifetime: 2.5,
+        baseVelocity: { x: 0, y: 1.5, z: 0 },
+        velocitySpread: 0.3,
+        opacityOverLife: { start: 0.9, end: 0 },
+        acceleration: { x: 0, y: 0.5, z: 0 },
+        drag: 0.6,
+        velocityInherit: 0.3,
+        curves: [],
+    };
+}
 import { getGLTFLoader } from '../utils/ModelLoader';
 import type Path from '../utils/Path';
 import type { FolderApi, Pane } from 'tweakpane';
@@ -31,6 +60,9 @@ export class RollingStock {
     }
 
     private animator: RollingStockAnimator | null = null;
+
+    private emitters: ParticleEmitter[] = [];
+    private scene: Scene | null = null;
 
     private frontBogieEntity: Object3D | null = null;
     private rearBogieEntity: Object3D | null = null;
@@ -474,6 +506,11 @@ export class RollingStock {
 
         const wheelsChanged = JSON.stringify(config.wheels) !== JSON.stringify(this.config.wheels);
         const interiorMaterialChanged = JSON.stringify(config.interiorMaterial) !== JSON.stringify(this.config.interiorMaterial);
+        const particlesStructChanged = config.particles.length !== this.config.particles.length
+            || config.particles.some((p, i) => p.id !== this.config.particles[i]?.id
+                || p.texturePath !== this.config.particles[i]?.texturePath
+                || p.poolSize !== this.config.particles[i]?.poolSize
+                || p.blendMode !== this.config.particles[i]?.blendMode);
 
         this.config = config;
         this.updateModelTransform();
@@ -482,6 +519,28 @@ export class RollingStock {
         if (wheelsChanged && this.model) this.findWheels();
         if (interiorMaterialChanged && this.model) this.setModelMaterials(this.model);
         if (modelChanged && config.modelPath) this.loadModel(config.modelPath, config.internal);
+
+        if (this.scene) {
+            if (particlesStructChanged) {
+                this.rebuildEmitters(this.scene);
+            } else {
+                for (let i = 0; i < this.emitters.length; i++) {
+                    this.emitters[i].applyConfig(this.config.particles[i]);
+                }
+            }
+        }
+    }
+
+    public rebuildEmitters(scene: Scene): void {
+        this.scene = scene;
+        for (const e of this.emitters) e.dispose();
+        this.emitters = this.config.particles.map(cfg => new ParticleEmitter(cfg, this.group, scene));
+    }
+
+    public getActiveParticleCount(time: number): number {
+        let n = 0;
+        for (const e of this.emitters) n += e.getActiveCount(time);
+        return n;
     }
 
     public orientOnRails(): void {
@@ -912,7 +971,155 @@ export class RollingStock {
             updateConfig(config);
         });
 
+        this.createParticleEmittersUI(
+            targetConfig,
+            config,
+            updateConfig,
+            _onDelete,
+            registerFolder,
+            basePath,
+            getFolderExpanded,
+        );
+
         return this.paneFolder;
+    }
+
+    private createParticleEmittersUI(
+        targetConfig: RollingStockConfig,
+        config: TrainConfig,
+        updateConfig: (config: TrainConfig) => void,
+        _onDelete: (() => void) | null,
+        registerFolder: (folder: FolderApi, key: string) => void,
+        basePath: string[],
+        getFolderExpanded: (key: string, fallback: boolean) => boolean,
+    ): void {
+        if (!this.paneFolder) return;
+
+        const emittersKey = getFolderKey([...basePath, 'Particle Emitters']);
+        const emittersFolder = this.paneFolder.addFolder({
+            title: 'Particle Emitters',
+            expanded: getFolderExpanded(emittersKey, false),
+        });
+        registerFolder(emittersFolder, emittersKey);
+
+        targetConfig.particles.forEach((emitter, index) => {
+            const emitterTitle = emitter.name || `Emitter ${index + 1}`;
+            const emitterKey = getFolderKey([...basePath, 'Particle Emitters', emitterTitle]);
+            const emitterFolder = emittersFolder.addFolder({
+                title: emitterTitle,
+                expanded: getFolderExpanded(emitterKey, false),
+            });
+            registerFolder(emitterFolder, emitterKey);
+
+            emitterFolder.addBinding(emitter, 'name', { label: 'Name' })
+                .on('change', () => { emitterFolder.title = emitter.name || `Emitter ${index + 1}`; updateConfig(config); });
+            emitterFolder.addBinding(emitter, 'offset', {
+                label: 'Offset (model space)',
+                x: { step: 0.01 }, y: { step: 0.01 }, z: { step: 0.01 },
+            }).on('change', () => updateConfig(config));
+            emitterFolder.addBinding(emitter, 'texturePath', { label: 'Texture path' })
+                .on('change', () => updateConfig(config));
+            emitterFolder.addBinding(emitter, 'poolSize', { label: 'Pool size', min: 16, max: 4096, step: 16 })
+                .on('change', () => updateConfig(config));
+            emitterFolder.addBinding(emitter, 'blendMode', { label: 'Blend', options: { normal: 'normal', additive: 'additive' } })
+                .on('change', () => updateConfig(config));
+
+            const colorProxy = { startHex: '#' + emitter.baseColor.toString(16).padStart(6, '0'), endHex: '#' + emitter.baseColorEnd.toString(16).padStart(6, '0') };
+            emitterFolder.addBinding(colorProxy, 'startHex', { label: 'Color (start)' })
+                .on('change', ev => { emitter.baseColor = parseInt(ev.value.replace('#', ''), 16); updateConfig(config); });
+            emitterFolder.addBinding(colorProxy, 'endHex', { label: 'Color (end)' })
+                .on('change', ev => { emitter.baseColorEnd = parseInt(ev.value.replace('#', ''), 16); updateConfig(config); });
+
+            emitterFolder.addBinding(emitter, 'baseSize', { label: 'Size (m)', min: 0.01, max: 10, step: 0.01 })
+                .on('change', () => updateConfig(config));
+            emitterFolder.addBinding(emitter.sizeOverLife, 'start', { label: 'Size mul @ birth', min: 0, max: 5, step: 0.01 })
+                .on('change', () => updateConfig(config));
+            emitterFolder.addBinding(emitter.sizeOverLife, 'end', { label: 'Size mul @ death', min: 0, max: 10, step: 0.01 })
+                .on('change', () => updateConfig(config));
+
+            emitterFolder.addBinding(emitter, 'baseLifetime', { label: 'Lifetime (s)', min: 0.1, max: 30, step: 0.1 })
+                .on('change', () => updateConfig(config));
+            emitterFolder.addBinding(emitter.opacityOverLife, 'start', { label: 'Opacity @ birth', min: 0, max: 1, step: 0.01 })
+                .on('change', () => updateConfig(config));
+            emitterFolder.addBinding(emitter.opacityOverLife, 'end', { label: 'Opacity @ death', min: 0, max: 1, step: 0.01 })
+                .on('change', () => updateConfig(config));
+
+            emitterFolder.addBinding(emitter, 'baseVelocity', { label: 'Velocity (m/s)', x: { step: 0.05 }, y: { step: 0.05 }, z: { step: 0.05 } })
+                .on('change', () => updateConfig(config));
+            emitterFolder.addBinding(emitter, 'velocitySpread', { label: 'Spread', min: 0, max: 5, step: 0.05 })
+                .on('change', () => updateConfig(config));
+            emitterFolder.addBinding(emitter, 'acceleration', { label: 'Accel (m/s²)', x: { step: 0.05 }, y: { step: 0.05 }, z: { step: 0.05 } })
+                .on('change', () => updateConfig(config));
+            emitterFolder.addBinding(emitter, 'drag', { label: 'Drag (/s)', min: 0, max: 5, step: 0.05 })
+                .on('change', () => updateConfig(config));
+            emitterFolder.addBinding(emitter, 'velocityInherit', { label: 'Velocity inherit', min: 0, max: 1, step: 0.05 })
+                .on('change', () => updateConfig(config));
+
+            const curvesKey = getFolderKey([...basePath, 'Particle Emitters', emitterTitle, 'Curves']);
+            const curvesFolder = emitterFolder.addFolder({
+                title: 'Curves',
+                expanded: getFolderExpanded(curvesKey, false),
+            });
+            registerFolder(curvesFolder, curvesKey);
+
+            emitter.curves.forEach((curve, curveIndex) => {
+                const initialTitle = (curve.axis?.y.label ?? 'Target') + ' vs ' + (curve.axis?.x.label ?? 'Input');
+                const curveKey = getFolderKey([...basePath, 'Particle Emitters', emitterTitle, 'Curves', initialTitle]);
+                const curveFolder = curvesFolder.addFolder({
+                    title: initialTitle,
+                    expanded: getFolderExpanded(curveKey, false),
+                });
+                registerFolder(curveFolder, curveKey);
+
+                const blade = curveFolder.addBlade({
+                    view: 'curve',
+                    value: curve.points,
+                    axis: curve.axis,
+                    xOptions: DEFAULT_X_OPTIONS as string[],
+                    yOptions: PARTICLE_Y_OPTIONS as string[],
+                }) as CurveBladeApi;
+
+                blade.on('change', ev => {
+                    emitter.curves[curveIndex].points = ev.value;
+                    emitter.curves[curveIndex].axis = blade.axis;
+                    updateConfig(config);
+                });
+                blade.on('axischange', () => {
+                    curveFolder.title = (blade.axis.y.label || 'Target') + ' vs ' + (blade.axis.x.label || 'Input');
+                    emitter.curves[curveIndex].axis = blade.axis;
+                    updateConfig(config);
+                });
+
+                curveFolder.addButton({ title: 'Remove Curve' }).on('click', () => {
+                    if (!window.confirm(`Delete curve "${curveFolder.title}"?`)) return;
+                    emitter.curves.splice(curveIndex, 1);
+                    updateConfig(config);
+                    _onDelete?.();
+                });
+            });
+
+            curvesFolder.addButton({ title: 'Add Curve' }).on('click', () => {
+                emitter.curves.push({
+                    points: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
+                    axis: { x: { min: 0, max: 1, label: 'Throttle Power' }, y: { min: 0, max: 500, label: 'Emission Rate' } },
+                });
+                updateConfig(config);
+                _onDelete?.();
+            });
+
+            emitterFolder.addButton({ title: 'Remove Emitter' }).on('click', () => {
+                if (!window.confirm(`Delete emitter "${emitterTitle}"?`)) return;
+                targetConfig.particles.splice(index, 1);
+                updateConfig(config);
+                _onDelete?.();
+            });
+        });
+
+        emittersFolder.addButton({ title: 'Add Emitter' }).on('click', () => {
+            targetConfig.particles.push(defaultEmitterConfig());
+            updateConfig(config);
+            _onDelete?.();
+        });
     }
 
     public exportConfig(): RollingStockConfig {
@@ -946,13 +1153,25 @@ export class RollingStock {
         api.play(reverse, loop, alternate);
     }
 
-    public update(delta: number, distanceDelta: number = 0): void {
+    public update(
+        delta: number,
+        distanceDelta: number = 0,
+        state: TrainState | null = null,
+        trainWorldVel: Vector3 | null = null,
+        time: number = 0,
+    ): void {
         if (this.animator) {
             this.animator.update(delta);
         }
 
         if (distanceDelta !== 0) {
             this.rotateWheels(distanceDelta);
+        }
+
+        if (state && trainWorldVel && this.emitters.length > 0) {
+            for (const e of this.emitters) {
+                e.update(delta, state, time, trainWorldVel);
+            }
         }
     }
 
@@ -984,6 +1203,9 @@ export class RollingStock {
     }
 
     public cleanup(): void {
+        for (const e of this.emitters) e.dispose();
+        this.emitters = [];
+
         if (this.model) {
             this.model.traverse((child) => {
                 if (child instanceof Mesh) {

@@ -48,6 +48,7 @@ export class TrainEditorWorld {
     private trainControlParams = {
         velocityKmh: 0,
         dieselRPM: 0,
+        activeParticles: 0,
     };
     private dieselRPMBinding: { hidden: boolean } | null = null;
     private sceneParams = {
@@ -158,6 +159,7 @@ export class TrainEditorWorld {
         this.train = new Train(trainConfig, true);
         this.scene.add(this.train.group);
         this.scene.add(this.train.globalDebugGroup);
+        this.train.setScene(this.scene);
 
         // Set train instance in store for controls to use
         trainInstance.value = this.train;
@@ -237,6 +239,12 @@ export class TrainEditorWorld {
         rpmBinding.hidden = trainPowertrainType.value !== 'diesel-electric';
         trainPowertrainType.subscribe((t) => {
             if (this.dieselRPMBinding) this.dieselRPMBinding.hidden = t !== 'diesel-electric';
+        });
+
+        trainFolder.addBinding(this.trainControlParams, 'activeParticles', {
+            label: 'Active Particles',
+            readonly: true,
+            format: (v: number) => v.toFixed(0),
         });
 
         // Camera controls
@@ -430,6 +438,7 @@ export class TrainEditorWorld {
         // Update display values for debug pane
         this.trainControlParams.velocityKmh = this.train.getVelocityKmh();
         this.trainControlParams.dieselRPM = trainDieselRPM.value;
+        this.trainControlParams.activeParticles = this.train.getActiveParticleCount();
         this.pane?.refresh();
 
         // Update camera based on mode

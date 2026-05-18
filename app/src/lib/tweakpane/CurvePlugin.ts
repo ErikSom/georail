@@ -28,8 +28,20 @@ type PartialAxis = { min?: number; max?: number; label?: string };
 type PartialAxes = { x?: PartialAxis; y?: PartialAxis };
 type PartialGrid = { x?: number; y?: number };
 
-export type VerticalAxisType = 'Volume' | 'Pitch';
+export type VerticalAxisType =
+    | 'Volume'
+    | 'Pitch'
+    | 'Emission Rate'
+    | 'Size'
+    | 'Opacity'
+    | 'Lifetime'
+    | 'Velocity Magnitude'
+    | 'Color Brightness';
 export type HorizontalAxisType = 'Throttle Power' | 'Velocity (km/h)' | 'Brake Power' | 'Tractive Effort' | 'Diesel RPM';
+
+const AUDIO_Y_OPTIONS: VerticalAxisType[] = ['Volume', 'Pitch'];
+const PARTICLE_Y_OPTIONS: VerticalAxisType[] = ['Emission Rate', 'Size', 'Opacity', 'Lifetime', 'Velocity Magnitude', 'Color Brightness'];
+const DEFAULT_X_OPTIONS: HorizontalAxisType[] = ['Throttle Power', 'Velocity (km/h)', 'Brake Power', 'Tractive Effort', 'Diesel RPM'];
 
 const AXIS_DEFAULTS: Record<VerticalAxisType | HorizontalAxisType, { min: number; max: number }> = {
     'Volume': { min: 0, max: 1 },
@@ -39,7 +51,15 @@ const AXIS_DEFAULTS: Record<VerticalAxisType | HorizontalAxisType, { min: number
     'Brake Power': { min: 0, max: 1 },
     'Tractive Effort': { min: 0, max: 1 },
     'Diesel RPM': { min: 500, max: 2200 },
+    'Emission Rate': { min: 0, max: 500 },
+    'Size': { min: 0, max: 5 },
+    'Opacity': { min: 0, max: 1 },
+    'Lifetime': { min: 0, max: 10 },
+    'Velocity Magnitude': { min: 0, max: 20 },
+    'Color Brightness': { min: 0, max: 2 },
 };
+
+export { AUDIO_Y_OPTIONS, PARTICLE_Y_OPTIONS, DEFAULT_X_OPTIONS };
 
 export interface CurveBladeParams extends BaseBladeParams {
     value: CurvePoint[];
@@ -49,6 +69,8 @@ export interface CurveBladeParams extends BaseBladeParams {
     axis?: PartialAxes;
     grid?: PartialGrid;
     targets?: CurveTargetMap;
+    xOptions?: string[];
+    yOptions?: string[];
 }
 
 interface CurveControllerConfig {
@@ -58,6 +80,8 @@ interface CurveControllerConfig {
     targets: CurveTargetMap;
     value: Value<CurvePoint[]>;
     viewProps: ViewProps;
+    xOptions: string[];
+    yOptions: string[];
 }
 
 interface CurveEditorElements {
@@ -601,6 +625,8 @@ class CurveController implements ValueController<CurvePoint[], CurveView> {
     private grid: CurveGrid;
     private target: string | undefined;
     private targets: CurveTargetMap;
+    private xOptions: string[];
+    private yOptions: string[];
     private editor: CurveEditorElements | null = null;
     private editorDocument: Document | null = null;
     private dragIndex: number | null = null;
@@ -623,6 +649,8 @@ class CurveController implements ValueController<CurvePoint[], CurveView> {
         this.grid = config.grid;
         this.target = config.target;
         this.targets = config.targets;
+        this.xOptions = config.xOptions;
+        this.yOptions = config.yOptions;
 
         this.view = new CurveView(doc, { viewProps: config.viewProps });
         this.syncAxisLabels();
@@ -831,8 +859,8 @@ class CurveController implements ValueController<CurvePoint[], CurveView> {
         controls.classList.add('tp-curve-overlay__controls');
         panel.appendChild(controls);
 
-        const yAxisTypeSelect = this.createAxisTypeSelect(doc, controls, 'Target (Y)', ['Volume', 'Pitch']);
-        const xAxisTypeSelect = this.createAxisTypeSelect(doc, controls, 'Input (X)', ['Throttle Power', 'Velocity (km/h)', 'Brake Power', 'Tractive Effort', 'Diesel RPM']);
+        const yAxisTypeSelect = this.createAxisTypeSelect(doc, controls, 'Target (Y)', this.yOptions);
+        const xAxisTypeSelect = this.createAxisTypeSelect(doc, controls, 'Input (X)', this.xOptions);
 
         const yMinInput = this.createNumberField(doc, controls, 'Y Min', '0.01');
         const yMaxInput = this.createNumberField(doc, controls, 'Y Max', '0.01');
@@ -1627,6 +1655,8 @@ export const CurveBladePlugin: BladePlugin<CurveBladeParams> = createPlugin({
             targets,
             value,
             viewProps: args.viewProps,
+            xOptions: args.params.xOptions ?? DEFAULT_X_OPTIONS as string[],
+            yOptions: args.params.yOptions ?? AUDIO_Y_OPTIONS as string[],
         });
         return new LabeledValueBladeController(args.document, {
             blade: args.blade,

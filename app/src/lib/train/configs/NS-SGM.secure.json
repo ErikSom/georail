@@ -92,6 +92,7 @@
             "emissiveColor": 16757072,
             "emissiveIntensity": 1
         },
+        "particles": [],
         "lights": [
             {
                 "role": "headlight",
@@ -310,7 +311,8 @@
                 "pattern": "inside",
                 "emissiveColor": 16757072,
                 "emissiveIntensity": 1
-            }
+            },
+            "particles": []
         }
     ],
     "rearCab": {
@@ -395,6 +397,7 @@
             "emissiveColor": 16757072,
             "emissiveIntensity": 1
         },
+        "particles": [],
         "lights": [
             {
                 "role": "headlight",

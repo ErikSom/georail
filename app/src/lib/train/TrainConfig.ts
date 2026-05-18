@@ -91,6 +91,35 @@ export interface RollingStockConfig {
 
     // Interior material configuration
     interiorMaterial: InteriorMaterialConfig;
+
+    particles: ParticleEmitterConfig[];
+}
+
+export type BlendMode = 'normal' | 'additive';
+
+export interface ParticleEmitterConfig {
+    id: string;
+    name: string;
+    offset: { x: number; y: number; z: number };
+    meshPattern?: string;
+
+    texturePath: string;
+    poolSize: number;
+    blendMode: BlendMode;
+
+    baseColor: number;     // 0xRRGGBB
+    baseColorEnd: number;  // 0xRRGGBB
+    baseSize: number;      // metres
+    sizeOverLife: { start: number; end: number };
+    baseLifetime: number;  // seconds
+    baseVelocity: { x: number; y: number; z: number };
+    velocitySpread: number;
+    opacityOverLife: { start: number; end: number };
+    acceleration: { x: number; y: number; z: number };
+    drag: number;          // per-second
+    velocityInherit: number; // 0..1 — how much of the train's world velocity spawned particles inherit
+
+    curves: Curve[];
 }
 
 export type LightRole = 'headlight' | 'taillight';
@@ -228,6 +257,7 @@ export function getDefaultTrainConfig(): TrainConfig {
                 emissiveColor: 0xffffff,
                 emissiveIntensity: 1.0,
             },
+            particles: [],
         },
         wagons: [],
         audio: {
