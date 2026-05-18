@@ -82,6 +82,127 @@
       "emissiveColor": 16757072,
       "emissiveIntensity": 1
     },
+    "particles": [
+      {
+        "id": "dm90-front-exhaust",
+        "name": "Front exhaust",
+        "offset": {
+          "x": -1.15,
+          "y": 4.0,
+          "z": -2.72
+        },
+        "texturePath": "/textures/particles/smoke.png",
+        "poolSize": 1024,
+        "blendMode": "normal",
+        "baseColor": 13421772,
+        "baseColorEnd": 8421504,
+        "baseSize": 0.6,
+        "sizeOverLife": {
+          "start": 0.5,
+          "end": 2.8
+        },
+        "baseLifetime": 2.5,
+        "baseVelocity": {
+          "x": 0,
+          "y": 1.8,
+          "z": 0
+        },
+        "velocitySpread": 0.3,
+        "opacityOverLife": {
+          "start": 0.85,
+          "end": 0
+        },
+        "acceleration": {
+          "x": 0,
+          "y": 0.5,
+          "z": 0
+        },
+        "drag": 0.6,
+        "velocityInherit": 1.0,
+        "curves": [
+          {
+            "points": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 0.1,
+                "y": 0
+              },
+              {
+                "x": 0.4,
+                "y": 25
+              },
+              {
+                "x": 1,
+                "y": 80
+              }
+            ],
+            "axis": {
+              "x": {
+                "min": 0,
+                "max": 1,
+                "label": "Tractive Effort"
+              },
+              "y": {
+                "min": 0,
+                "max": 200,
+                "label": "Emission Rate"
+              }
+            }
+          },
+          {
+            "points": [
+              {
+                "x": 0,
+                "y": 1
+              },
+              {
+                "x": 1,
+                "y": 0.5
+              }
+            ],
+            "axis": {
+              "x": {
+                "min": 0,
+                "max": 1,
+                "label": "Tractive Effort"
+              },
+              "y": {
+                "min": 0,
+                "max": 2,
+                "label": "Color Brightness"
+              }
+            }
+          },
+          {
+            "points": [
+              {
+                "x": 0,
+                "y": 0.8
+              },
+              {
+                "x": 1,
+                "y": 1.3
+              }
+            ],
+            "axis": {
+              "x": {
+                "min": 0,
+                "max": 1,
+                "label": "Tractive Effort"
+              },
+              "y": {
+                "min": 0,
+                "max": 5,
+                "label": "Size"
+              }
+            }
+          }
+        ]
+      }
+    ],
     "internal": true,
     "cabinPosition": {
       "x": 0.34,
@@ -134,7 +255,7 @@
         "role": "headlight",
         "offset": {
           "x": 0,
-          "y": 2.30,
+          "y": 2.3,
           "z": 12.85
         },
         "target": {
@@ -318,6 +439,7 @@
       "emissiveColor": 16757072,
       "emissiveIntensity": 1
     },
+    "particles": [],
     "internal": true,
     "cabinPosition": {
       "x": 0.34,
@@ -370,7 +492,7 @@
         "role": "headlight",
         "offset": {
           "x": 0,
-          "y": 2.30,
+          "y": 2.3,
           "z": 12.85
         },
         "target": {
@@ -490,7 +612,7 @@
     "idleRPM": 500,
     "maxRPM": 2000,
     "revUpTau": 1.8,
-    "revDownTau": 3.0,
+    "revDownTau": 3,
     "brakeRevDownTau": 0.8,
     "loadInfluence": 0.8
   }
