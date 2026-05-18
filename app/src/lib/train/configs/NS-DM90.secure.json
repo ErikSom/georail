@@ -484,5 +484,14 @@
   "audio": {
     "files": [],
     "compositions": []
+  },
+  "powertrain": {
+    "type": "diesel-electric",
+    "idleRPM": 500,
+    "maxRPM": 2000,
+    "revUpTau": 1.8,
+    "revDownTau": 3.0,
+    "brakeRevDownTau": 0.8,
+    "loadInfluence": 0.8
   }
 }

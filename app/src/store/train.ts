@@ -39,6 +39,8 @@ export const trainDirection = signal<1 | -1>(1); // 1 = forward, -1 = backward
 export const trainVelocityKmh = signal(0);
 export const trainMaxSpeedKmh = signal(120); // Max speed from train config, default 120
 export const trainTractiveEffort = signal(0); // 0 to 1 (normalized)
+export const trainDieselRPM = signal(0); // Current diesel engine RPM (0 when train has no diesel powertrain)
+export const trainPowertrainType = signal<'diesel-electric' | null>(null);
 export const trainBraking = signal(false); // True when dial opposes gear direction
 export const trainInstance = signal<Train | null>(null);
 export const trainDoorsOpen = signal(false);

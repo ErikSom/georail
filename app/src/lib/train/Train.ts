@@ -8,7 +8,8 @@ import * as EssentialsPlugin from '@tweakpane/plugin-essentials';
 import { TrainPhysics, type IPhysicsTarget } from './TrainPhysics';
 import { getFolderKey } from './TrainUiUtils';
 import { TrainAudio } from './TrainAudio';
-import { trainDoorsOpen } from '../../store/train';
+import { createPowertrain, type Powertrain } from './Powertrain';
+import { trainDoorsOpen, trainDieselRPM, trainPowertrainType } from '../../store/train';
 import { stopDistances, stopStatuses } from '../../store/journey';
 import { type ConsistCar } from '../../store/train';
 
@@ -30,8 +31,10 @@ export class Train implements IPhysicsTarget {
     private pane: Pane | null = null;
 
     private readonly paneFolderExpandedState = new Map<string, boolean>();
+    private paneCleanups: Array<() => void> = [];
     private audio: TrainAudio;
     private physics: TrainPhysics;
+    private powertrain: Powertrain | null = null;
     private lightsOn: boolean = false;
     private readonly _cabinWorldPos = new Vector3();
 
@@ -157,6 +160,10 @@ export class Train implements IPhysicsTarget {
 
         // Update physics with new configuration
         this.physics.updateConfiguration(this.config);
+
+        this.powertrain = createPowertrain(this.config.powertrain);
+        trainDieselRPM.value = this.powertrain?.getRPM() ?? 0;
+        trainPowertrainType.value = this.config.powertrain?.type ?? null;
 
         if (this.path && this.path.points.length > 0) {
             this.positionOnPath();
@@ -307,6 +314,8 @@ export class Train implements IPhysicsTarget {
         if (this.pane) {
             this.pane.dispose();
         }
+        for (const cleanup of this.paneCleanups) cleanup();
+        this.paneCleanups = [];
 
         const rootDomContainer = document.getElementById('tweakpane-container');
 
@@ -402,6 +411,8 @@ export class Train implements IPhysicsTarget {
             writeDescription();
             this.createDebugUI();
         });
+
+        this.createPowertrainDebugUI(rootPath);
 
         const physicalKey = getFolderKey([...rootPath, 'Visual & Physics']);
 
@@ -516,6 +527,66 @@ export class Train implements IPhysicsTarget {
                 this.positionOnPath();
             });
         }
+    }
+
+    private createPowertrainDebugUI(rootPath: string[]): void {
+        if (!this.pane) return;
+
+        const ptKey = getFolderKey([...rootPath, 'Powertrain']);
+        const ptFolder = this.pane.addFolder({
+            title: 'Powertrain',
+            expanded: this.getFolderExpanded(ptKey, false),
+        });
+        this.registerFolder(ptFolder, ptKey);
+
+        const params = {
+            dieselElectric: this.config.powertrain?.type === 'diesel-electric',
+        };
+
+        ptFolder.addBinding(params, 'dieselElectric', { label: 'Diesel-electric' })
+            .on('change', (ev) => {
+                if (ev.value) {
+                    this.config.powertrain = {
+                        type: 'diesel-electric',
+                        idleRPM: 600,
+                        maxRPM: 2100,
+                        revUpTau: 1.8,
+                        revDownTau: 3.0,
+                        brakeRevDownTau: 0.8,
+                        loadInfluence: 0.8,
+                    };
+                } else {
+                    this.config.powertrain = undefined;
+                }
+                this.updateConfig(this.config);
+                this.createDebugUI();
+            });
+
+        if (this.config.powertrain?.type !== 'diesel-electric') return;
+
+        const cfg = this.config.powertrain;
+
+        const rpmReadout = { rpm: trainDieselRPM.value };
+        ptFolder.addBinding(rpmReadout, 'rpm', {
+            label: 'Live RPM',
+            readonly: true,
+            interval: 100,
+        });
+        const rpmUnsub = trainDieselRPM.subscribe((v) => { rpmReadout.rpm = v; });
+        this.paneCleanups.push(rpmUnsub);
+
+        ptFolder.addBinding(cfg, 'idleRPM', { label: 'Idle RPM', min: 200, max: 1200, step: 10 })
+            .on('change', () => this.updateConfig(this.config));
+        ptFolder.addBinding(cfg, 'maxRPM', { label: 'Max RPM', min: 1000, max: 4000, step: 10 })
+            .on('change', () => this.updateConfig(this.config));
+        ptFolder.addBinding(cfg, 'revUpTau', { label: 'Rev-up τ (s)', min: 0.1, max: 8, step: 0.1 })
+            .on('change', () => this.updateConfig(this.config));
+        ptFolder.addBinding(cfg, 'revDownTau', { label: 'Rev-down τ (s)', min: 0.1, max: 12, step: 0.1 })
+            .on('change', () => this.updateConfig(this.config));
+        ptFolder.addBinding(cfg, 'brakeRevDownTau', { label: 'Brake rev-down τ (s)', min: 0.05, max: 6, step: 0.05 })
+            .on('change', () => this.updateConfig(this.config));
+        ptFolder.addBinding(cfg, 'loadInfluence', { label: 'Load influence', min: 0, max: 1, step: 0.05 })
+            .on('change', () => this.updateConfig(this.config));
     }
 
     private addWagon(): void {
@@ -897,6 +968,14 @@ export class Train implements IPhysicsTarget {
     public update(delta: number): void {
         // Update physics simulation (this will directly update distanceTraveled)
         this.physics.update(delta);
+
+        if (this.powertrain) {
+            const braking = this.physics.isBraking();
+            const throttle01 = braking ? 0 : Math.abs(this.physics.getPower());
+            const tractive01 = braking ? 0 : this.physics.getNormalizedTraction();
+            this.powertrain.update(delta, throttle01, tractive01, braking);
+            trainDieselRPM.value = this.powertrain.getRPM();
+        }
 
         // Calculate distance delta for wheel rotation
         const distanceDelta = this.distanceTraveled - this.previousDistanceTraveled;

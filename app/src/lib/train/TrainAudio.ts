@@ -8,7 +8,7 @@ import {
 import { getFolderKey } from './TrainUiUtils';
 import type { AudioConfig, AudioSound, AudioCurve } from './TrainConfig';
 import { AudioLoader, PositionalAudio, Group } from 'three';
-import { trainPower, trainVelocityKmh, trainTractiveEffort } from '../../store/train';
+import { trainPower, trainVelocityKmh, trainTractiveEffort, trainDieselRPM } from '../../store/train';
 import { audioListener } from '../../store/globals';
 import { loadEncryptedAsset, getProtectedAssetPath, blobString } from '../utils/Security.secure';
 import { trainAssetsPath } from './configs/TrainConfigurations.secure';
@@ -34,6 +34,7 @@ interface TrainState {
     velocityKmh: number;
     brakePower: number;
     tractiveEffort: number;
+    dieselRPM: number;
 }
 
 export class TrainAudio {
@@ -43,7 +44,7 @@ export class TrainAudio {
     private isEnabled: boolean = false;
     private currentInitializationId: number = 0;
     private opusSupported: boolean = true;
-    private _trainState: TrainState = { throttlePower: 0, velocityKmh: 0, brakePower: 0, tractiveEffort: 0 };
+    private _trainState: TrainState = { throttlePower: 0, velocityKmh: 0, brakePower: 0, tractiveEffort: 0, dieselRPM: 0 };
     private _volumeValues: number[] = [];
     private _pitchValues: number[] = [];
     private oneShotBuffers: Map<string, AudioBuffer> = new Map();
@@ -532,6 +533,7 @@ export class TrainAudio {
         this._trainState.velocityKmh = Math.abs(velocityKmh);
         this._trainState.brakePower = brakePower;
         this._trainState.tractiveEffort = trainTractiveEffort.value;
+        this._trainState.dieselRPM = trainDieselRPM.value;
 
         return this._trainState;
     }
@@ -591,6 +593,8 @@ export class TrainAudio {
                 return trainState.brakePower;
             case 'Tractive Effort':
                 return trainState.tractiveEffort;
+            case 'Diesel RPM':
+                return trainState.dieselRPM;
             default:
                 console.warn(`TrainAudio: Unknown input axis "${axisLabel}"`);
                 return null;

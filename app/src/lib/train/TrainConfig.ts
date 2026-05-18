@@ -156,12 +156,25 @@ export interface TrainDisplayConfig {
     description?: LocalizedString;
 }
 
+export interface DieselElectricPowertrainConfig {
+    type: 'diesel-electric';
+    idleRPM: number;
+    maxRPM: number;
+    revUpTau: number;        // seconds
+    revDownTau: number;      // seconds
+    brakeRevDownTau: number; // seconds
+    loadInfluence: number;   // 0..1
+}
+
+export type PowertrainConfig = DieselElectricPowertrainConfig;
+
 export interface TrainConfig {
     display: TrainDisplayConfig;
     cab: CabConfig;
     wagons: WagonConfig[];
     rearCab?: CabConfig;
     audio: AudioConfig;
+    powertrain?: PowertrainConfig;
 }
 
 // Default configuration
