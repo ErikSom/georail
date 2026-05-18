@@ -52,6 +52,7 @@ uniform vec3 uColorEnd;
 
 varying vec2 vUv;
 varying vec4 vColor;
+varying float vFogDepth;
 
 void main() {
     float age = uTime - aSpawnTime;
@@ -61,6 +62,7 @@ void main() {
         gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
         vColor = vec4(0.0);
         vUv = vec2(0.0);
+        vFogDepth = 0.0;
         return;
     }
 
@@ -81,6 +83,7 @@ void main() {
     vec4 viewCenter = viewMatrix * vec4(worldPos, 1.0);
     viewCenter.xy += rotated * size;
     gl_Position = projectionMatrix * viewCenter;
+    vFogDepth = -viewCenter.z;
 
     vUv = uv;
     float alpha = mix(uOpacityOverLife.x, uOpacityOverLife.y, life01) * aOpacity;
@@ -91,12 +94,22 @@ void main() {
 
 const fragmentShader = /* glsl */ `
 uniform sampler2D uTexture;
+uniform vec3 uFogColor;
+uniform float uFogNear;
+uniform float uFogFar;
+uniform float uFogEnabled;
 varying vec2 vUv;
 varying vec4 vColor;
+varying float vFogDepth;
 
 void main() {
     vec4 tex = texture2D(uTexture, vUv);
     vec4 c = vec4(vColor.rgb * tex.rgb, vColor.a * tex.a);
+
+    float fogFactor = uFogEnabled * smoothstep(uFogNear, uFogFar, vFogDepth);
+    c.rgb = mix(c.rgb, uFogColor, fogFactor);
+    c.a *= 1.0 - fogFactor;
+
     if (c.a < 0.005) discard;
     gl_FragColor = c;
 }
@@ -183,6 +196,18 @@ export class ParticleSystem {
         this.colorStart.setHex(cfg.baseColor);
         this.colorEnd.setHex(cfg.baseColorEnd);
 
+        const fogColor = new Color(0, 0, 0);
+        let fogNear = 1;
+        let fogFar = 1;
+        let fogEnabled = 0;
+        const fog = scene.fog as { color: Color; near?: number; far?: number; density?: number } | null;
+        if (fog && 'near' in fog && fog.near !== undefined && fog.far !== undefined) {
+            fogColor.copy(fog.color);
+            fogNear = fog.near;
+            fogFar = fog.far;
+            fogEnabled = 1;
+        }
+
         this.material = new ShaderMaterial({
             uniforms: {
                 uTime: { value: 0 },
@@ -193,6 +218,10 @@ export class ParticleSystem {
                 uColorStart: { value: this.colorStart },
                 uColorEnd: { value: this.colorEnd },
                 uTexture: { value: loadTexture(cfg.texturePath) },
+                uFogColor: { value: fogColor },
+                uFogNear: { value: fogNear },
+                uFogFar: { value: fogFar },
+                uFogEnabled: { value: fogEnabled },
             },
             vertexShader,
             fragmentShader,

@@ -19,6 +19,11 @@ export class ParticleEmitter {
     private overflowWarned = false;
     private readonly liveLifetimes: Float32Array;
     private readonly liveExpiresAt: Float32Array;
+    private velocityInheritOverride: number | null = null;
+
+    public setVelocityInheritOverride(v: number | null): void {
+        this.velocityInheritOverride = v;
+    }
 
     constructor(cfg: ParticleEmitterConfig, anchor: Group, scene: Scene) {
         this.cfg = cfg;
@@ -102,8 +107,9 @@ export class ParticleEmitter {
         );
         _velocityWorld.multiplyScalar(velocityMul);
         _velocityWorld.applyQuaternion(this.anchor.quaternion);
-        if (cfg.velocityInherit > 0) {
-            _velocityWorld.addScaledVector(trainWorldVel, cfg.velocityInherit);
+        const inherit = this.velocityInheritOverride ?? cfg.velocityInherit;
+        if (inherit > 0) {
+            _velocityWorld.addScaledVector(trainWorldVel, inherit);
         }
 
         const lifetime = cfg.baseLifetime * lifetimeMul;

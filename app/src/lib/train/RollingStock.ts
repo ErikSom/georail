@@ -543,6 +543,10 @@ export class RollingStock {
         return n;
     }
 
+    public setVelocityInheritOverride(v: number | null): void {
+        for (const e of this.emitters) e.setVelocityInheritOverride(v);
+    }
+
     public orientOnRails(): void {
         const frontPoint = this.railPositions.bodyFront;
         const rearPoint = this.railPositions.bodyRear;

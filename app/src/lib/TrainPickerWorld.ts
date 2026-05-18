@@ -24,10 +24,12 @@ import { Train } from './train/Train';
 import Path from './utils/Path';
 import { getCatalogEntry, getDefaultCatalogEntry, resolveTrainEntry } from './train/configs/TrainCatalog';
 import { audioListener } from '../store/globals';
-import { trainVelocityKmh, trainPower, trainDebugMode } from '../store/train';
+import { trainVelocityKmh, trainPower, trainTractiveEffort, trainDebugMode } from '../store/train';
 
 const TWEEN_AUDIO_VELOCITY_KMH = 55;
 const TWEEN_AUDIO_POWER = 0.45;
+const TWEEN_TRACTIVE_EFFORT = 0.55;
+const ENTER_VELOCITY_INHERIT = 0.3;
 
 const PATH_TOTAL_LENGTH = 1000;
 // Where the cab front nose comes to rest in world Z. Picked to match where
@@ -256,6 +258,7 @@ export class TrainPickerWorld {
     private setAudioMoving(moving: boolean): void {
         trainVelocityKmh.value = moving ? TWEEN_AUDIO_VELOCITY_KMH : 0;
         trainPower.value = moving ? TWEEN_AUDIO_POWER : 0;
+        trainTractiveEffort.value = moving ? TWEEN_TRACTIVE_EFFORT : 0;
     }
 
     private startExit(): void {
@@ -266,6 +269,7 @@ export class TrainPickerWorld {
         const cameraZRelative = this.camera.position.z - this.showcaseTarget.z;
         const trainLength = this.train.getTotalLength();
         this.distanceEnd = this.showcaseDistance() + cameraZRelative + trainLength + EXIT_MARGIN;
+        this.train.setVelocityInheritOverride(null);
         this.setAudioMoving(true);
     }
 
@@ -314,6 +318,7 @@ export class TrainPickerWorld {
         this.train.distanceTraveled = showcase + SPAWN_OFFSET;
         this.train.positionOnPath();
         this.train.group.visible = true;
+        this.train.setVelocityInheritOverride(ENTER_VELOCITY_INHERIT);
 
         this.phase = 'entering';
         this.phaseStartMs = performance.now();

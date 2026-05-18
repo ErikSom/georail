@@ -115,6 +115,7 @@ export class Train implements IPhysicsTarget {
     }
 
     public updateConfig(config: TrainConfig): void {
+        const audioChanged = config.audio !== this.config?.audio;
         this.config = config;
 
         // clone config to avoid reference issues
@@ -176,6 +177,12 @@ export class Train implements IPhysicsTarget {
             this.rebuildAllEmitters(scene);
         }
 
+        if (audioChanged) {
+            this.audio.initialize(this.config.audio).catch((error) => {
+                console.error('Failed to re-initialize train audio after config swap:', error);
+            });
+        }
+
         if (this.path && this.path.points.length > 0) {
             this.positionOnPath();
         }
@@ -199,6 +206,12 @@ export class Train implements IPhysicsTarget {
         for (const w of this.wagons) n += w.getActiveParticleCount(t);
         if (this.rearCab) n += this.rearCab.getActiveParticleCount(t);
         return n;
+    }
+
+    public setVelocityInheritOverride(v: number | null): void {
+        this.cab.setVelocityInheritOverride(v);
+        this.wagons.forEach(w => w.setVelocityInheritOverride(v));
+        this.rearCab?.setVelocityInheritOverride(v);
     }
 
     private currentSegmentIndex = 0;
@@ -1025,6 +1038,12 @@ export class Train implements IPhysicsTarget {
         this.cab.group.getWorldPosition(this._cabinWorldPos);
         if (this._hasPrevCabPos && delta > 0) {
             this._worldVel.copy(this._cabinWorldPos).sub(this._prevCabWorldPos).divideScalar(delta);
+            // Teleports (segment hops, picker tween resets) produce nonsense
+            // velocity for one frame; clamp to physical max so particles don't
+            // explode outward.
+            if (this._worldVel.lengthSq() > 150 * 150) {
+                this._worldVel.set(0, 0, 0);
+            }
         } else {
             this._worldVel.set(0, 0, 0);
         }
