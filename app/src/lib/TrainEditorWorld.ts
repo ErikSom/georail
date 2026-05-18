@@ -22,7 +22,7 @@ import { Pane } from 'tweakpane';
 import { dummyQuad, dummyVec3 } from './utils/Helper';
 import { FlightControls } from './utils/FlightControls';
 import { Input } from './utils/Input';
-import { trainInstance, updateTrainState, trainMaxSpeedKmh } from '../store/train';
+import { trainInstance, updateTrainState, trainMaxSpeedKmh, trainDieselRPM, trainPowertrainType } from '../store/train';
 import { audioListener, timeScale } from '../store/globals';
 import { getTrainConfiguration } from './train/configs/TrainConfigurations.secure';
 
@@ -47,7 +47,9 @@ export class TrainEditorWorld {
     private pane: Pane | null = null;
     private trainControlParams = {
         velocityKmh: 0,
+        dieselRPM: 0,
     };
+    private dieselRPMBinding: { hidden: boolean } | null = null;
     private sceneParams = {
         darkness: 0,
         timeScale: timeScale.value,
@@ -219,12 +221,22 @@ export class TrainEditorWorld {
             this.setPath(this.currentPathType);
         });
 
-        // Train Controls
-        const trainFolder = this.pane.addFolder({ title: 'Train Controls' });
+        const trainFolder = this.pane.addFolder({ title: 'Train Info' });
 
         trainFolder.addBinding(this.trainControlParams, 'velocityKmh', {
             label: 'Speed (km/h)',
             readonly: true,
+        });
+
+        const rpmBinding = trainFolder.addBinding(this.trainControlParams, 'dieselRPM', {
+            label: 'Diesel RPM',
+            readonly: true,
+            format: (v: number) => v.toFixed(0),
+        });
+        this.dieselRPMBinding = rpmBinding;
+        rpmBinding.hidden = trainPowertrainType.value !== 'diesel-electric';
+        trainPowertrainType.subscribe((t) => {
+            if (this.dieselRPMBinding) this.dieselRPMBinding.hidden = t !== 'diesel-electric';
         });
 
         // Camera controls
@@ -417,6 +429,7 @@ export class TrainEditorWorld {
 
         // Update display values for debug pane
         this.trainControlParams.velocityKmh = this.train.getVelocityKmh();
+        this.trainControlParams.dieselRPM = trainDieselRPM.value;
         this.pane?.refresh();
 
         // Update camera based on mode
