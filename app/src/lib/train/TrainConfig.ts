@@ -266,3 +266,22 @@ export function getDefaultTrainConfig(): TrainConfig {
         },
     };
 }
+
+// Backfill fields added after a config was saved. Runs once at the load boundary.
+export function normalizeTrainConfig(config: TrainConfig): TrainConfig {
+    const fixPiece = (rs: RollingStockConfig | undefined) => {
+        if (!rs) return;
+        if (!Array.isArray(rs.particles)) rs.particles = [];
+        for (const p of rs.particles) {
+            const legacy = (p as ParticleEmitterConfig & { trailBias?: number });
+            if (legacy.velocityInherit === undefined && legacy.trailBias !== undefined) {
+                p.velocityInherit = 0;
+                delete legacy.trailBias;
+            }
+        }
+    };
+    fixPiece(config.cab);
+    config.wagons?.forEach(fixPiece);
+    fixPiece(config.rearCab);
+    return config;
+}

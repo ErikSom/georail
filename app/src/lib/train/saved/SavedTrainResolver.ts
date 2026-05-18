@@ -1,4 +1,4 @@
-import type { TrainConfig, CabConfig, WagonConfig, AudioFile } from '../TrainConfig';
+import { normalizeTrainConfig, type TrainConfig, type CabConfig, type WagonConfig, type AudioFile } from '../TrainConfig';
 import { loadEncryptedAsset, getProtectedAssetPath, blobString } from '../../utils/Security.secure';
 import { trainAssetsPath } from '../configs/TrainConfigurations.secure';
 import { get as getRecord, type SavedTrainRecord } from './TrainStore';
@@ -46,7 +46,7 @@ export async function materializeSavedTrain(id: string): Promise<ResolvedSavedTr
         pathToBlobUrl[innerPath] = url;
     }
 
-    const config = structuredClone(record.config) as TrainConfig;
+    const config = normalizeTrainConfig(structuredClone(record.config) as TrainConfig);
 
     const rewriteRollingStock = (rs: CabConfig | WagonConfig | undefined) => {
         if (!rs) return;
