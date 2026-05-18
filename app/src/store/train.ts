@@ -99,6 +99,16 @@ export const trainPowerPercent = computed(() => trainPower.value * 100);
 let lastUpdateTime = performance.now();
 
 // Set up bidirectional sync when train instance is available
+
+// Gear must be applied before power so a freshly-loaded train respects the
+// user's reverser (defaults to forward) instead of inferring direction from
+// the first dial sign.
+effect(() => {
+    const train = trainInstance.value;
+    if (!train) return;
+    train.setDirection(trainDirection.value);
+});
+
 effect(() => {
     const train = trainInstance.value;
     if (!train) return;

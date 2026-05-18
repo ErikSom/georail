@@ -17,7 +17,7 @@ export class TrainPhysics {
 
     private velocity: number = 0; // m/s
     private powerSetting: number = 0; // -1..1
-    private direction: -1 | 0 | 1 = 0; // Gear: -1 reverse, 0 neutral, 1 forward
+    private direction: -1 | 1 = 1; // -1 reverse, 1 forward
 
     // Physics constants (tunable)
     private readonly ROLLING_RESISTANCE_COEFF = 0.0015;
@@ -89,25 +89,18 @@ private readonly DRAG_SCALE = 2.3;
 
     public setPower(value: number): void {
         this.powerSetting = Math.max(-1, Math.min(1, value));
-
-        // Transition to neutral: velocity ~0 and power set to exactly 0
-        if (this.direction !== 0 && this.powerSetting === 0 && Math.abs(this.velocity) < 0.01) {
-            this.direction = 0;
-        }
-
-        // From neutral, first non-zero power picks the direction
-        if (this.direction === 0 && Math.abs(this.powerSetting) > this.BRAKE_THRESHOLD) {
-            this.direction = this.powerSetting > 0 ? 1 : -1;
-        }
     }
 
-    public getDirection(): -1 | 0 | 1 {
+    public setDirection(dir: 1 | -1): void {
+        this.direction = dir;
+    }
+
+    public getDirection(): -1 | 1 {
         return this.direction;
     }
 
     /** True when dial opposes the current gear direction (brake mode) */
     public isBraking(): boolean {
-        if (this.direction === 0) return false;
         return (
             (this.direction === 1 && this.powerSetting < 0) ||
             (this.direction === -1 && this.powerSetting > 0)
@@ -134,7 +127,7 @@ private readonly DRAG_SCALE = 2.3;
     public reset(): void {
         this.velocity = 0;
         this.powerSetting = 0;
-        this.direction = 0;
+        this.direction = 1;
     }
 
     public update(deltaTime: number): void {
@@ -168,10 +161,6 @@ private readonly DRAG_SCALE = 2.3;
 
         if (Math.abs(this.powerSetting) <= this.BRAKE_THRESHOLD && Math.abs(this.velocity) < 0.01) {
             this.velocity = 0;
-            // Coasted to a stop with no power — enter neutral
-            if (this.direction !== 0 && this.powerSetting === 0) {
-                this.direction = 0;
-            }
         }
 
         this.target.distanceTraveled += this.velocity * deltaTime;
@@ -198,7 +187,6 @@ private readonly DRAG_SCALE = 2.3;
     private calculateEngineForce(): number {
         if (this.totalEnginePower === 0) return 0;
         if (Math.abs(this.powerSetting) < this.BRAKE_THRESHOLD) return 0;
-        if (this.direction === 0) return 0;
 
         const powerWatts = this.totalEnginePower * 1000 * this.ENGINE_EFFICIENCY * this.powerSetting;
 

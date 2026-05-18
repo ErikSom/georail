@@ -33,7 +33,6 @@ export class Train implements IPhysicsTarget {
     private audio: TrainAudio;
     private physics: TrainPhysics;
     private lightsOn: boolean = false;
-    private lastNonZeroDirection: -1 | 1 = 1;
     private readonly _cabinWorldPos = new Vector3();
 
     public readonly ready: Promise<void>;
@@ -817,17 +816,16 @@ export class Train implements IPhysicsTarget {
         return this.physics.isBraking();
     }
 
-    public getDirection(): -1 | 0 | 1 {
-        const dir = this.physics.getDirection();
-        if (dir !== 0) this.lastNonZeroDirection = dir;
-        return dir;
+    public setDirection(dir: 1 | -1): void {
+        this.physics.setDirection(dir);
     }
 
-    /** Returns the last engaged gear direction (never 0) */
+    public getDirection(): -1 | 1 {
+        return this.physics.getDirection();
+    }
+
     public getEffectiveDirection(): -1 | 1 {
-        const dir = this.physics.getDirection();
-        if (dir !== 0) this.lastNonZeroDirection = dir;
-        return this.lastNonZeroDirection;
+        return this.physics.getDirection();
     }
 
     /**
