@@ -874,6 +874,7 @@ export class Train implements IPhysicsTarget {
     }
 
     public setTrainLightDirection(): void {
+        if (this.flashInProgress) return;
         if (!this.lightsOn) return;
 
         const forward = this.getEffectiveDirection() === 1;
@@ -887,6 +888,40 @@ export class Train implements IPhysicsTarget {
             // No rear cab: front lights stay on
             this.cab.setHeadlights(true);
             this.cab.setTaillights(false);
+        }
+    }
+
+    private flashInProgress = false;
+
+    public async flashFrontCabLights(): Promise<void> {
+        if (this.flashInProgress) return;
+        this.flashInProgress = true;
+        const wasEmissive = this.lightsOn;
+        this.cab.setEmissiveEnabled(true);
+        const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+        const onTime = 250;
+        const offTime = 100;
+        const pauseTime = 120;
+        try {
+            this.cab.setHeadlights(true); this.cab.setTaillights(false);
+            await sleep(onTime);
+            this.cab.setHeadlights(false);
+            await sleep(offTime);
+            this.cab.setHeadlights(true);
+            await sleep(onTime);
+            this.cab.setHeadlights(false);
+            await sleep(pauseTime);
+            this.cab.setTaillights(true);
+            await sleep(onTime);
+            this.cab.setTaillights(false);
+            await sleep(offTime);
+            this.cab.setTaillights(true);
+            await sleep(onTime);
+            this.cab.setTaillights(false);
+        } finally {
+            this.flashInProgress = false;
+            this.cab.setEmissiveEnabled(wasEmissive);
+            this.setTrainLightDirection();
         }
     }
 

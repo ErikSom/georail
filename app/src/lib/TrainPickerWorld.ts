@@ -333,6 +333,7 @@ export class TrainPickerWorld {
         this.train.positionOnPath();
         this.phase = 'idle';
         this.setAudioMoving(false);
+        this.train.flashFrontCabLights();
 
         if (this.pendingTrainId !== this.currentTrainId) {
             this.startExit();
