@@ -159,6 +159,7 @@ export class TrainPickerWorld {
         this.currentDispose = initial.dispose;
         this.train = new Train(initial.config, false);
         this.scene.add(this.train.group);
+        this.train.setScene(this.scene);
 
         const path = new Path(this.buildStraightPath());
         this.train.setPath(path);
