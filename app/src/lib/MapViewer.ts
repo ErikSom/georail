@@ -50,6 +50,12 @@ export class MapViewer {
     private originLon = 0;
     private static readonly REORIENT_THRESHOLD_M = 50_000; // 50km
 
+    // Ground plane fills tile gaps near the train but gets hidden once the
+    // camera is high enough that its flat color would noticeably tint a wide
+    // patch of the satellite view.
+    private static readonly GROUND_PLANE_SIZE_M = 5_000_000; // 5,000km — well beyond max camera zoom
+    private static readonly GROUND_PLANE_HIDE_DIST_M = 10_000; // hide when camera >10km away
+
     /** Called after automatic reorientation with the delta transform matrix. */
     public onReorient: ((deltaMatrix: Matrix4) => void) | null = null;
     public onInitialized: (() => void) | null = null;
@@ -288,7 +294,7 @@ export class MapViewer {
             (this.groundPlane.material as MeshBasicMaterial).dispose();
         }
 
-        const planeGeometry = new PlaneGeometry(1e5, 1e5);
+        const planeGeometry = new PlaneGeometry(MapViewer.GROUND_PLANE_SIZE_M, MapViewer.GROUND_PLANE_SIZE_M);
         const planeMaterial = new MeshBasicMaterial({
             color: ATMOSPHERE_COLOR,
             side: 2
@@ -400,6 +406,11 @@ export class MapViewer {
             this.tiles.setResolutionFromRenderer(this.lookaheadCamera, this.renderer);
         }
         this.tiles.update();
+
+        if (this.groundPlane) {
+            const dist = this.camera.position.distanceTo(this.groundPlane.position);
+            this.groundPlane.visible = dist <= MapViewer.GROUND_PLANE_HIDE_DIST_M;
+        }
     }
 
     public getCredits(): Tiles3DAttributionCredits {
