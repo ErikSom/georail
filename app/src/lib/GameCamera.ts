@@ -13,6 +13,17 @@ const CAMERA_MODES: CameraMode[] = ['free', 'cockpit', 'side', 'top', 'cinematic
 const COCKPIT_ORBIT_MAX_ANGLE = Math.PI / 3;
 const COCKPIT_ORBIT_VERTICAL_MAX = Math.PI / 6;
 
+// Free-mode zoom range. 200 km is enough to frame roughly half of the
+// Netherlands from above.
+const FREE_MAX_DISTANCE = 200_000;
+// Free-mode pitch clamp ramps from "almost horizontal" at close range to
+// "near top-down" at far range. Ramp uses log-distance so the feel of zooming
+// stays consistent across orders of magnitude.
+const FREE_PITCH_NEAR_DIST = 80;
+const FREE_PITCH_FAR_DIST = 40_000;
+const FREE_PITCH_MAX_NEAR = Math.PI / 2 - 0.1; // ~89° from up = near-horizontal
+const FREE_PITCH_MAX_FAR = 0.12;               // ~7° from up = nearly top-down
+
 export class GameCamera {
     public camera: PerspectiveCamera;
     public controls: OrbitControls;
@@ -40,9 +51,9 @@ export class GameCamera {
 
         this.controls = new OrbitControls(this.camera, this.domElement);
         this.controls.minDistance = 10;
-        this.controls.maxDistance = 500;
+        this.controls.maxDistance = FREE_MAX_DISTANCE;
         this.controls.minPolarAngle = 0;
-        this.controls.maxPolarAngle = Math.PI / 2 - 0.1;
+        this.controls.maxPolarAngle = FREE_PITCH_MAX_NEAR;
         this.controls.enableDamping = true;
         this.controls.autoRotate = false;
         this.controls.enablePan = false;
@@ -94,9 +105,9 @@ export class GameCamera {
             this.controls.enabled = mode === 'free';
             this.controls.enableZoom = true;
             this.controls.minDistance = 0.1;
-            this.controls.maxDistance = 500;
+            this.controls.maxDistance = FREE_MAX_DISTANCE;
             this.controls.minPolarAngle = 0;
-            this.controls.maxPolarAngle = Math.PI / 2 - 0.1;
+            this.controls.maxPolarAngle = FREE_PITCH_MAX_NEAR;
             this.controls.minAzimuthAngle = -Infinity;
             this.controls.maxAzimuthAngle = Infinity;
         }
@@ -175,6 +186,16 @@ export class GameCamera {
         this._delta.copy(this.currentTarget).sub(this.controls.target);
         this.controls.target.add(this._delta);
         this.camera.position.add(this._delta);
+
+        const distance = this.camera.position.distanceTo(this.controls.target);
+        const logNear = Math.log(FREE_PITCH_NEAR_DIST);
+        const logFar = Math.log(FREE_PITCH_FAR_DIST);
+        const t = Math.max(0, Math.min(1,
+            (Math.log(Math.max(distance, FREE_PITCH_NEAR_DIST)) - logNear) / (logFar - logNear)
+        ));
+        this.controls.maxPolarAngle =
+            FREE_PITCH_MAX_NEAR + (FREE_PITCH_MAX_FAR - FREE_PITCH_MAX_NEAR) * t;
+
         this.controls.update();
     }
 
