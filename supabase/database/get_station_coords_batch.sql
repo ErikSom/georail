@@ -6,7 +6,6 @@ CREATE OR REPLACE FUNCTION get_station_coords_batch(
 RETURNS TABLE(code text, lon float, lat float)
 LANGUAGE sql
 STABLE
-SECURITY DEFINER
 SET search_path = public, extensions
 AS $$
   SELECT DISTINCT ON (idx)

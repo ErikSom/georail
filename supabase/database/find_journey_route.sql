@@ -4,7 +4,6 @@ CREATE OR REPLACE FUNCTION find_journey_route(
 )
 RETURNS json
 LANGUAGE plpgsql
-SECURITY DEFINER
 SET search_path = public, extensions
 AS $$
 DECLARE

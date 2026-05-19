@@ -8,6 +8,7 @@ ALTER TABLE user_routes
 CREATE OR REPLACE FUNCTION increment_user_route_plays(route_id uuid)
 RETURNS void
 LANGUAGE sql
+SET search_path = public, extensions
 AS $$
   UPDATE user_routes
   SET

@@ -30,6 +30,7 @@ ALTER TABLE subscription_events ENABLE ROW LEVEL SECURITY;
 CREATE OR REPLACE FUNCTION prevent_premium_field_modification()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+SET search_path = public, extensions
 AS $$
 BEGIN
   IF (OLD.is_premium IS DISTINCT FROM NEW.is_premium) OR

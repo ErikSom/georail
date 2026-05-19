@@ -3,7 +3,6 @@ CREATE OR REPLACE FUNCTION get_all_stations_with_tracks(
 )
 RETURNS json
 LANGUAGE sql
-SECURITY DEFINER
 SET search_path = public, extensions
 AS $$
   SELECT

@@ -4,7 +4,6 @@ CREATE OR REPLACE FUNCTION get_network_coverage(
 RETURNS json
 LANGUAGE sql
 STABLE
-SECURITY DEFINER
 SET search_path = public, extensions
 AS $$
   WITH segment_stats AS (

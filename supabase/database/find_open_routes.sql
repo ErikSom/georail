@@ -6,7 +6,6 @@ CREATE OR REPLACE FUNCTION find_open_routes(
 RETURNS json
 LANGUAGE sql
 VOLATILE
-SECURITY DEFINER
 SET search_path = public, extensions
 AS $$
   WITH segment_coverage AS (

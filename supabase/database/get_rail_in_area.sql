@@ -12,7 +12,6 @@ CREATE OR REPLACE FUNCTION get_rail_in_area(
 RETURNS json
 LANGUAGE sql
 STABLE
-SECURITY DEFINER
 SET search_path = public, extensions
 AS $$
   WITH center AS (

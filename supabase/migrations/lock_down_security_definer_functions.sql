@@ -1,3 +1,19 @@
+-- Lock down SECURITY DEFINER functions flagged by the Supabase linter.
+-- Service-role calls bypass GRANTs, so offline scripts and server code continue to work.
+
+-- ── Bulk-insert helpers: only used by offline scripts via service-role key.
+REVOKE EXECUTE ON FUNCTION public.insert_rail_lines_batch(jsonb, text)
+  FROM anon, authenticated, public;
+
+REVOKE EXECUTE ON FUNCTION public.insert_stations_batch(jsonb, text)
+  FROM anon, authenticated, public;
+
+REVOKE EXECUTE ON FUNCTION public.save_rail_point_overrides_batch(
+  bigint[], integer[], double precision[], double precision[], double precision[], boolean[]
+) FROM anon, authenticated, public;
+
+-- ── get_route_for_review: was leaking pending-patch review data to anon.
+--    Apply the same moderator gate that list_patches/approve_patch use.
 CREATE OR REPLACE FUNCTION get_route_for_review(
   start_lon float,
   start_lat float,
@@ -48,25 +64,17 @@ BEGIN
     SELECT
       b.path_seq, b.point_index_in_route, b.original_point_index, b.segment_id, b.is_reversed,
       ST_MakePoint(ST_X(b.original_point_geom), ST_Y(b.original_point_geom)) AS point_geom_2d,
-
-      -- Current active values
       COALESCE(ovr_curr.height, ST_Z(b.original_point_geom), 0.0) AS current_height,
       COALESCE(ovr_curr.lateral_offset, 0.0) AS current_offset,
-
-      -- Proposed patch values
       COALESCE(ovr_patch.height, COALESCE(ovr_curr.height, ST_Z(b.original_point_geom), 0.0)) AS patch_height,
       COALESCE(ovr_patch.lateral_offset, COALESCE(ovr_curr.lateral_offset, 0.0)) AS patch_offset
-
     FROM route_points_base b
-    -- LEFT JOIN for CURRENT overrides
     LEFT JOIN public.rail_point_overrides ovr_curr
       ON ovr_curr.segment_id = b.segment_id AND ovr_curr.point_index = b.original_point_index
-    -- LEFT JOIN for PATCH overrides
     LEFT JOIN public.rail_patch_data ovr_patch
       ON ovr_patch.segment_id = b.segment_id AND ovr_patch.point_index = b.original_point_index
       AND ovr_patch.patch_id = review_patch_id
   )
-  -- Build the final JSON
   SELECT json_build_object(
            'start_node', start_node,
            'end_node',   end_node,
@@ -96,3 +104,16 @@ BEGIN
   RETURN out_json;
 END;
 $$;
+
+-- ── Pin search_path on the two flagged non-DEFINER functions.
+--    Prevents search_path injection if a malicious schema is placed first.
+ALTER FUNCTION public.increment_user_route_plays(uuid)
+  SET search_path = public, extensions;
+
+ALTER FUNCTION public.prevent_premium_field_modification()
+  SET search_path = public, extensions;
+
+-- ── handle_new_user: trigger fired by auth.users INSERT. Triggers ignore GRANTs,
+--    so revoking REST-callable EXECUTE doesn't break signup.
+REVOKE EXECUTE ON FUNCTION public.handle_new_user()
+  FROM anon, authenticated, public;
