@@ -295,6 +295,15 @@ export default class Path {
                 const l1 = this.points[pIdx + 1];
                 this.endDir.subVectors(l1, l0).normalize();
             }
+
+            if (this.startDir.lengthSq() <= EPS * EPS) {
+                const fallbackStart = this.firstNonZeroDirection(rawDirs);
+                if (fallbackStart) this.startDir.copy(fallbackStart);
+            }
+            if (this.endDir.lengthSq() <= EPS * EPS) {
+                const fallbackEnd = this.firstNonZeroDirection(rawDirs, true);
+                if (fallbackEnd) this.endDir.copy(fallbackEnd);
+            }
         }
     }
 
@@ -308,6 +317,27 @@ export default class Path {
         this.segLUTOffsets = new Int32Array(0);
         this.curveControlPoints = new Float32Array(0);
         this.curveLUT = new Float32Array(0);
+    }
+
+    private firstNonZeroDirection(rawDirs: Vector3[], fromEnd = false): Vector3 | null {
+        const start = fromEnd ? rawDirs.length - 1 : 0;
+        const end = fromEnd ? -1 : rawDirs.length;
+        const step = fromEnd ? -1 : 1;
+        for (let i = start; i !== end; i += step) {
+            if (rawDirs[i].lengthSq() > EPS * EPS) return rawDirs[i];
+        }
+        return null;
+    }
+
+    private firstNonZeroPointDirection(fromEnd = false): Vector3 | null {
+        const start = fromEnd ? this.points.length - 2 : 0;
+        const end = fromEnd ? -1 : this.points.length - 1;
+        const step = fromEnd ? -1 : 1;
+        for (let i = start; i !== end; i += step) {
+            const dir = new Vector3().subVectors(this.points[i + 1], this.points[i]);
+            if (dir.lengthSq() > EPS * EPS) return dir.normalize();
+        }
+        return null;
     }
 
     private buildArcLengthLUT(
@@ -610,6 +640,15 @@ export default class Path {
             this.endDir.set(pEnd.x - cp[cIdx], pEnd.y - cp[cIdx + 1], pEnd.z - cp[cIdx + 2]).normalize();
         } else {
             this.endDir.subVectors(this.points[pIdx + 1], this.points[pIdx]).normalize();
+        }
+
+        if (this.startDir.lengthSq() <= EPS * EPS) {
+            const fallbackStart = this.firstNonZeroPointDirection();
+            if (fallbackStart) this.startDir.copy(fallbackStart);
+        }
+        if (this.endDir.lengthSq() <= EPS * EPS) {
+            const fallbackEnd = this.firstNonZeroPointDirection(true);
+            if (fallbackEnd) this.endDir.copy(fallbackEnd);
         }
     }
 

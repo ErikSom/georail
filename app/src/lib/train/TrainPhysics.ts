@@ -36,9 +36,7 @@ private readonly DRAG_SCALE = 2.3;
     private readonly ROTATING_MASS_FACTOR = 1.08;  // 1.05–1.15 (effective mass multiplier)
 
     // Boundary enforcement
-    private readonly BOUNDARY_DAMPING = 0.92;      // Velocity multiplier per frame when past boundary (gentler)
     private readonly BOUNDARY_POWER_DECAY = 0.90;   // Power multiplier per frame toward 0 (gradual)
-    private readonly BOUNDARY_MAX_OVERSHOOT = 20;   // Max meters past boundary before hard clamp
     private minBound: number = -Infinity;
     private maxBound: number = Infinity;
 
@@ -120,8 +118,15 @@ private readonly DRAG_SCALE = 2.3;
     }
 
     public setBounds(min: number, max: number): void {
-        this.minBound = min;
-        this.maxBound = max;
+        if (min <= max) {
+            this.minBound = min;
+            this.maxBound = max;
+        } else {
+            const midpoint = (min + max) / 2;
+            this.minBound = midpoint;
+            this.maxBound = midpoint;
+        }
+        this.clampTargetToBounds();
     }
 
     public reset(): void {
@@ -169,18 +174,20 @@ private readonly DRAG_SCALE = 2.3;
         if (dist < this.minBound && this.velocity < 0) {
             this.powerSetting *= this.BOUNDARY_POWER_DECAY;
             if (Math.abs(this.powerSetting) < 0.01) this.powerSetting = 0;
-            this.velocity *= this.BOUNDARY_DAMPING;
-            if (Math.abs(this.velocity) < 0.05) this.velocity = 0;
+            this.velocity = 0;
         } else if (dist > this.maxBound && this.velocity > 0) {
             this.powerSetting *= this.BOUNDARY_POWER_DECAY;
             if (Math.abs(this.powerSetting) < 0.01) this.powerSetting = 0;
-            this.velocity *= this.BOUNDARY_DAMPING;
-            if (Math.abs(this.velocity) < 0.05) this.velocity = 0;
+            this.velocity = 0;
         }
 
+        this.clampTargetToBounds();
+    }
+
+    private clampTargetToBounds(): void {
         this.target.distanceTraveled = Math.max(
-            this.minBound - this.BOUNDARY_MAX_OVERSHOOT,
-            Math.min(this.maxBound + this.BOUNDARY_MAX_OVERSHOOT, this.target.distanceTraveled)
+            this.minBound,
+            Math.min(this.maxBound, this.target.distanceTraveled)
         );
     }
 

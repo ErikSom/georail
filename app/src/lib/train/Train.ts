@@ -257,9 +257,9 @@ export class Train implements IPhysicsTarget {
         const nextIdx = this.currentSegmentIndex + 1;
         if (nextIdx >= this.path.getSegmentCount()) return;
 
-        const bounds = this.path.getSegmentBounds(this.currentSegmentIndex);
-        const halfTrain = this.getTotalLength() / 2;
-        const atMaxBound = this.distanceTraveled >= bounds.endGlobal - halfTrain - 0.5;
+        const segmentBounds = this.path.getSegmentBounds(this.currentSegmentIndex);
+        const bounds = this.getActiveDistanceBounds();
+        const atMaxBound = this.distanceTraveled >= bounds.max - 0.5;
         if (!atMaxBound) return;
 
         if (Math.abs(this.physics.getVelocity()) > 0.05) return;
@@ -267,7 +267,7 @@ export class Train implements IPhysicsTarget {
 
         // Only auto-advance after the player has actually arrived at the
         // turnaround station (otherwise they'd skip an unserved stop).
-        const boundaryKm = bounds.endGlobal / 1000;
+        const boundaryKm = segmentBounds.endGlobal / 1000;
         const distances = stopDistances.value;
         const statuses = stopStatuses.value;
         let bufferStopArrived = false;
@@ -284,14 +284,31 @@ export class Train implements IPhysicsTarget {
 
     private applySegmentBounds(): void {
         if (!this.path) return;
+        const bounds = this.getActiveDistanceBounds();
+        this.physics.setBounds(bounds.min, bounds.max);
+        this.clampDistanceToActiveSegment();
+    }
+
+    private getActiveDistanceBounds(): { min: number; max: number } {
+        if (!this.path) return { min: -Infinity, max: Infinity };
+
         const bounds = this.path.getSegmentBounds(this.currentSegmentIndex);
         const halfTrain = this.getTotalLength() / 2;
-        // First/last sub-paths keep the original overshoot; mid-route boundaries are hard stops.
-        const isFirst = this.currentSegmentIndex === 0;
-        const isLast = this.currentSegmentIndex === this.path.getSegmentCount() - 1;
-        const min = isFirst ? bounds.startGlobal - halfTrain : bounds.startGlobal + halfTrain;
-        const max = isLast ? bounds.endGlobal + halfTrain : bounds.endGlobal - halfTrain;
-        this.physics.setBounds(min, max);
+        const min = bounds.startGlobal + halfTrain;
+        const max = bounds.endGlobal - halfTrain;
+
+        if (min <= max) {
+            return { min, max };
+        }
+
+        const midpoint = (bounds.startGlobal + bounds.endGlobal) / 2;
+        return { min: midpoint, max: midpoint };
+    }
+
+    public clampDistanceToActiveSegment(): void {
+        if (!this.path) return;
+        const bounds = this.getActiveDistanceBounds();
+        this.distanceTraveled = Math.max(bounds.min, Math.min(bounds.max, this.distanceTraveled));
     }
 
     public getPath(): Path | null {
@@ -316,6 +333,8 @@ export class Train implements IPhysicsTarget {
             console.warn('Train: Not enough path points to position train');
             return;
         }
+
+        this.clampDistanceToActiveSegment();
 
         const trainPosition = this.path!.getPointAtDistance(this.distanceTraveled, this.group.position);
 
