@@ -45,7 +45,7 @@ export function verifyPatreonWebhook(req, res, next) {
 	try {
 		req.patreonEvent = JSON.parse(req.body.toString());
 		next();
-	} catch (error) {
+	} catch {
 		return res.status(400).json({ error: 'Invalid JSON body' });
 	}
 }

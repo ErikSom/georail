@@ -27,7 +27,7 @@ export const getMyProfile = async (req, res) => {
             discord_linked: !!data.discord_user_id,
             patreon_linked: !!data.patreon_user_id
         });
-    } catch (error) {
+    } catch {
         res.status(500).json({ error: 'Server error' });
     }
 };

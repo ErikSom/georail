@@ -45,7 +45,7 @@ async function main() {
     let geojsonData;
     try {
         geojsonData = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
-    } catch (e) {
+    } catch {
         console.error(`Failed to read data from ${dataPath}`);
         return;
     }

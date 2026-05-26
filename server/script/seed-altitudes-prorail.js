@@ -466,7 +466,6 @@ async function runCountry(args, prFeatures, prCells) {
             if (arr.length > 0) segmentVertices.set(seg.id, arr);
         }
 
-        const allCandidates = [...segmentVertices.values()].flat();
         const segmentIds = [...segmentVertices.keys()];
         const existing = await loadExistingSources(segmentIds);
         const allRows = [];
