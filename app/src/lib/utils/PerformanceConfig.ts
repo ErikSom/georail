@@ -71,7 +71,7 @@ export const PERFORMANCE_PRESETS = {
     } as PerformanceConfig,
 
     /**
-     * Low quality - For mobile or older hardware
+     * Low quality - For mobile or older hardware not used yet
      */
     LOW: {
         pixelRatio: 1,
