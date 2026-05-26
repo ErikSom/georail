@@ -18,6 +18,7 @@ import { t } from '../i18n';
 
 function ThreeViewer() {
     const mountRef = useRef<HTMLDivElement | null>(null);
+    const liveTrafficRef = useRef<HTMLDivElement | null>(null);
     const worldRef = useRef<World | null>(null);
     const [attribution, setAttribution] = useState<Tiles3DAttributionCredits>(null);
     const [showComplete, setShowComplete] = useState(false);
@@ -25,9 +26,9 @@ function ThreeViewer() {
     // Initialize World on mount
     useEffect(() => {
         const route = routeData.value;
-        if (!mountRef.current || worldRef.current || !route) return;
+        if (!mountRef.current || !liveTrafficRef.current || worldRef.current || !route) return;
 
-        worldRef.current = new World(mountRef.current, setAttribution, route);
+        worldRef.current = new World(mountRef.current, setAttribution, route, liveTrafficRef.current);
         void worldRef.current.init();
 
         return () => {
@@ -70,6 +71,7 @@ function ThreeViewer() {
     return (
         <div className={styles.container}>
             <div ref={mountRef} className={`${styles.canvas} ${!ready ? styles.canvasLoading : ''}`} />
+            <div ref={liveTrafficRef} className={styles.liveTraffic} />
 
             <div className={`${styles.loadingOverlay} ${ready ? styles.loadingOverlayHidden : ''}`}>
                 <TrainSpinner />

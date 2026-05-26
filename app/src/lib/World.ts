@@ -40,6 +40,7 @@ import { audioListener, timeScale, scaledDeltaTime, gameConditions, ATMOSPHERE_C
 import { trainPath, resumeCheckpointStopIndex } from '../store/journey';
 import { gameReady } from '../store/app';
 import { DitherOverlay } from './train/DitherOverlay';
+import { LiveTrainOverlay } from './live/LiveTrainOverlay';
 
 export class World {
     private scene!: Scene;
@@ -58,6 +59,10 @@ export class World {
     private perfConfig: PerformanceConfig;
     private rendererPane: Pane | null = null;
     private isRendererPaneVisible: boolean = false;
+    private rendererDebugInfo = {
+        cameraZoom: '0 m',
+        cameraHeight: '0 m',
+    };
 
     private rafId: number | null = null;
     private mountElement: HTMLDivElement;
@@ -66,6 +71,9 @@ export class World {
     private freeFlyCameraMode: boolean = false;
     private stationIndicator: StationIndicator | null = null;
     private boundaryWall: BoundaryWall | null = null;
+    private nsLiveOverlay: LiveTrainOverlay | null = null;
+    private liveTrafficElement: HTMLElement | null = null;
+    private removeMapReorientListener: (() => void) | null = null;
 
     // Look-ahead camera tuning. Tiles in front of the train must be high-LOD
     // by the time we get there, so we run a second virtual camera positioned
@@ -77,12 +85,20 @@ export class World {
     private static readonly LOOKAHEAD_HEIGHT_OFFSET_M = 30;
     private _lookaheadPos = new Vector3();
     private _lookaheadAim = new Vector3();
+    private _liveOwnTrainPos = new Vector3();
+    private _liveFollowTarget = new Vector3();
 
 
-    constructor(mountElement: HTMLDivElement, setCreditsCallback: (credits: Tiles3DAttributionCredits) => void, routeData?: RouteData) {
+    constructor(
+        mountElement: HTMLDivElement,
+        setCreditsCallback: (credits: Tiles3DAttributionCredits) => void,
+        routeData?: RouteData,
+        liveTrafficElement?: HTMLElement | null,
+    ) {
         this.mountElement = mountElement;
         this.setCreditsCallback = setCreditsCallback;
         this.routeData = routeData || null;
+        this.liveTrafficElement = liveTrafficElement ?? null;
 
         this.perfConfig = getPerformanceConfig();
         console.log('Performance preset:', this.perfConfig);
@@ -92,6 +108,34 @@ export class World {
     }
 
     private trainDispose: (() => void) | null = null;
+
+    private ensureLiveTrainOverlay(): void {
+        if (this.nsLiveOverlay) return;
+        if (!this.mapViewer?.initialized || !this.camera || !this.gameCamera) return;
+
+        this.nsLiveOverlay = new LiveTrainOverlay(
+            this.mapViewer,
+            this.camera,
+            (target) => this.handleLiveTrainFollowTarget(target),
+            this.liveTrafficElement,
+        );
+        this.scene.add(this.nsLiveOverlay.group);
+        this.nsLiveOverlay.start();
+    }
+
+    private handleLiveTrainFollowTarget(target: Vector3 | null): void {
+        if (!target) {
+            this.gameCamera.setExternalFollowTarget(null);
+            return;
+        }
+
+        this._liveFollowTarget.copy(target);
+        const delta = this.mapViewer.reorientIfNeededForWorldPosition(this._liveFollowTarget);
+        if (delta) {
+            this._liveFollowTarget.applyMatrix4(delta);
+        }
+        this.gameCamera.setExternalFollowTarget(this._liveFollowTarget);
+    }
 
     public async init(): Promise<void> {
         this.scene = new Scene();
@@ -220,6 +264,10 @@ export class World {
         gameReady.value = false;
 
         this.sky.cleanup();
+        this.nsLiveOverlay?.dispose();
+        this.nsLiveOverlay = null;
+        this.removeMapReorientListener?.();
+        this.removeMapReorientListener = null;
         this.mapViewer.cleanup();
         this.railCorrector?.dispose();
         this.railCorrector = null;
@@ -292,6 +340,9 @@ export class World {
             }
             this.mapViewer.reorient(startLat, startLon, 0);
 
+            // Live NS trains are part of the normal game overlay.
+            this.ensureLiveTrainOverlay();
+
             // Build pathPoints + aligned metadata in one pass so indices stay 1-to-1.
             const pathPoints: Vector3[] = [];
             const alignedMetadata: (RoutePointMetadata | null | undefined)[] = [];
@@ -343,7 +394,8 @@ export class World {
             this.gameCamera.snapTo(this.train.group.position);
 
             // Register for automatic reorientation
-            this.mapViewer.onReorient = (delta) => this.handleReorient(delta);
+            this.removeMapReorientListener?.();
+            this.removeMapReorientListener = this.mapViewer.addReorientListener((delta) => this.handleReorient(delta));
         } catch (error) {
             console.error('Failed to start path following:', error);
         }
@@ -508,11 +560,18 @@ export class World {
         }
 
         this.camera.updateMatrixWorld();
+        this.ensureLiveTrainOverlay();
+        if (this.nsLiveOverlay) {
+            this.train.group.getWorldPosition(this._liveOwnTrainPos);
+            this.nsLiveOverlay.setOwnTrainWorldPosition(this._liveOwnTrainPos);
+            this.nsLiveOverlay.update();
+        }
 
         this.stats.begin();
         this.renderer.render(this.scene, this.camera);
         this.stats.end();
         this.stats.update();
+        this.updateRendererDebugInfo();
 
         const trainCoords = this.mapViewer.getLatLonHeightFromWorldPosition(this.train.group.position);
         if (trainCoords) {
@@ -568,6 +627,28 @@ export class World {
         }
     }
 
+    private formatDistanceForDebug(meters: number): string {
+        if (!Number.isFinite(meters)) return 'n/a';
+        const abs = Math.abs(meters);
+        if (abs >= 1000) return `${(meters / 1000).toFixed(abs >= 10_000 ? 0 : 1)} km`;
+        return `${meters.toFixed(0)} m`;
+    }
+
+    private updateRendererDebugInfo(): void {
+        if (!this.isRendererPaneVisible || !this.rendererPane) return;
+
+        this.rendererDebugInfo.cameraZoom = this.formatDistanceForDebug(
+            this.camera.position.distanceTo(this.gameCamera.controls.target),
+        );
+
+        const cameraGeo = this.mapViewer.getLatLonHeightFromWorldPosition(this.camera.position);
+        this.rendererDebugInfo.cameraHeight = cameraGeo
+            ? this.formatDistanceForDebug(cameraGeo.height)
+            : 'n/a';
+
+        this.rendererPane.refresh();
+    }
+
     private createRendererUI(): void {
         if (this.rendererPane) return;
 
@@ -605,6 +686,8 @@ export class World {
         infoFolder.addBinding(this.renderer.info.render, 'triangles', { readonly: true, label: 'Triangles' });
         infoFolder.addBinding(this.renderer.info.render, 'lines', { readonly: true, label: 'Lines' });
         infoFolder.addBinding(this.renderer.info.render, 'points', { readonly: true, label: 'Points' });
+        infoFolder.addBinding(this.rendererDebugInfo, 'cameraZoom', { readonly: true, label: 'Camera Zoom' });
+        infoFolder.addBinding(this.rendererDebugInfo, 'cameraHeight', { readonly: true, label: 'Camera Height' });
 
         const memoryFolder = this.rendererPane.addFolder({ title: 'Memory' });
         memoryFolder.addBinding(this.renderer.info.memory, 'geometries', { readonly: true, label: 'Geometries' });

@@ -91,6 +91,7 @@ export class RouteEditor {
     public onSelectionChanged: ((nodes: NodeData[]) => void) | null = null;
     public onNodesModified: ((nodes: NodeData[]) => void) | null = null;
     public onNodeIndexChanged: ((currentIndex: number, totalNodes: number) => void) | null = null;
+    private removeReorientListener: (() => void) | null = null;
 
     constructor(scene: Scene, camera: Camera, domElement: HTMLElement, mapViewer: MapViewer, reviewMode: boolean = false) {
         this.scene = scene;
@@ -108,7 +109,7 @@ export class RouteEditor {
         this.scene.add(this.selectionAnchor);
 
         // Register for automatic reorientation
-        this.mapViewer.onReorient = (delta) => this.handleReorient(delta);
+        this.removeReorientListener = this.mapViewer.addReorientListener((delta) => this.handleReorient(delta));
 
         // Setup TransformControls (disabled in review mode)
         this.transformControls = new TransformControls(camera, domElement);
@@ -1144,6 +1145,8 @@ export class RouteEditor {
         this.scene.remove(this.selectionAnchor);
         this.scene.remove(this.transformControls.getHelper());
         this.transformControls.dispose();
+        this.removeReorientListener?.();
+        this.removeReorientListener = null;
 
         // Only dispose shared resources when completely done with ALL RouteEditor instances
         // NodeIndicator.disposeSharedResources();

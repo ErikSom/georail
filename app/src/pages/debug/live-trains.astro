@@ -1,0 +1,635 @@
+---
+// Live train debug viewer. Polls /live-positions, snaps client-side using
+// rail chunks lazy-loaded from /rail-chunks, interpolates between snaps,
+// and plots everything on a MapLibre map. Lives outside the main 3D
+// world deliberately — it's the canonical reference for the new model.
+import AstroLayout from "../../layouts/Layout.astro";
+import SplashOverlay from "../../components/SplashOverlay.tsx";
+---
+
+<AstroLayout title="GeoRail · Live trains (debug)">
+    <SplashOverlay client:load ready={true} />
+    <div id="map"></div>
+
+    <div id="panel">
+        <h1>Live NS Trains</h1>
+        <p>
+            Click a raw train dot. The client loads the rail chunk around that train,
+            follows it, and only renders high-detail trains inside that active chunk.
+        </p>
+
+        <div class="row">
+            <button id="fitNl">Fit NL</button>
+            <button id="refreshNow">Refresh now</button>
+        </div>
+
+        <div class="checks">
+            <label><input id="follow" type="checkbox" checked /> follow selected train</label>
+            <label><input id="showAllDots" type="checkbox" checked /> show raw train dots</label>
+            <label><input id="showTrail" type="checkbox" checked /> show snapshot trail</label>
+        </div>
+
+        <div id="stats"></div>
+    </div>
+
+    <div id="headMarker" class="wagon"></div>
+    <div id="car1" class="wagon car"></div>
+    <div id="car2" class="wagon car"></div>
+</AstroLayout>
+
+<style is:global>
+    @import "maplibre-gl/dist/maplibre-gl.css";
+</style>
+
+<style>
+    :root {
+        color-scheme: dark;
+        font-family:
+            Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #101318; color: #f8fafc; }
+    #map { position: fixed; inset: 0; }
+    #panel {
+        position: fixed;
+        left: 16px;
+        top: 16px;
+        width: 360px;
+        max-width: calc(100vw - 32px);
+        max-height: calc(100vh - 32px);
+        overflow: auto;
+        z-index: 5;
+        background: rgba(17, 22, 29, 0.92);
+        border: 1px solid rgba(116, 139, 166, 0.28);
+        border-radius: 10px;
+        padding: 14px;
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.32);
+        backdrop-filter: blur(10px);
+    }
+    h1 { font-size: 20px; margin: 0 0 8px; }
+    p { margin: 0 0 12px; color: #a9b5c4; font-size: 13px; line-height: 1.35; }
+    input, button, select {
+        width: 100%;
+        border: 1px solid #344255;
+        background: #111821;
+        color: #f8fafc;
+        border-radius: 7px;
+        padding: 9px 10px;
+        font: inherit;
+    }
+    select {
+        appearance: none;
+        background-image:
+            linear-gradient(45deg, transparent 50%, #748ba6 50%),
+            linear-gradient(135deg, #748ba6 50%, transparent 50%);
+        background-position:
+            calc(100% - 18px) 50%,
+            calc(100% - 13px) 50%;
+        background-size: 5px 5px;
+        background-repeat: no-repeat;
+        padding-right: 28px;
+    }
+    button { cursor: pointer; background: #263449; }
+    button:hover { background: #31425b; }
+    label { display: block; margin: 10px 0 5px; color: #a9b5c4; font-size: 12px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+    .checks { display: grid; gap: 6px; margin: 10px 0; color: #b8c4d2; font-size: 13px; }
+    .checks input { width: auto; margin-right: 8px; }
+    #stats { display: grid; gap: 7px; margin-top: 12px; font-size: 12px; color: #b8c4d2; }
+    #stats .stat {
+        display: grid;
+        grid-template-columns: 120px 1fr;
+        gap: 10px;
+        padding-top: 7px;
+        border-top: 1px solid rgba(116, 139, 166, 0.16);
+    }
+    #stats .stat b { color: #f8fafc; }
+    .ok { color: #70e199; }
+    .warn { color: #ffbe6b; }
+    .bad { color: #ff6f80; }
+    .wagon {
+        position: absolute;
+        width: 38px;
+        height: 16px;
+        margin-left: -19px;
+        margin-top: -8px;
+        border-radius: 5px;
+        border: 2px solid rgba(255, 255, 255, 0.9);
+        background: #60df87;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+        pointer-events: none;
+        transform-origin: 50% 50%;
+        z-index: 4;
+        display: none;
+    }
+    .wagon.car {
+        width: 30px;
+        height: 13px;
+        margin-left: -15px;
+        margin-top: -6.5px;
+        background: #ffd165;
+        z-index: 3;
+    }
+</style>
+
+<script>
+    import maplibregl from "maplibre-gl";
+    import { ChunkStore } from "../../lib/live/chunkStore.ts";
+    import { TrainTracker } from "../../lib/live/trainBuffer.ts";
+    import { fetchLivePositions, type LiveTrainSummary } from "../../lib/live/api.ts";
+    import { cellForPoint, cellsCoveringBBox, metersPerDegreeLat, metersPerDegreeLon } from "../../lib/live/geom.ts";
+
+    // ============ tuning ============
+    const POLL_INTERVAL_MS = 5_000;
+    const RENDER_DELAY_MS = 30_000;       // render behind real-time so the playhead stays inside the NS snapshot buffer
+    const CAR_OFFSETS_M = [25, 50];       // proxy cars are fixed rail-distance offsets behind the cab target
+    const DEFAULT_CENTER: [number, number] = [5.25, 52.12];
+    const FOLLOW_MIN_ZOOM = 13.5;
+    const SELECTED_WARM_INTERVAL_MS = 2_000;
+    const ACTIVE_WINDOW_RADIUS_M = 2_000;
+    // Don't try to chunk-load the entire country at country zoom. Below
+    // this zoom level we show raw NS dots only; at or above it we load
+    // the visible chunks and snap the trains we have data for.
+    const MIN_SNAP_ZOOM = 10;             // ~1:10 km — typical regional view
+
+    // ============ state ============
+    const store = new ChunkStore({ country: "NL" });
+    const tracker = new TrainTracker(store);
+    let summary: { fetchedAt: number; stale: boolean; trains: LiveTrainSummary[] } | null = null;
+    let selectedId = "";
+    let lastError = "";
+    let lastStatsAt = 0;
+    let lastSelectedWarmAt = 0;
+    let lastSnappedDotsAt = 0;
+    let selectedWarmSeq = 0;
+    let activeBBox: { lonMin: number; latMin: number; lonMax: number; latMax: number } | null = null;
+    let activeWindowLabel = "none";
+
+    // ============ DOM ============
+    const followEl = document.getElementById("follow") as HTMLInputElement;
+    const showAllDotsEl = document.getElementById("showAllDots") as HTMLInputElement;
+    const showTrailEl = document.getElementById("showTrail") as HTMLInputElement;
+    const statsEl = document.getElementById("stats") as HTMLElement;
+    const headEl = document.getElementById("headMarker") as HTMLElement;
+    const carEls = [
+        document.getElementById("car1") as HTMLElement,
+        document.getElementById("car2") as HTMLElement,
+    ];
+
+    // ============ map ============
+    const map = new maplibregl.Map({
+        container: "map",
+        style: "https://tiles.openfreemap.org/styles/liberty",
+        center: DEFAULT_CENTER,
+        zoom: 8,
+        minZoom: 6,
+        maxZoom: 21,
+    });
+    map.addControl(new maplibregl.NavigationControl({ visualizePitch: false }), "top-right");
+
+    function setSourceData(id: string, data: GeoJSON.GeoJSON): void {
+        const source = map.getSource(id) as maplibregl.GeoJSONSource | undefined;
+        if (source) source.setData(data);
+    }
+
+    function latestRawFor(id: string): LiveTrainSummary["recent"][number] | null {
+        const train = summary?.trains.find((t) => t.id === id);
+        return train?.recent[train.recent.length - 1] ?? null;
+    }
+
+    function trainInActiveWindow(train: LiveTrainSummary): boolean {
+        const latest = train.recent[train.recent.length - 1];
+        return !!latest && !!activeBBox &&
+            latest.lon >= activeBBox.lonMin && latest.lon <= activeBBox.lonMax &&
+            latest.lat >= activeBBox.latMin && latest.lat <= activeBBox.latMax;
+    }
+
+    function activeTrains(): LiveTrainSummary[] {
+        if (!summary || !activeBBox) return [];
+        return summary.trains.filter(trainInActiveWindow);
+    }
+
+    function setActiveWindowAround(point: { lon: number; lat: number }): Array<{ lon: number; lat: number }> {
+        const lonRadiusDeg = ACTIVE_WINDOW_RADIUS_M / Math.max(1, metersPerDegreeLon(point.lat));
+        const latRadiusDeg = ACTIVE_WINDOW_RADIUS_M / metersPerDegreeLat();
+        activeBBox = {
+            lonMin: point.lon - lonRadiusDeg,
+            latMin: point.lat - latRadiusDeg,
+            lonMax: point.lon + lonRadiusDeg,
+            latMax: point.lat + latRadiusDeg,
+        };
+        const railCells = cellsCoveringBBox(activeBBox.lonMin, activeBBox.latMin, activeBBox.lonMax, activeBBox.latMax);
+        const center = cellForPoint(point.lon, point.lat);
+        activeWindowLabel = `${(ACTIVE_WINDOW_RADIUS_M / 1000).toFixed(1)} km around ${center.lon}_${center.lat}; ${railCells.length} rail chunks`;
+        return railCells;
+    }
+
+    // Raw NS positions for every train. Visible at all zooms — these are
+    // what the server forwards before any snapping happens. Useful for
+    // eyeballing NS reporting error against the snapped position.
+    function liveDotsGeoJson(): GeoJSON.FeatureCollection {
+        if (!showAllDotsEl.checked || !summary) return { type: "FeatureCollection", features: [] };
+        return {
+            type: "FeatureCollection",
+            features: summary.trains.map((t) => {
+                const latest = t.recent[t.recent.length - 1];
+                return {
+                    type: "Feature",
+                    id: t.id,
+                    geometry: { type: "Point", coordinates: [latest?.lon ?? 0, latest?.lat ?? 0] },
+                    properties: {
+                        id: t.id,
+                        speed: latest?.spd ?? 0,
+                        selected: t.id === selectedId,
+                        active: trainInActiveWindow(t),
+                    },
+                };
+            }),
+        };
+    }
+
+    // All trains the tracker has snapped, interpolated to renderTs. This is
+    // the rail-following view: each dot sits on the actual track at the
+    // train's best-known position right now.
+    function snappedDotsGeoJson(): GeoJSON.FeatureCollection {
+        if (!showAllDotsEl.checked) return { type: "FeatureCollection", features: [] };
+        const features: GeoJSON.Feature[] = [];
+        const renderTs = Date.now() - RENDER_DELAY_MS;
+        for (const id of tracker.allIds()) {
+            const frame = tracker.interpolateAt(id, renderTs);
+            if (!frame) continue;
+            const latestRaw = summary?.trains.find((t) => t.id === id)?.recent?.slice(-1)?.[0];
+            features.push({
+                type: "Feature",
+                id,
+                geometry: { type: "Point", coordinates: [frame.lon, frame.lat] },
+                properties: { id, selected: id === selectedId, bearing: frame.bearing, speed: latestRaw?.spd ?? 0 },
+            });
+        }
+        return { type: "FeatureCollection", features };
+    }
+
+    function snappedTrailGeoJson(): GeoJSON.FeatureCollection {
+        if (!showTrailEl.checked || !selectedId) return { type: "FeatureCollection", features: [] };
+        const lines = tracker.trailLineCoordinatesFor(selectedId);
+        return {
+            type: "FeatureCollection",
+            features: lines.map((coordinates, index) => ({
+                type: "Feature",
+                geometry: {
+                    type: "LineString",
+                    coordinates,
+                },
+                properties: { index },
+            })),
+        };
+    }
+
+    function activeWindowGeoJson(): GeoJSON.FeatureCollection {
+        const features: GeoJSON.Feature[] = [];
+        if (activeBBox) {
+            const { lonMin, latMin, lonMax, latMax } = activeBBox;
+            features.push({
+                type: "Feature",
+                geometry: {
+                    type: "Polygon",
+                    coordinates: [[
+                        [lonMin, latMin], [lonMax, latMin],
+                        [lonMax, latMax], [lonMin, latMax],
+                        [lonMin, latMin],
+                    ]],
+                },
+                properties: { kind: "active-detail" },
+            });
+        }
+        return { type: "FeatureCollection", features };
+    }
+
+    // ============ poll loop ============
+    let pollTimer: number | null = null;
+    let listAbort: AbortController | null = null;
+
+    function ingestActiveTrainsIntoTracker(): void {
+        if (!summary) return;
+        for (const train of activeTrains()) {
+            for (const raw of train.recent) {
+                tracker.ingest(train.id, {
+                    lon: raw.lon, lat: raw.lat, ts: raw.t,
+                    speedMs: raw.spd, bearingDeg: raw.brg,
+                });
+            }
+        }
+    }
+
+    async function pollOnce(): Promise<void> {
+        listAbort?.abort();
+        listAbort = new AbortController();
+        try {
+            summary = await fetchLivePositions({ all: true }, { signal: listAbort.signal });
+            lastError = "";
+        } catch (err: any) {
+            if (err?.name !== "AbortError") {
+                lastError = err.message || String(err);
+                console.warn("[debug-live] fetch failed", err);
+            }
+            return;
+        }
+
+        // Feed raw positions for the active chunk only. Trains outside the
+        // active chunk stay raw dots until the user clicks them.
+        ingestActiveTrainsIntoTracker();
+
+        setSourceData("live-dots", liveDotsGeoJson());
+        setSourceData("snapped-dots", snappedDotsGeoJson());
+        setSourceData("trail", snappedTrailGeoJson());
+        updateStats();
+    }
+
+    function schedulePoll(delayMs: number): void {
+        if (pollTimer !== null) window.clearTimeout(pollTimer);
+        pollTimer = window.setTimeout(() => {
+            pollTimer = null;
+            pollOnce().finally(() => schedulePoll(POLL_INTERVAL_MS));
+        }, delayMs);
+    }
+
+    // ============ selected train ============
+    // Resolve a "best known" position for a train, preferring the latest
+    // snapped frame and falling back to the raw NS position. Used to fly
+    // the camera before chunks load and snapping kicks in.
+    function bestKnownPosition(id: string): { lon: number; lat: number } | null {
+        const frames = tracker.framesFor(id);
+        const latest = frames[frames.length - 1];
+        if (latest) return { lon: latest.lon, lat: latest.lat };
+        const train = summary?.trains.find((t) => t.id === id);
+        const raw = train?.recent[train.recent.length - 1];
+        return raw ? { lon: raw.lon, lat: raw.lat } : null;
+    }
+
+    function rawLatestFrame(id: string): { lon: number; lat: number; bearing: number; status: "raw fallback" } | null {
+        const raw = latestRawFor(id);
+        return raw ? {
+            lon: raw.lon,
+            lat: raw.lat,
+            bearing: raw.brg ?? 0,
+            status: "raw fallback",
+        } : null;
+    }
+
+    function selectedHeadAt(renderTs: number):
+        | ({ lon: number; lat: number; bearing: number; status: string; source: "snapped" | "raw" })
+        | null {
+        if (!selectedId) return null;
+        const snapped = tracker.interpolateAt(selectedId, renderTs);
+        if (snapped) return { ...snapped, source: "snapped" };
+        const raw = rawLatestFrame(selectedId);
+        return raw ? { ...raw, source: "raw" } : null;
+    }
+
+    function warmSelectedAround(point: { lon: number; lat: number }): void {
+        const warmSeq = selectedWarmSeq;
+        const cells = setActiveWindowAround(point);
+        setSourceData("active-window", activeWindowGeoJson());
+        setSourceData("live-dots", liveDotsGeoJson());
+        void Promise.all(cells.map((cell) => store.ensureChunk(cell))).then(() => {
+            if (warmSeq !== selectedWarmSeq) return;
+            ingestActiveTrainsIntoTracker();
+            setSourceData("active-window", activeWindowGeoJson());
+            setSourceData("snapped-dots", snappedDotsGeoJson());
+            setSourceData("trail", snappedTrailGeoJson());
+            updateStats();
+        });
+    }
+
+    function selectTrain(id: string): void {
+        selectedId = id;
+        selectedWarmSeq++;
+        setSourceData("trail", snappedTrailGeoJson());
+        setSourceData("live-dots", liveDotsGeoJson());
+        setSourceData("snapped-dots", snappedDotsGeoJson());
+        const pos = bestKnownPosition(id);
+        if (pos) {
+            map.easeTo({
+                center: [pos.lon, pos.lat],
+                zoom: Math.max(map.getZoom(), 13.5),
+                duration: 700,
+            });
+            warmSelectedAround(pos);
+        }
+        updateStats();
+    }
+
+    // ============ render loop ============
+    function setMarker(
+        el: HTMLElement,
+        p: { lon: number; lat: number; bearing: number } | null,
+        color: string,
+    ): void {
+        if (!p || !Number.isFinite(p.lon) || !Number.isFinite(p.lat)) {
+            el.style.display = "none";
+            return;
+        }
+        const pos = map.project([p.lon, p.lat]);
+        el.style.display = "block";
+        el.style.background = color;
+        el.style.transform =
+            `translate(${pos.x.toFixed(1)}px, ${pos.y.toFixed(1)}px) ` +
+            `rotate(${((p.bearing || 0) - 90).toFixed(1)}deg)`;
+    }
+
+    function updateStats(): void {
+        const trains = summary?.trains ?? [];
+        const activeTrainCount = activeTrains().length;
+        const frames = selectedId ? tracker.framesFor(selectedId) : [];
+        const snappedCount = Array.from(tracker.allIds()).length;
+        const renderTs = Date.now() - RENDER_DELAY_MS;
+        const head = selectedHeadAt(renderTs);
+        const status = lastError || head?.status || "no selection";
+        const statusCls =
+            lastError ? "bad" :
+            status === "playing" || status === "live edge" ? "ok" :
+            status === "raw fallback" || status === "loading path" ? "warn" :
+            "warn";
+        const summaryLatest = trains.find((t) => t.id === selectedId)?.recent?.slice(-1)?.[0];
+        const speedKmh = (summaryLatest?.spd ?? 0) * 3.6;
+        const trailSpanSec = frames.length >= 2
+            ? Math.round((frames[frames.length - 1].ts - frames[0].ts) / 1000)
+            : 0;
+        const lastHappy = [...frames].reverse().find((f) => f.via === "happy");
+        const snapDistanceM = frames[frames.length - 1]?.snapDistanceM;
+
+        const zoom = map.getZoom();
+        const zoomGated = zoom < MIN_SNAP_ZOOM;
+        const zoomNote = zoomGated
+            ? `${zoom.toFixed(1)} — zoom in past ${MIN_SNAP_ZOOM} to snap`
+            : `${zoom.toFixed(1)}`;
+
+        statsEl.innerHTML = [
+            row("status", status, statusCls),
+            row("selected", selectedId || "none"),
+            row("trains seen", String(trains.length)),
+            row("active window", activeWindowLabel, activeBBox ? "ok" : "warn"),
+            row("active trains", String(activeTrainCount), activeTrainCount ? "ok" : "warn"),
+            row("snapped active", String(snappedCount), snappedCount ? "ok" : "warn"),
+            row("zoom", zoomNote, zoomGated ? "warn" : "ok"),
+            row("chunks loaded", String(store.chunkCount())),
+            row("segments loaded", String(store.size())),
+            row("trail", `${frames.length} snapshots, ${trailSpanSec}s span`,
+                frames.length >= 2 ? "ok" : "warn"),
+            row("snap via", lastHappy ? "happy ✓" : (frames.length ? "recovery" : "—"),
+                lastHappy ? "ok" : frames.length ? "warn" : ""),
+            row("snap distance", Number.isFinite(snapDistanceM)
+                ? `${snapDistanceM!.toFixed(1)} m`
+                : "—"),
+            row("speed", `${speedKmh.toFixed(0)} km/h`),
+            row("render delay", `${(RENDER_DELAY_MS / 1000).toFixed(0)}s behind live`),
+            row("head source", head?.source ?? "—", head?.source === "snapped" ? "ok" : "warn"),
+            row("position", head ? `${head.lat.toFixed(5)}, ${head.lon.toFixed(5)}` : "—"),
+        ].join("");
+    }
+
+    function row(label: string, value: string, cls = ""): string {
+        const color =
+            cls === "ok" ? "#70e199" :
+            cls === "warn" ? "#ffbe6b" :
+            cls === "bad" ? "#ff6f80" :
+            "#b8c4d2";
+        return `
+            <div style="display:grid;grid-template-columns:120px 1fr;gap:10px;padding-top:7px;border-top:1px solid rgba(116,139,166,.16)">
+                <b style="color:#f8fafc">${label}</b>
+                <span style="color:${color}">${value}</span>
+            </div>
+        `;
+    }
+
+    function renderFrame(): void {
+        const now = Date.now();
+        if (now - lastSnappedDotsAt > 250) {
+            lastSnappedDotsAt = now;
+            setSourceData("snapped-dots", map.getZoom() >= MIN_SNAP_ZOOM
+                ? snappedDotsGeoJson()
+                : { type: "FeatureCollection", features: [] });
+        }
+        if (selectedId) {
+            const renderTs = now - RENDER_DELAY_MS;
+            const head = selectedHeadAt(renderTs);
+            if (followEl.checked && head) {
+                map.jumpTo({
+                    center: [head.lon, head.lat],
+                    zoom: Math.max(map.getZoom(), FOLLOW_MIN_ZOOM),
+                });
+                if (now - lastSelectedWarmAt > SELECTED_WARM_INTERVAL_MS) {
+                    lastSelectedWarmAt = now;
+                    warmSelectedAround(head);
+                }
+            }
+            setMarker(headEl, head, head?.source === "raw" ? "#ffbe6b" : "#60df87");
+            if (head?.source === "snapped") {
+                const cars = tracker.samplesAtOffsets(selectedId, renderTs, CAR_OFFSETS_M);
+                carEls.forEach((el, i) => {
+                    setMarker(el, cars?.[i] ?? null, "#ffd165");
+                });
+            } else {
+                carEls.forEach((el) => setMarker(el, null, ""));
+            }
+        } else {
+            setMarker(headEl, null, "");
+            carEls.forEach((el) => setMarker(el, null, ""));
+        }
+        if (now - lastStatsAt > 500) {
+            lastStatsAt = now;
+            updateStats();
+        }
+        requestAnimationFrame(renderFrame);
+    }
+
+    function fitNl(): void {
+        map.fitBounds([[3.25, 50.72], [7.25, 53.65]], { padding: 60, duration: 700 });
+    }
+
+    // ============ wire up ============
+    map.on("load", () => {
+        map.addSource("live-dots", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+        map.addSource("snapped-dots", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+        map.addSource("trail", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+        map.addSource("active-window", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+        map.addLayer({
+            id: "active-window-fill",
+            type: "fill",
+            source: "active-window",
+            paint: { "fill-color": "#51dc85", "fill-opacity": 0.08 },
+        });
+        map.addLayer({
+            id: "active-window-line",
+            type: "line",
+            source: "active-window",
+            paint: { "line-color": "#51dc85", "line-width": 2, "line-opacity": 0.45 },
+        });
+        map.addLayer({
+            id: "trail-line",
+            type: "line",
+            source: "trail",
+            paint: { "line-color": "#51dc85", "line-width": 5, "line-opacity": 0.82 },
+        });
+        map.addLayer({
+            id: "live-dots-circle",
+            type: "circle",
+            source: "live-dots",
+            paint: {
+                "circle-radius": ["case", ["get", "selected"], 8, [">", ["get", "speed"], 5], 5, 3.5],
+                "circle-color": ["case", ["get", "selected"], "#60df87", ["get", "active"], "#26c6da", "#3388ff"],
+                "circle-stroke-color": "#ffffff",
+                "circle-stroke-width": ["case", ["get", "selected"], 2, ["get", "active"], 1.4, 0.7],
+                "circle-opacity": [
+                    "interpolate", ["linear"], ["zoom"],
+                    MIN_SNAP_ZOOM - 0.5, 0.88,
+                    MIN_SNAP_ZOOM + 0.5, 0.16,
+                ],
+            },
+        });
+        map.addLayer({
+            id: "snapped-dots-circle",
+            type: "circle",
+            source: "snapped-dots",
+            minzoom: MIN_SNAP_ZOOM,
+            paint: {
+                "circle-radius": ["case", ["get", "selected"], 9, [">", ["get", "speed"], 5], 6, 4],
+                "circle-color": ["case", ["get", "selected"], "#60df87", "#26c6da"],
+                "circle-stroke-color": "#ffffff",
+                "circle-stroke-width": ["case", ["get", "selected"], 2, 0.9],
+                "circle-opacity": 0.95,
+            },
+        });
+        function handleTrainClick(event: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }): void {
+            const id = event.features?.[0]?.properties?.id as string | undefined;
+            if (id) selectTrain(id);
+        }
+        for (const layer of ["live-dots-circle", "snapped-dots-circle"]) {
+            map.on("click", layer, handleTrainClick);
+            map.on("mouseenter", layer, () => { map.getCanvas().style.cursor = "pointer"; });
+            map.on("mouseleave", layer, () => { map.getCanvas().style.cursor = ""; });
+        }
+
+        fitNl();
+        schedulePoll(0);
+        requestAnimationFrame(renderFrame);
+
+        // No viewport-driven rail loading in this transferable prototype:
+        // rail detail is loaded only around the clicked/followed train.
+        let moveDebounce: number | null = null;
+        map.on("moveend", () => {
+            if (moveDebounce !== null) window.clearTimeout(moveDebounce);
+            moveDebounce = window.setTimeout(() => {
+                updateStats();
+            }, 150);
+        });
+    });
+
+    showAllDotsEl.addEventListener("change", () => {
+        setSourceData("live-dots", liveDotsGeoJson());
+        setSourceData("snapped-dots", snappedDotsGeoJson());
+    });
+    showTrailEl.addEventListener("change", () => setSourceData("trail", snappedTrailGeoJson()));
+    document.getElementById("refreshNow")!.addEventListener("click", () => pollOnce());
+    document.getElementById("fitNl")!.addEventListener("click", fitNl);
+</script>

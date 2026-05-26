@@ -50,14 +50,15 @@ export class MapViewer {
     private originLon = 0;
     private static readonly REORIENT_THRESHOLD_M = 50_000; // 50km
 
-    // Ground plane fills tile gaps near the train but gets hidden once the
-    // camera is high enough that its flat color would noticeably tint a wide
-    // patch of the satellite view.
-    private static readonly GROUND_PLANE_SIZE_M = 5_000_000; // 5,000km — well beyond max camera zoom
-    private static readonly GROUND_PLANE_HIDE_DIST_M = 10_000; // hide when camera >10km away
+    // Ground plane fills short-range tile gaps near the camera. It must stay
+    // local: a huge flat tangent plane intersects the curved Earth at distance.
+    private static readonly GROUND_PLANE_SIZE_M = 30_000;
+    private static readonly GROUND_PLANE_HEIGHT_M = -1000;
+    private static readonly GROUND_PLANE_HIDE_HEIGHT_M = 500; // hide before it starts fighting the satellite tiles
 
     /** Called after automatic reorientation with the delta transform matrix. */
     public onReorient: ((deltaMatrix: Matrix4) => void) | null = null;
+    private reorientListeners = new Set<(deltaMatrix: Matrix4) => void>();
     public onInitialized: (() => void) | null = null;
     private reorientCheckCounter = 0;
     private static readonly REORIENT_CHECK_INTERVAL = 30;
@@ -65,11 +66,29 @@ export class MapViewer {
     private tempMatrix = new Matrix4();
     private deltaMatrix = new Matrix4();
     private tempVec = new Vector3();
+    private groundPlaneUp = new Vector3(0, 0, 1);
+    private groundPlaneQuaternion = new Quaternion();
     private tempCartographic = { lat: 0, lon: 0, height: 0 };
     private _coordResult = { lat: 0, lon: 0, height: 0 };
     private _creditsResult: Tiles3DAttributionCredits = { latLonStr: '', source: '' };
 
     constructor() { }
+
+    public addReorientListener(listener: (deltaMatrix: Matrix4) => void): () => void {
+        this.reorientListeners.add(listener);
+        return () => this.removeReorientListener(listener);
+    }
+
+    public removeReorientListener(listener: (deltaMatrix: Matrix4) => void): void {
+        this.reorientListeners.delete(listener);
+    }
+
+    private dispatchReorient(deltaMatrix: Matrix4): void {
+        this.onReorient?.(deltaMatrix);
+        for (const listener of this.reorientListeners) {
+            listener(deltaMatrix);
+        }
+    }
 
     private applySceneStencil(mat: any): void {
         mat.stencilWrite = true;
@@ -254,7 +273,7 @@ export class MapViewer {
 
         this.scene.add(this.tiles.group);
 
-        this.createGroundPlane(finalLat, finalLon, -1000);
+        this.createGroundPlane(finalLat, finalLon);
 
         this.tiles.setResolutionFromRenderer(this.camera, this.renderer);
         this.tiles.setCamera(this.camera);
@@ -285,7 +304,7 @@ export class MapViewer {
         return { lat, lon };
     }
 
-    private createGroundPlane(lat: number, lon: number, height: number): void {
+    private createGroundPlane(lat: number, lon: number): void {
         if (!this.tiles) return;
 
         if (this.groundPlane) {
@@ -302,20 +321,27 @@ export class MapViewer {
         this.groundPlane = new Mesh(planeGeometry, planeMaterial);
         this.groundPlane.frustumCulled = false;
 
-        const cartographic = { lat: lat * MathUtils.DEG2RAD, lon: lon * MathUtils.DEG2RAD, height };
-        const position = new Vector3();
-        WGS84_ELLIPSOID.getCartographicToPosition(cartographic.lat, cartographic.lon, cartographic.height, position);
-
-        this.groundPlane.position.copy(position);
-
-        const normalizedPos = position.clone().normalize();
-        const quaternion = new Quaternion();
-        quaternion.setFromUnitVectors(new Vector3(0, 0, 1), normalizedPos);
-        this.groundPlane.setRotationFromQuaternion(quaternion);
+        this.positionGroundPlane(lat, lon);
 
         this.tiles.group.add(this.groundPlane);
 
-        console.log(`Ground plane created at lat: ${lat}, lon: ${lon}, height: ${height}`);
+        console.log(`Ground plane created at lat: ${lat}, lon: ${lon}`);
+    }
+
+    private positionGroundPlane(lat: number, lon: number): void {
+        if (!this.groundPlane) return;
+
+        WGS84_ELLIPSOID.getCartographicToPosition(
+            lat * MathUtils.DEG2RAD,
+            lon * MathUtils.DEG2RAD,
+            MapViewer.GROUND_PLANE_HEIGHT_M,
+            this.tempVec,
+        );
+
+        this.groundPlane.position.copy(this.tempVec);
+        this.tempVec.normalize();
+        this.groundPlaneQuaternion.setFromUnitVectors(this.groundPlaneUp, this.tempVec);
+        this.groundPlane.setRotationFromQuaternion(this.groundPlaneQuaternion);
     }
 
     public reorient(lat: number, lon: number, height: number = 0): void {
@@ -331,6 +357,7 @@ export class MapViewer {
         this.tiles?.group.updateMatrixWorld(true);
         this.originLat = lat;
         this.originLon = lon;
+        this.positionGroundPlane(lat, lon);
     }
 
     /**
@@ -342,6 +369,28 @@ export class MapViewer {
         const dlon = (lon - this.originLon) * 111319.49 * Math.cos(this.originLat * MathUtils.DEG2RAD);
         const distSq = dlat * dlat + dlon * dlon;
         return distSq > MapViewer.REORIENT_THRESHOLD_M * MapViewer.REORIENT_THRESHOLD_M;
+    }
+
+    private reorientWithDelta(lat: number, lon: number): Matrix4 {
+        const oldMatrixInv = this.tiles!.group.matrixWorld.clone().invert();
+        this.reorient(lat, lon, 0);
+        this.deltaMatrix.copy(this.tiles!.group.matrixWorld).multiply(oldMatrixInv);
+        this.dispatchReorient(this.deltaMatrix);
+        return this.deltaMatrix;
+    }
+
+    public reorientIfNeededForWorldPosition(worldPosition: Vector3): Matrix4 | null {
+        if (!this.tiles) return null;
+
+        this.tempMatrix.copy(this.tiles.group.matrixWorld).invert();
+        this.tempVec.copy(worldPosition).applyMatrix4(this.tempMatrix);
+        WGS84_ELLIPSOID.getPositionToCartographic(this.tempVec, this.tempCartographic);
+        const lat = MathUtils.radToDeg(this.tempCartographic.lat);
+        const lon = MathUtils.radToDeg(this.tempCartographic.lon);
+
+        if (!this.needsReorientation(lat, lon)) return null;
+
+        return this.reorientWithDelta(lat, lon).clone();
     }
 
     public getLatLonHeightFromWorldPosition(worldPosition: Vector3): { lat: number, lon: number, height: number } | null {
@@ -383,7 +432,8 @@ export class MapViewer {
         }
 
         // Auto-reorient when camera moves far from origin (throttled)
-        if (this.onReorient && ++this.reorientCheckCounter >= MapViewer.REORIENT_CHECK_INTERVAL) {
+        if ((this.onReorient || this.reorientListeners.size > 0) &&
+            ++this.reorientCheckCounter >= MapViewer.REORIENT_CHECK_INTERVAL) {
             this.reorientCheckCounter = 0;
 
             this.tempMatrix.copy(this.tiles.group.matrixWorld).invert();
@@ -393,11 +443,7 @@ export class MapViewer {
             const camLon = MathUtils.radToDeg(this.tempCartographic.lon);
 
             if (this.needsReorientation(camLat, camLon)) {
-                // Capture old matrix, reorient, compute delta
-                const oldMatrixInv = this.tiles.group.matrixWorld.clone().invert();
-                this.reorient(camLat, camLon, 0);
-                this.deltaMatrix.copy(this.tiles.group.matrixWorld).multiply(oldMatrixInv);
-                this.onReorient(this.deltaMatrix);
+                this.reorientWithDelta(camLat, camLon);
             }
         }
 
@@ -408,8 +454,19 @@ export class MapViewer {
         this.tiles.update();
 
         if (this.groundPlane) {
-            const dist = this.camera.position.distanceTo(this.groundPlane.position);
-            this.groundPlane.visible = dist <= MapViewer.GROUND_PLANE_HIDE_DIST_M;
+            this.tempMatrix.copy(this.tiles.group.matrixWorld).invert();
+            this.tempVec.copy(this.camera.position).applyMatrix4(this.tempMatrix);
+            WGS84_ELLIPSOID.getPositionToCartographic(this.tempVec, this.tempCartographic);
+            const cameraHeight = this.tempCartographic.height ?? 0;
+            const visible = !Number.isFinite(cameraHeight) ||
+                cameraHeight <= MapViewer.GROUND_PLANE_HIDE_HEIGHT_M;
+            this.groundPlane.visible = visible;
+            if (visible) {
+                this.positionGroundPlane(
+                    MathUtils.radToDeg(this.tempCartographic.lat),
+                    MathUtils.radToDeg(this.tempCartographic.lon),
+                );
+            }
         }
     }
 

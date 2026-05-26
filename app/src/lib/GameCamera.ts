@@ -15,6 +15,8 @@ const COCKPIT_ORBIT_VERTICAL_MAX = Math.PI / 6;
 
 // Free-mode zoom range. 200 km is enough to frame roughly half of the
 // Netherlands from above.
+const FREE_MIN_DISTANCE = 10;
+const EXTERNAL_FOLLOW_MIN_DISTANCE = 22;
 const FREE_MAX_DISTANCE = 200_000;
 // Free-mode pitch clamp ramps from "almost horizontal" at close range to
 // "near top-down" at far range. Ramp uses log-distance so the feel of zooming
@@ -44,13 +46,15 @@ export class GameCamera {
     private _trainQuat = new Quaternion();
     private _localOffset = new Vector3();
     private _trainUp = new Vector3();
+    private _externalTarget = new Vector3();
+    private hasExternalTarget = false;
 
     constructor(camera: PerspectiveCamera, domElement: HTMLElement) {
         this.camera = camera;
         this.domElement = domElement;
 
         this.controls = new OrbitControls(this.camera, this.domElement);
-        this.controls.minDistance = 10;
+        this.controls.minDistance = FREE_MIN_DISTANCE;
         this.controls.maxDistance = FREE_MAX_DISTANCE;
         this.controls.minPolarAngle = 0;
         this.controls.maxPolarAngle = FREE_PITCH_MAX_NEAR;
@@ -104,7 +108,9 @@ export class GameCamera {
             this.controls.enableDamping = true;
             this.controls.enabled = mode === 'free';
             this.controls.enableZoom = true;
-            this.controls.minDistance = 0.1;
+            this.controls.minDistance = this.hasExternalTarget
+                ? EXTERNAL_FOLLOW_MIN_DISTANCE
+                : FREE_MIN_DISTANCE;
             this.controls.maxDistance = FREE_MAX_DISTANCE;
             this.controls.minPolarAngle = 0;
             this.controls.maxPolarAngle = FREE_PITCH_MAX_NEAR;
@@ -124,7 +130,30 @@ export class GameCamera {
         this.controls.update();
     }
 
+    public setExternalFollowTarget(position: Vector3 | null): void {
+        if (!position) {
+            this.hasExternalTarget = false;
+            if (this.mode === 'free') {
+                this.controls.minDistance = FREE_MIN_DISTANCE;
+            }
+            return;
+        }
+        this._externalTarget.copy(position);
+        this.hasExternalTarget = true;
+        this.controls.minDistance = EXTERNAL_FOLLOW_MIN_DISTANCE;
+        if (this.mode !== 'free') {
+            this.setMode('free');
+        }
+    }
+
     public update(dt: number, train: Train): void {
+        if (this.hasExternalTarget) {
+            const t = 1 - Math.exp(-this.smoothing * dt);
+            this.currentTarget.lerp(this._externalTarget, t);
+            this.updateFree();
+            return;
+        }
+
         const desired = train.getActiveCabinWorldPosition();
 
         if (this.mode === 'cockpit') {
@@ -258,6 +287,9 @@ export class GameCamera {
         this.camera.position.applyMatrix4(matrix);
         this.controls.target.applyMatrix4(matrix);
         this.currentTarget.applyMatrix4(matrix);
+        if (this.hasExternalTarget) {
+            this._externalTarget.applyMatrix4(matrix);
+        }
         this.controls.update();
     }
 
