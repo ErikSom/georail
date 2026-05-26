@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.7.0 (2026-05-26)
+
+### Features
+
+* **live trains:** show live NS traffic in the game without a URL flag
+* **live trains:** click a train dot to follow another service across the map
+* **live trains:** switch from map dots to lightweight 3D train proxies when zoomed in
+* **live trains:** use NS consist data where available for more realistic train lengths
+* **map:** load nearby rail chunks so close-up live trains can stay on the rails
+
+### Improvements
+
+* **camera:** keep far-away followed trains stable when the map recenters
+* **map:** keep the fallback floor local so it does not cut through distant terrain
+* **train:** prevent the player train from overlapping itself at route edges
+
+### Bug Fixes
+
+* **live trains:** keep stopped trains visible at stations
+* **live trains:** reduce stop-start motion caused by repeated NS snapshots
+
 ## 0.6.0 (2026-05-14)
 
 ### style
