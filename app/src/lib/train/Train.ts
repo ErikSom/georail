@@ -916,12 +916,12 @@ export class Train implements IPhysicsTarget {
         if (this.flashInProgress) return;
         this.flashInProgress = true;
         const wasEmissive = this.lightsOn;
-        this.cab.setEmissiveEnabled(true);
+        this.cab.setEmissiveEnabled(false);
         const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
         const onTime = 250;
-        const offTime = 100;
-        const pauseTime = 120;
+        const offTime = 150;
         try {
+            await sleep(onTime);
             this.cab.setHeadlights(true); this.cab.setTaillights(false);
             await sleep(onTime);
             this.cab.setHeadlights(false);
@@ -929,14 +929,6 @@ export class Train implements IPhysicsTarget {
             this.cab.setHeadlights(true);
             await sleep(onTime);
             this.cab.setHeadlights(false);
-            await sleep(pauseTime);
-            this.cab.setTaillights(true);
-            await sleep(onTime);
-            this.cab.setTaillights(false);
-            await sleep(offTime);
-            this.cab.setTaillights(true);
-            await sleep(onTime);
-            this.cab.setTaillights(false);
         } finally {
             this.flashInProgress = false;
             this.cab.setEmissiveEnabled(wasEmissive);
