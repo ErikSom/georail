@@ -55,7 +55,7 @@ export class World {
     private railCorrector: RailCorrector | null = null;
     private mapViewer!: MapViewer;
     private sky!: Sky;
-    private stats!: Stats;
+    private stats: Stats | null = null;
     private perfConfig: PerformanceConfig;
     private rendererPane: Pane | null = null;
     private isRendererPaneVisible: boolean = false;
@@ -87,6 +87,7 @@ export class World {
     private _lookaheadAim = new Vector3();
     private _liveOwnTrainPos = new Vector3();
     private _liveFollowTarget = new Vector3();
+    private lastCreditsUpdateAt = 0;
 
 
     constructor(
@@ -221,21 +222,6 @@ export class World {
         this.gameCamera.snapTo(this.train.group.position);
 
         Input.init(this.renderer.domElement);
-
-        this.stats = new Stats({
-            trackGPU: true,
-            trackHz: true,
-            logsPerSecond: 20,
-            graphsPerSecond: 30,
-            samplesLog: 100,
-            samplesGraph: 10,
-            precision: 2,
-            horizontal: true,
-            minimal: false,
-        });
-        this.stats.init(this.renderer);
-        this.mountElement.appendChild(this.stats.dom);
-        this.stats.dom.style.display = 'none';
 
         const urlParams = new URLSearchParams(window.location.search);
         const urlStats = urlParams.get('stats');
@@ -567,10 +553,14 @@ export class World {
             this.nsLiveOverlay.update();
         }
 
-        this.stats.begin();
+        if (this.stats && this.isRendererPaneVisible) {
+            this.stats.begin();
+        }
         this.renderer.render(this.scene, this.camera);
-        this.stats.end();
-        this.stats.update();
+        if (this.stats && this.isRendererPaneVisible) {
+            this.stats.end();
+            this.stats.update();
+        }
         this.updateRendererDebugInfo();
 
         const trainCoords = this.mapViewer.getLatLonHeightFromWorldPosition(this.train.group.position);
@@ -620,7 +610,9 @@ export class World {
             cameraYawRelativeToTrain.value = relativeYaw;
         }
         if (this.mapViewer.initialized) {
-            if (trainCoords) {
+            const now = performance.now();
+            if (trainCoords && now - this.lastCreditsUpdateAt >= 500) {
+                this.lastCreditsUpdateAt = now;
                 const attribution = this.mapViewer.getCredits();
                 this.setCreditsCallback(attribution);
             }
@@ -647,6 +639,32 @@ export class World {
             : 'n/a';
 
         this.rendererPane.refresh();
+    }
+
+    private ensureStats(): void {
+        if (this.stats) return;
+
+        this.stats = new Stats({
+            trackGPU: true,
+            trackHz: true,
+            logsPerSecond: 20,
+            graphsPerSecond: 30,
+            samplesLog: 100,
+            samplesGraph: 10,
+            precision: 2,
+            horizontal: true,
+            minimal: false,
+        });
+
+        const gl = this.renderer.getContext();
+        if (typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext) {
+            this.stats.init(gl);
+        } else {
+            this.stats.init(this.renderer.domElement);
+        }
+
+        this.mountElement.appendChild(this.stats.dom);
+        this.stats.dom.style.display = 'none';
     }
 
     private createRendererUI(): void {
@@ -704,6 +722,10 @@ export class World {
         }
 
         this.isRendererPaneVisible = !this.isRendererPaneVisible;
+
+        if (this.isRendererPaneVisible) {
+            this.ensureStats();
+        }
 
         if (this.stats) {
             this.stats.dom.style.display = this.isRendererPaneVisible ? 'block' : 'none';

@@ -61,8 +61,8 @@ export const PERFORMANCE_PRESETS = {
         pixelRatio: 1.5,
         antialias: false,
         farPlane: 1e7,
-        tilesErrorTarget: 20,
-        tilesMaxDepth: Infinity, // No limit - let errorTarget control LOD
+        tilesErrorTarget: 25,
+        tilesMaxDepth: Infinity,
         tilesCacheMinBytes: 300 * MB,
         tilesCacheMaxBytes: 400 * MB,
         tilesDownloadJobs: 16,
@@ -77,12 +77,12 @@ export const PERFORMANCE_PRESETS = {
         pixelRatio: 1,
         antialias: false,
         farPlane: 1e7,
-        tilesErrorTarget: 20,
-        tilesMaxDepth: 25, // Limit depth on low-end devices
-        tilesCacheMinBytes: 300 * MB,
-        tilesCacheMaxBytes: 400 * MB,
-        tilesDownloadJobs: 16,
-        tilesParseJobs: 4,
+        tilesErrorTarget: 25,
+        tilesMaxDepth: Infinity,
+        tilesCacheMinBytes: 220 * MB,
+        tilesCacheMaxBytes: 320 * MB,
+        tilesDownloadJobs: 8,
+        tilesParseJobs: 2,
         tier: 'low',
     } as PerformanceConfig,
 
@@ -93,12 +93,12 @@ export const PERFORMANCE_PRESETS = {
         pixelRatio: 1,
         antialias: false,
         farPlane: 1e7,
-        tilesErrorTarget: 20,
-        tilesMaxDepth: 20, // Strict limit for potato mode
-        tilesCacheMinBytes: 300 * MB,
-        tilesCacheMaxBytes: 400 * MB,
-        tilesDownloadJobs: 16,
-        tilesParseJobs: 4,
+        tilesErrorTarget: 50,
+        tilesMaxDepth: 18, // Strict limit for potato mode
+        tilesCacheMinBytes: 80 * MB,
+        tilesCacheMaxBytes: 120 * MB,
+        tilesDownloadJobs: 4,
+        tilesParseJobs: 1,
         tier: 'potato',
     } as PerformanceConfig,
 };
@@ -109,8 +109,9 @@ export const PERFORMANCE_PRESETS = {
 export function detectPerformancePreset(): PerformanceConfig {
     // Check if mobile
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const isTouchMac = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
 
-    if (isMobile) {
+    if (isMobile || isTouchMac) {
         return PERFORMANCE_PRESETS.LOW;
     }
 

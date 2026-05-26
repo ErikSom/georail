@@ -15,6 +15,7 @@ export class LiveTrafficLayer {
     public readonly root: HTMLDivElement;
     public readonly dots: HTMLDivElement[] = [];
     public readonly ownDot: HTMLDivElement;
+    private visibleDotCount = 0;
 
     constructor(options: LiveTrafficLayerOptions) {
         const parent = options.parent ?? document.body;
@@ -74,11 +75,18 @@ export class LiveTrafficLayer {
     }
 
     public hideDots(): void {
-        for (const dot of this.dots) {
+        this.setVisibleDotCount(0);
+    }
+
+    public setVisibleDotCount(count: number): void {
+        const nextCount = Math.max(0, Math.min(this.dots.length, count));
+        for (let i = nextCount; i < this.visibleDotCount; i++) {
+            const dot = this.dots[i];
             dot.dataset.trainId = '';
             dot.classList.remove('is-selected');
             dot.style.display = 'none';
         }
+        this.visibleDotCount = nextCount;
     }
 
     public dispose(): void {

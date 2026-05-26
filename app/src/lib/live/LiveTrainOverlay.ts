@@ -464,10 +464,7 @@ export class LiveTrainOverlay {
                 dot.style.display = 'block';
             }
         }
-        for (let i = count; i < this.trafficLayer.dots.length; i++) {
-            this.trafficLayer.dots[i].dataset.trainId = '';
-            this.trafficLayer.dots[i].style.display = 'none';
-        }
+        this.trafficLayer.setVisibleDotCount(count);
     }
 
     private dotWorldPositionForTrain(train: LiveTrainSummary, renderTs: number): Vector3 | null {
