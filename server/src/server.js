@@ -10,7 +10,10 @@ import userRoutes from './routes/user.js';
 import subscriptionRoutes from './routes/subscription.js';
 import overpassRoutes from './routes/overpass.js';
 import userRoutesRouter from './routes/userRoutes.js';
+import livePositionsRoutes from './routes/livePositions.js';
+import railChunksRoutes from './routes/railChunks.js';
 import { initializeDiscordBot } from './lib/discord-bot.js';
+import { nsPoller } from './lib/nsPoller.js';
 
 const envFile = '.env';
 dotenv.config({ path: path.resolve(process.cwd(), envFile) });
@@ -23,6 +26,7 @@ app.set('trust proxy', 1);
 
 initializeSupabase();
 initializeDiscordBot();
+nsPoller.start();
 
 // Webhook endpoints need raw body for signature verification.
 // Mount these BEFORE the global JSON parser.
@@ -72,6 +76,8 @@ app.use('/user', userRoutes);
 app.use('/subscription', subscriptionRoutes);
 app.use('/overpass', overpassRoutes);
 app.use('/user-routes', userRoutesRouter);
+app.use('/live-positions', livePositionsRoutes);
+app.use('/rail-chunks', railChunksRoutes);
 
 // ✅ 4. Health Check & Root
 app.get('/health', (req, res) => res.status(200).send('OK'));
