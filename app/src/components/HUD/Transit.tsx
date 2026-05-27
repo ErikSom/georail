@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useLayoutEffect, useCallback } from 'preact/hooks';
+import { untracked } from '@preact/signals';
 import { useTransformable } from '../../hooks/useTransformable';
 import {
     stops,
@@ -28,6 +29,7 @@ const BASE_SIZE = 200; // Below this size, content scales down
 const INITIAL_WIDTH = 300;
 const INITIAL_HEIGHT = 380;
 const COMPACT_WIDTH_THRESHOLD = 280;
+const TRANSIT_HUD_UPDATE_INTERVAL_MS = 250;
 
 type ScrollMode = 'AUTO' | 'DRAG' | 'MOMENTUM';
 
@@ -71,13 +73,38 @@ function Transit() {
 
     // Subscribe to updates
     useEffect(() => {
+        let lastHudUpdateAt = 0;
         const unsub = updateTick.subscribe(() => {
             updateElapsedTime();
+            const now = performance.now();
+            if (now - lastHudUpdateAt < TRANSIT_HUD_UPDATE_INTERVAL_MS) return;
+            lastHudUpdateAt = now;
             updateStopStatuses();
             forceUpdate(v => v + 1);
         });
         return unsub;
     }, []);
+
+    const snapshot = untracked(() => {
+        const stopsArr = stops.value;
+        const distances = stopDistances.value;
+        const statuses = stopStatuses.value;
+        const trainDistance = trainDistanceTraveled.value / 1000;
+        const runningDelay = getRunningDelayMinutes();
+        const currentTime = getCurrentGameTime();
+        const elapsed = elapsedMinutes.value;
+
+        return {
+            active: Boolean(journeyStartTime.value && stopsArr.length > 0),
+            stopsArr,
+            distances,
+            statuses,
+            trainDistance,
+            runningDelay,
+            currentTime,
+            elapsed,
+        };
+    });
 
     // Calculate dot positions after render
     useLayoutEffect(() => {
@@ -108,7 +135,7 @@ function Transit() {
             positions.some((p, i) => Math.abs(p - (dotPositions[i] ?? 0)) > 1)) {
             setDotPositions(positions);
         }
-    }, [stops.value.length, size]);
+    }, [snapshot.stopsArr.length, size]);
 
     // THE MAIN PHYSICS LOOP
     // Handles Auto-Scroll (Train following) AND Momentum (After user drag)
@@ -303,7 +330,7 @@ function Transit() {
     }, []);
 
     // Don't render if no journey
-    if (!journeyStartTime.value || stops.value.length === 0) {
+    if (!snapshot.active) {
         return null;
     }
 
@@ -316,13 +343,13 @@ function Transit() {
     const contentHeight = currentHeight / scale;
 
     const isCompact = currentWidth < COMPACT_WIDTH_THRESHOLD;
-    const stopsArr = stops.value;
-    const distances = stopDistances.value;
-    const statuses = stopStatuses.value;
-    const trainDistance = trainDistanceTraveled.value / 1000; // km
-    const runningDelay = getRunningDelayMinutes();
-    const currentTime = getCurrentGameTime();
-    const elapsed = elapsedMinutes.value;
+    const stopsArr = snapshot.stopsArr;
+    const distances = snapshot.distances;
+    const statuses = snapshot.statuses;
+    const trainDistance = snapshot.trainDistance;
+    const runningDelay = snapshot.runningDelay;
+    const currentTime = snapshot.currentTime;
+    const elapsed = snapshot.elapsed;
 
     // Find the first unarrived stop (the one we're heading to)
     const nextStopIdx = statuses.findIndex(s => !s?.arrived);

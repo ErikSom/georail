@@ -15,11 +15,17 @@ import styles from './Speedometer.module.css';
 type SpeedometerMode = 'digital' | 'analog';
 
 const STORAGE_KEY_MODE = 'georail_speedometer_mode';
+const SPEEDOMETER_UPDATE_INTERVAL_MS = 100;
 
 function Speedometer() {
     const [speed, setSpeed] = useState(0);
     const [maxSpeed, setMaxSpeed] = useState(120);
     const [trackLimit, setTrackLimit] = useState<number | null>(null);
+    const initialPositionRef = useRef(
+        isSmallScreen
+            ? { x: screenWidth() - 75, y: 120 }
+            : { x: screenWidth() - 186, y: 230 }
+    );
     const unitSystem = configs.value.unitSystem;
     const [mode, setMode] = useState<SpeedometerMode>(() => {
         const stored = localStorage.getItem(STORAGE_KEY_MODE);
@@ -35,18 +41,25 @@ function Speedometer() {
         setPosition,
         handleContainerPointerDown,
     } = useTransformable({
-        initialPosition: isSmallScreen
-            ? { x: screenWidth() - 75, y: 120 }
-            : { x: screenWidth() - 186, y: 230 },
+        initialPosition: initialPositionRef.current,
         storageKey: 'georail_speedometer_state',
     });
 
     // update on tick
     useEffect(() => {
+        let lastUpdateAt = 0;
         const unsubTick = updateTick.subscribe(() => {
-            setSpeed(Math.abs(trainVelocityKmh.value));
-            setMaxSpeed(trainMaxSpeedKmh.value + 20);
-            setTrackLimit(trackMaxSpeedKmh.value);
+            const now = performance.now();
+            if (now - lastUpdateAt < SPEEDOMETER_UPDATE_INTERVAL_MS) return;
+            lastUpdateAt = now;
+
+            const nextSpeed = Math.abs(trainVelocityKmh.value);
+            const nextMaxSpeed = trainMaxSpeedKmh.value + 20;
+            const nextTrackLimit = trackMaxSpeedKmh.value;
+
+            setSpeed(current => Math.abs(current - nextSpeed) >= 0.1 ? nextSpeed : current);
+            setMaxSpeed(current => current !== nextMaxSpeed ? nextMaxSpeed : current);
+            setTrackLimit(current => current !== nextTrackLimit ? nextTrackLimit : current);
         });
 
         return () => {

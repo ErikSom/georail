@@ -1,4 +1,5 @@
-const DEFAULT_DOT_COUNT = 512;
+const DEFAULT_DOT_COUNT = 384;
+const DOTS_TO_CREATE_PER_FRAME = 32;
 
 export interface LiveTrafficLayerOptions {
     parent?: HTMLElement | null;
@@ -16,9 +17,11 @@ export class LiveTrafficLayer {
     public readonly dots: HTMLDivElement[] = [];
     public readonly ownDot: HTMLDivElement;
     private visibleDotCount = 0;
+    private readonly maxDots: number;
 
     constructor(options: LiveTrafficLayerOptions) {
         const parent = options.parent ?? document.body;
+        this.maxDots = options.maxDots ?? DEFAULT_DOT_COUNT;
         this.root = document.createElement('div');
         this.root.className = 'live-traffic-overlay';
         assignStyles(this.root, {
@@ -29,30 +32,28 @@ export class LiveTrafficLayer {
             zIndex: parent === document.body ? '1' : '',
         });
         parent.appendChild(this.root);
+        this.root.addEventListener('click', (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) return;
 
-        const maxDots = options.maxDots ?? DEFAULT_DOT_COUNT;
-        for (let i = 0; i < maxDots; i++) {
-            const dot = document.createElement('div');
-            dot.className = 'live-traffic-dot live-train-dot';
-            assignStyles(dot, {
-                position: 'absolute',
-                left: '0',
-                top: '0',
-                borderRadius: '999px',
-                display: 'none',
-                willChange: 'transform',
-                pointerEvents: 'auto',
-                cursor: 'pointer',
-            });
-            dot.addEventListener('click', (event) => {
+            const ownDot = target.closest('.live-train-own-dot');
+            if (ownDot && this.root.contains(ownDot)) {
                 event.preventDefault();
                 event.stopPropagation();
-                const id = dot.dataset.trainId;
-                if (id) options.onSelectTrain(id);
-            });
-            this.root.appendChild(dot);
-            this.dots.push(dot);
-        }
+                options.onSelectOwnTrain();
+                return;
+            }
+
+            const trainDot = target.closest('.live-train-dot') as HTMLElement | null;
+            if (!trainDot || !this.root.contains(trainDot)) return;
+
+            const id = trainDot.dataset.trainId;
+            if (!id) return;
+
+            event.preventDefault();
+            event.stopPropagation();
+            options.onSelectTrain(id);
+        });
 
         this.ownDot = document.createElement('div');
         this.ownDot.className = 'live-traffic-own-dot live-train-own-dot';
@@ -66,12 +67,28 @@ export class LiveTrafficLayer {
             pointerEvents: 'auto',
             cursor: 'pointer',
         });
-        this.ownDot.addEventListener('click', (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            options.onSelectOwnTrain();
-        });
         this.root.appendChild(this.ownDot);
+    }
+
+    public ensureDotCapacity(targetCount: number): void {
+        const wanted = Math.max(0, Math.min(this.maxDots, targetCount));
+        const limit = Math.min(wanted, this.dots.length + DOTS_TO_CREATE_PER_FRAME);
+        while (this.dots.length < limit) {
+            const dot = document.createElement('div');
+            dot.className = 'live-traffic-dot live-train-dot';
+            assignStyles(dot, {
+                position: 'absolute',
+                left: '0',
+                top: '0',
+                borderRadius: '999px',
+                display: 'none',
+                willChange: 'transform',
+                pointerEvents: 'auto',
+                cursor: 'pointer',
+            });
+            this.root.appendChild(dot);
+            this.dots.push(dot);
+        }
     }
 
     public hideDots(): void {

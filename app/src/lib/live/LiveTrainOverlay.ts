@@ -430,6 +430,7 @@ export class LiveTrainOverlay {
         const { width, height } = this.trafficLayer.root.getBoundingClientRect();
         const renderTs = Date.now() - RENDER_DELAY_MS;
         if (this.summary) {
+            this.trafficLayer.ensureDotCapacity(this.summary.trains.length);
             for (const train of this.summary.trains) {
                 if (count >= this.trafficLayer.dots.length) break;
                 const position = this.dotWorldPositionForTrain(train, renderTs);
