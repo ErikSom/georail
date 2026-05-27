@@ -2,37 +2,8 @@
 
 ## 0.7.1 (2026-05-26)
 
-### refactor
-
-* **Train Editor:** collapse top speed to display.topSpeedKmh 
-* **Train Editor:** simplify material naming to glass + alpha 
-* **Train Editor:** unify AudioCurve types and extract shared TrainState + curve evaluator 
-
-### Features
-
-* **app:** show live trains 
-* **camera:** zoom out far enough to see half the country 
-* **dm90:** default exhaust emitter with effort-driven curves and stock smoke texture 
-* **editor:** edit display info from the train editor 
-* **editor:** name imported georail-train files 
-* **editor:** rename Train Controls pane to Train Info and add Diesel RPM readout 
-* **editor:** save and share trains as .georail-train files 
-* **particles:** GPU particle system with curve-driven smoke for rolling stock 
-* **picker:** align cab nose stop and add light debuggers 
-* **picker:** show creator on the selected train 
-* **saved:** backfill missing fields on saved-train load and migrate trailBias to velocityInherit 
-* **server:** add live train feed 
-* **Train Editor:** emulate diesel engine RPM for audio curves and editor controls 
-
 ### Bug Fixes
-
-* **Assets:** allow oversized TIFF metadata during texture compression 
-* **Map Editor:** hide ground plane when camera is far away 
-* **picker:** wire scene into Train so particle emitters initialize in the train picker 
-* **Train Editor:** clamp route edges 
-* **Train Editor:** play animations from multi-clip FBX exports 
-* **Train Editor:** respect reverser direction at load instead of inferring from dial sign 
-* **Train Editor:** stop glass shader bleeding between trains
+* **app:** Performance improvements 
 
 ## 0.7.0 (2026-05-26)
 
