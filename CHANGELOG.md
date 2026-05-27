@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.2 (2026-05-27)
+
+### docs
+
+* update changelog 
+
+### Performance
+
+* **hud:** cut update churn 
+
+### Features
+
+* **Game:** add graphics presets
+
 ## 0.7.1 (2026-05-26)
 
 ### Bug Fixes
