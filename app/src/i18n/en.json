@@ -123,6 +123,16 @@
             "open": "Game menu",
             "widgets": "Widgets",
             "volume": "Volume",
+            "graphics": "Graphics",
+            "fidelity": "Fidelity",
+            "applyGraphics": "Apply",
+            "presets": {
+                "auto": "Auto",
+                "low": "Low",
+                "medium": "Medium",
+                "high": "High",
+                "ultra": "Ultra"
+            },
             "masterVolume": "Master volume",
             "exit": "Exit to menu",
             "toggles": {

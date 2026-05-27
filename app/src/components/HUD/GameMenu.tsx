@@ -2,6 +2,12 @@ import { useState, useEffect, useRef } from 'preact/hooks';
 import IconButton from './IconButton';
 import InlineSVG from '../InlineSVG';
 import { hudSettings, setHudSetting, masterVolume, setMasterVolume, type HudSettings } from '../../store/globals';
+import {
+    PERFORMANCE_PRESET_CHOICES,
+    getStoredPerformancePresetChoice,
+    setStoredPerformancePresetChoice,
+    type PerformancePresetChoice,
+} from '../../lib/utils/PerformanceConfig';
 import { t } from '../../i18n';
 import styles from './GameMenu.module.css';
 
@@ -23,6 +29,8 @@ interface Props {
 
 function GameMenu({ onExit }: Props) {
     const [isOpen, setIsOpen] = useState(false);
+    const [graphicsPreset, setGraphicsPreset] = useState<PerformancePresetChoice>(getStoredPerformancePresetChoice);
+    const [graphicsChanged, setGraphicsChanged] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -38,6 +46,12 @@ function GameMenu({ onExit }: Props) {
     }, [isOpen]);
 
     const volume = masterVolume.value;
+
+    const handleGraphicsPresetChange = (value: PerformancePresetChoice) => {
+        setGraphicsPreset(value);
+        setStoredPerformancePresetChoice(value);
+        setGraphicsChanged(true);
+    };
 
     return (
         <div ref={containerRef} className={styles.container}>
@@ -64,6 +78,30 @@ function GameMenu({ onExit }: Props) {
                             </span>
                         </label>
                     ))}
+                </div>
+
+                <div className={styles.section}>
+                    <div className={styles.sectionTitle}>{t('hud.menu.graphics')}</div>
+                    <label className={styles.row}>
+                        <span className={styles.label}>{t('hud.menu.fidelity')}</span>
+                        <select
+                            className={styles.select}
+                            value={graphicsPreset}
+                            onChange={(e) => handleGraphicsPresetChange((e.target as HTMLSelectElement).value as PerformancePresetChoice)}
+                            aria-label={t('hud.menu.fidelity')}
+                        >
+                            {PERFORMANCE_PRESET_CHOICES.map(choice => (
+                                <option key={choice} value={choice}>
+                                    {t(`hud.menu.presets.${choice}`)}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+                    {graphicsChanged && (
+                        <button className={styles.applyButton} onClick={() => window.location.reload()}>
+                            {t('hud.menu.applyGraphics')}
+                        </button>
+                    )}
                 </div>
 
                 <div className={styles.section}>

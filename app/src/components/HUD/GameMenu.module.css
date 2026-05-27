@@ -73,6 +73,41 @@
     user-select: none;
 }
 
+.select {
+    min-width: 96px;
+    border: 1px solid var(--menu-dim-04);
+    border-radius: 10px;
+    background: var(--menu-panel);
+    color: var(--menu-dark);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 7px 28px 7px 10px;
+    cursor: pointer;
+}
+
+.select:focus {
+    outline: 2px solid var(--menu-accent);
+    outline-offset: 2px;
+}
+
+.applyButton {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--menu-dark);
+    background: var(--menu-light);
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.applyButton:hover {
+    background: var(--menu-dim-04);
+}
+
 /* ─── Toggle switch (same as TravelPicker .returnToggleSwitch) ── */
 
 .switch {

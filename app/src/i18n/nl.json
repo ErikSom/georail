@@ -123,6 +123,16 @@
             "open": "Spelmenu",
             "widgets": "Widgets",
             "volume": "Volume",
+            "graphics": "Graphics",
+            "fidelity": "Kwaliteit",
+            "applyGraphics": "Toepassen",
+            "presets": {
+                "auto": "Automatisch",
+                "low": "Laag",
+                "medium": "Middel",
+                "high": "Hoog",
+                "ultra": "Ultra"
+            },
             "masterVolume": "Hoofdvolume",
             "exit": "Terug naar menu",
             "toggles": {

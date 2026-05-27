@@ -100,6 +100,18 @@ export const trainPowerPercent = computed(() => trainPower.value * 100);
 // Internal state for delta time calculation
 let lastUpdateTime = performance.now();
 
+function consistLayoutChanged(current: ConsistCar[], next: ConsistCar[]): boolean {
+    if (current.length !== next.length) return true;
+
+    for (let i = 0; i < current.length; i++) {
+        if (current[i].type !== next[i].type || current[i].length !== next[i].length) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 // Set up bidirectional sync when train instance is available
 
 // Gear must be applied before power so a freshly-loaded train respects the
@@ -145,9 +157,9 @@ export function updateTrainState() {
         trainPathTotalLength.value = train.getPath()?.getTotalLength() ?? 0;
         trainLength.value = train.getTotalLength();
 
-        // Populate consist layout once
-        if (trainConsist.value.length === 0) {
-            trainConsist.value = train.getConsistLayout();
+        const nextConsist = train.getConsistLayout();
+        if (consistLayoutChanged(trainConsist.value, nextConsist)) {
+            trainConsist.value = nextConsist;
         }
     }
 

@@ -62,6 +62,7 @@ export class MapViewer {
     public onInitialized: (() => void) | null = null;
     private reorientCheckCounter = 0;
     private static readonly REORIENT_CHECK_INTERVAL = 30;
+    private lastTilesUpdateAt = 0;
 
     private tempMatrix = new Matrix4();
     private deltaMatrix = new Matrix4();
@@ -181,6 +182,7 @@ export class MapViewer {
         if (!this.scene || !this.camera || !this.renderer) return;
 
         this.tiles?.dispose();
+        this.lastTilesUpdateAt = 0;
 
         this.tiles = new TilesRenderer();
 
@@ -444,14 +446,22 @@ export class MapViewer {
 
             if (this.needsReorientation(camLat, camLon)) {
                 this.reorientWithDelta(camLat, camLon);
+                this.lastTilesUpdateAt = 0;
             }
         }
 
-        this.tiles.setResolutionFromRenderer(this.camera, this.renderer);
-        if (this.lookaheadCamera) {
-            this.tiles.setResolutionFromRenderer(this.lookaheadCamera, this.renderer);
+        const now = performance.now();
+        const updateIntervalMs = this.initialized
+            ? (this.perfConfig?.tilesUpdateIntervalMs ?? 16)
+            : 0;
+        if (updateIntervalMs <= 0 || now - this.lastTilesUpdateAt >= updateIntervalMs) {
+            this.lastTilesUpdateAt = now;
+            this.tiles.setResolutionFromRenderer(this.camera, this.renderer);
+            if (this.lookaheadCamera) {
+                this.tiles.setResolutionFromRenderer(this.lookaheadCamera, this.renderer);
+            }
+            this.tiles.update();
         }
-        this.tiles.update();
 
         if (this.groundPlane) {
             this.tempMatrix.copy(this.tiles.group.matrixWorld).invert();

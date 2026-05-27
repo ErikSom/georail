@@ -1,6 +1,11 @@
+import { loadData, saveData } from './LocalStorage';
+
 /**
  * Performance configuration presets for the application
  */
+
+export type PerformanceTier = 'ultra' | 'high' | 'medium' | 'low';
+export type PerformancePresetChoice = PerformanceTier | 'auto';
 
 export interface PerformanceConfig {
     pixelRatio: number;
@@ -14,11 +19,45 @@ export interface PerformanceConfig {
     tilesCacheMaxBytes: number;
     tilesDownloadJobs: number;
     tilesParseJobs: number;
+    tilesUpdateIntervalMs: number;
 
-    tier?: 'ultra' | 'high' | 'medium' | 'low' | 'potato';
+    minimapRaster: boolean;
+    minimapWorkerCount: number;
+
+    tier: PerformanceTier;
 }
 
 const MB = 1024 * 1024;
+const PERFORMANCE_PRESET_STORAGE_KEY = 'performancePreset';
+
+export const PERFORMANCE_PRESET_CHOICES: PerformancePresetChoice[] = ['auto', 'low', 'medium', 'high', 'ultra'];
+
+let cachedPerformanceConfig: PerformanceConfig | null = null;
+
+function isPerformanceTier(value: string | null | undefined): value is PerformanceTier {
+    return value === 'ultra' || value === 'high' || value === 'medium' || value === 'low';
+}
+
+function isPerformancePresetChoice(value: unknown): value is PerformancePresetChoice {
+    return value === 'auto' || isPerformanceTier(typeof value === 'string' ? value : null);
+}
+
+export function getStoredPerformancePresetChoice(): PerformancePresetChoice {
+    const stored = loadData<unknown>(PERFORMANCE_PRESET_STORAGE_KEY, 'auto');
+    return isPerformancePresetChoice(stored) ? stored : 'auto';
+}
+
+export function setStoredPerformancePresetChoice(choice: PerformancePresetChoice): void {
+    saveData(PERFORMANCE_PRESET_STORAGE_KEY, choice);
+    cachedPerformanceConfig = null;
+}
+
+function getUrlPerformancePresetChoice(): PerformanceTier | null {
+    if (typeof window === 'undefined') return null;
+    const urlParams = new URLSearchParams(window.location.search);
+    const perfParam = urlParams.get('perf')?.toLowerCase();
+    return isPerformanceTier(perfParam) ? perfParam : null;
+}
 
 export const PERFORMANCE_PRESETS = {
     /**
@@ -34,6 +73,9 @@ export const PERFORMANCE_PRESETS = {
         tilesCacheMaxBytes: 400 * MB,
         tilesDownloadJobs: 25,
         tilesParseJobs: 5,
+        tilesUpdateIntervalMs: 16,
+        minimapRaster: false,
+        minimapWorkerCount: 2,
         tier: 'ultra',
 
     } as PerformanceConfig,
@@ -51,6 +93,9 @@ export const PERFORMANCE_PRESETS = {
         tilesCacheMaxBytes: 400 * MB,
         tilesDownloadJobs: 25,
         tilesParseJobs: 5,
+        tilesUpdateIntervalMs: 16,
+        minimapRaster: false,
+        minimapWorkerCount: 2,
         tier: 'high',
     } as PerformanceConfig,
 
@@ -63,10 +108,13 @@ export const PERFORMANCE_PRESETS = {
         farPlane: 1e7,
         tilesErrorTarget: 25,
         tilesMaxDepth: Infinity,
-        tilesCacheMinBytes: 300 * MB,
-        tilesCacheMaxBytes: 400 * MB,
-        tilesDownloadJobs: 16,
-        tilesParseJobs: 4,
+        tilesCacheMinBytes: 220 * MB,
+        tilesCacheMaxBytes: 320 * MB,
+        tilesDownloadJobs: 12,
+        tilesParseJobs: 3,
+        tilesUpdateIntervalMs: 33,
+        minimapRaster: false,
+        minimapWorkerCount: 2,
         tier: 'medium',
     } as PerformanceConfig,
 
@@ -79,34 +127,26 @@ export const PERFORMANCE_PRESETS = {
         farPlane: 1e7,
         tilesErrorTarget: 25,
         tilesMaxDepth: Infinity,
-        tilesCacheMinBytes: 220 * MB,
-        tilesCacheMaxBytes: 320 * MB,
-        tilesDownloadJobs: 8,
+        tilesCacheMinBytes: 140 * MB,
+        tilesCacheMaxBytes: 220 * MB,
+        tilesDownloadJobs: 6,
         tilesParseJobs: 2,
+        tilesUpdateIntervalMs: 66,
+        minimapRaster: true,
+        minimapWorkerCount: 1,
         tier: 'low',
     } as PerformanceConfig,
 
-    /**
-     * Potato mode - Maximum performance
-     */
-    POTATO: {
-        pixelRatio: 1,
-        antialias: false,
-        farPlane: 1e7,
-        tilesErrorTarget: 50,
-        tilesMaxDepth: 18, // Strict limit for potato mode
-        tilesCacheMinBytes: 80 * MB,
-        tilesCacheMaxBytes: 120 * MB,
-        tilesDownloadJobs: 4,
-        tilesParseJobs: 1,
-        tier: 'potato',
-    } as PerformanceConfig,
 };
 
 /**
  * Auto-detect appropriate performance preset based on device capabilities
  */
 export function detectPerformancePreset(): PerformanceConfig {
+    if (typeof window === 'undefined' || typeof document === 'undefined' || typeof navigator === 'undefined') {
+        return PERFORMANCE_PRESETS.MEDIUM;
+    }
+
     // Check if mobile
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     const isTouchMac = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
@@ -120,7 +160,7 @@ export function detectPerformancePreset(): PerformanceConfig {
     const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl') as WebGLRenderingContext | null;
 
     if (!gl) {
-        return PERFORMANCE_PRESETS.POTATO;
+        return PERFORMANCE_PRESETS.LOW;
     }
 
     // Check for high-end GPU features
@@ -149,21 +189,25 @@ export function detectPerformancePreset(): PerformanceConfig {
  * Usage: ?perf=low or ?perf=high
  */
 export function getPerformanceConfig(): PerformanceConfig {
-    const urlParams = new URLSearchParams(window.location.search);
-    const perfParam = urlParams.get('perf')?.toLowerCase();
+    if (cachedPerformanceConfig) return cachedPerformanceConfig;
 
-    switch (perfParam) {
+    const presetChoice = getUrlPerformancePresetChoice() ?? getStoredPerformancePresetChoice();
+
+    switch (presetChoice) {
         case 'ultra':
-            return PERFORMANCE_PRESETS.ULTRA;
+            cachedPerformanceConfig = PERFORMANCE_PRESETS.ULTRA;
+            return cachedPerformanceConfig;
         case 'high':
-            return PERFORMANCE_PRESETS.HIGH;
+            cachedPerformanceConfig = PERFORMANCE_PRESETS.HIGH;
+            return cachedPerformanceConfig;
         case 'medium':
-            return PERFORMANCE_PRESETS.MEDIUM;
+            cachedPerformanceConfig = PERFORMANCE_PRESETS.MEDIUM;
+            return cachedPerformanceConfig;
         case 'low':
-            return PERFORMANCE_PRESETS.LOW;
-        case 'potato':
-            return PERFORMANCE_PRESETS.POTATO;
+            cachedPerformanceConfig = PERFORMANCE_PRESETS.LOW;
+            return cachedPerformanceConfig;
         default:
-            return detectPerformancePreset();
+            cachedPerformanceConfig = detectPerformancePreset();
+            return cachedPerformanceConfig;
     }
 }

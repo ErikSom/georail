@@ -7,6 +7,7 @@ import { trainLat, trainLon, trainFrontLat, trainFrontLon, trainBackLat, trainBa
 import { isSmallScreen, screenWidth } from '../../store/globals';
 import { routeData } from '../../store/journey';
 import { trainPath } from '../../store/journey';
+import { getPerformanceConfig } from '../../lib/utils/PerformanceConfig';
 import styles from './Maps2D.module.css';
 
 const DEFAULT_CENTER: [number, number] = [0, 0];
@@ -16,6 +17,29 @@ const BASE_MAP_SIZE = 200;
 // Min/max pixel size for each car icon on the map
 const MIN_CAR_ICON_PX = 6;
 const MAX_CAR_ICON_PX = 200;
+
+const MINIMAP_RASTER_TILE_URL =
+    import.meta.env.PUBLIC_MINIMAP_RASTER_TILE_URL || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const MINIMAP_VECTOR_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
+
+const MINIMAP_RASTER_STYLE = {
+    version: 8,
+    sources: {
+        minimap: {
+            type: 'raster',
+            tiles: [MINIMAP_RASTER_TILE_URL],
+            tileSize: 256,
+            attribution: 'OpenStreetMap',
+        },
+    },
+    layers: [
+        { id: 'background', type: 'background', paint: { 'background-color': '#e8e3dc' } },
+        { id: 'minimap-raster', type: 'raster', source: 'minimap', paint: { 'raster-resampling': 'linear' } },
+    ],
+} as any;
+
+const PERF_CONFIG = getPerformanceConfig();
+const MINIMAP_STYLE = PERF_CONFIG.minimapRaster ? MINIMAP_RASTER_STYLE : MINIMAP_VECTOR_STYLE;
 
 /**
  * Calculate bearing (in degrees) from point 1 to point 2 using lat/lon coordinates.
@@ -36,7 +60,6 @@ function calculateBearing(lat1: number, lon1: number, lat2: number, lon2: number
     if (bearing < 0) bearing += 360;
     return bearing;
 }
-
 
 /**
  * Route distance lookup: maps 3D path distance → lat/lon via route geometry point indices.
@@ -143,6 +166,11 @@ function Maps2D() {
     const compassRef = useRef<HTMLDivElement | null>(null);
     const fallbackIconRef = useRef<HTMLDivElement | null>(null);
     const northUpRef = useRef(false);
+    const initialPositionRef = useRef(
+        isSmallScreen
+            ? { x: screenWidth() - 10, y: 10 }
+            : { x: screenWidth() - 10, y: 10 }
+    );
 
     // Route lookup table — rebuilt when route/path changes
     const routeLookupRef = useRef<RouteLookupEntry[]>([]);
@@ -155,9 +183,7 @@ function Maps2D() {
         handleContainerPointerDown,
         renderResizeHandles,
     } = useTransformable({
-        initialPosition: isSmallScreen
-            ? { x: screenWidth() - 10, y: 10 }
-            : { x: screenWidth() - 10, y: 10 },
+        initialPosition: initialPositionRef.current,
         initialSize: isSmallScreen
             ? { width: 100, height: 100 }
             : { width: 200, height: 200 },
@@ -285,14 +311,20 @@ function Maps2D() {
             const container = carDivsRef.current;
             if (!container) return;
 
-            if (lookup.length === 0 || consist.length === 0) {
-                // Show fallback icon
+            if (consist.length === 0) {
+                // Show fallback icon only until the real train layout is available.
                 container.style.display = 'none';
                 if (fallbackIconRef.current) {
                     fallbackIconRef.current.style.display = '';
                     const iconRotation = bearing - mapBearing;
                     fallbackIconRef.current.style.transform = `translate(-50%, -50%) rotate(${iconRotation}deg)`;
                 }
+                return;
+            }
+
+            if (lookup.length === 0) {
+                container.style.display = 'none';
+                if (fallbackIconRef.current) fallbackIconRef.current.style.display = 'none';
                 return;
             }
 
@@ -374,8 +406,10 @@ function Maps2D() {
     useEffect(() => {
         if (!mapContainerRef.current) return;
 
+        maplibregl.workerCount = PERF_CONFIG.minimapWorkerCount;
+
         const map = new maplibregl.Map({
-            style: "https://tiles.openfreemap.org/styles/liberty",
+            style: MINIMAP_STYLE,
             container: mapContainerRef.current,
             center: DEFAULT_CENTER,
             zoom: 15,
@@ -385,7 +419,11 @@ function Maps2D() {
             bearing: 0,
             maxPitch: 0,
             interactive: false,
+            trackResize: false,
             attributionControl: false,
+            ...(PERF_CONFIG.minimapRaster
+                ? { fadeDuration: 0, refreshExpiredTiles: false }
+                : {}),
         });
 
         mapRef.current = map;
@@ -541,7 +579,7 @@ function Maps2D() {
                 {/* Car divs managed via direct DOM manipulation in tick handler */}
                 <div ref={carDivsRef} />
                 <div ref={fallbackIconRef} className={styles.cabIcon}
-                    style={{ transform: 'translate(-50%, -50%)' }}
+                    style={{ display: 'none', transform: 'translate(-50%, -50%)' }}
                 />
 
                 <div className={styles.compassHitArea} onPointerDown={toggleNorthUp}>
