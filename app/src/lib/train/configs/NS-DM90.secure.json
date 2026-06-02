@@ -604,8 +604,145 @@
     }
   },
   "audio": {
-    "files": [],
-    "compositions": []
+    "files": [
+      {
+        "name": "dm90-turbo.wav",
+        "url": "train/NS-DM90/dm90-turbo.wav"
+      },
+      {
+        "name": "dm90-engine-high-rpm.wav",
+        "url": "train/NS-DM90/dm90-engine-high-rpm.wav"
+      },
+      {
+        "name": "dm90-engine-idle.wav",
+        "url": "train/NS-DM90/dm90-engine-idle.wav"
+      }
+    ],
+    "compositions": [
+      {
+        "title": "engine",
+        "sounds": [
+          {
+            "file": "dm90-engine-idle.wav",
+            "curves": [
+              {
+                "points": [
+                  {
+                    "x": 500,
+                    "y": 1
+                  },
+                  {
+                    "x": 800,
+                    "y": 1
+                  },
+                  {
+                    "x": 1500,
+                    "y": 0.2
+                  }
+                ],
+                "axis": {
+                  "x": {
+                    "min": 500,
+                    "max": 2200,
+                    "label": "Diesel RPM"
+                  },
+                  "y": {
+                    "min": 0,
+                    "max": 1,
+                    "label": "Volume"
+                  }
+                },
+                "_sorted": true
+              },
+              {
+                "points": [
+                  {
+                    "x": 500,
+                    "y": 1
+                  },
+                  {
+                    "x": 2000,
+                    "y": 1.31
+                  }
+                ],
+                "axis": {
+                  "x": {
+                    "min": 0,
+                    "max": 2200,
+                    "label": "Diesel RPM"
+                  },
+                  "y": {
+                    "min": 0.5,
+                    "max": 2,
+                    "label": "Pitch"
+                  }
+                },
+                "_sorted": true
+              }
+            ]
+          },
+          {
+            "file": "dm90-engine-high-rpm.wav",
+            "curves": [
+              {
+                "points": [
+                  {
+                    "x": 0,
+                    "y": 0
+                  },
+                  {
+                    "x": 500,
+                    "y": 0.14
+                  },
+                  {
+                    "x": 1300,
+                    "y": 1
+                  }
+                ],
+                "axis": {
+                  "x": {
+                    "min": 0,
+                    "max": 2200,
+                    "label": "Diesel RPM"
+                  },
+                  "y": {
+                    "min": 0,
+                    "max": 1,
+                    "label": "Volume"
+                  }
+                },
+                "_sorted": true
+              },
+              {
+                "points": [
+                  {
+                    "x": 495.6,
+                    "y": 0.92
+                  },
+                  {
+                    "x": 2000,
+                    "y": 1.5
+                  }
+                ],
+                "axis": {
+                  "x": {
+                    "min": 0,
+                    "max": 2200,
+                    "label": "Diesel RPM"
+                  },
+                  "y": {
+                    "min": 0.92,
+                    "max": 2,
+                    "label": "Pitch"
+                  }
+                },
+                "_sorted": true
+              }
+            ]
+          }
+        ]
+      }
+    ]
   },
   "powertrain": {
     "type": "diesel-electric",
