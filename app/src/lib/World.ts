@@ -41,6 +41,7 @@ import { trainPath, resumeCheckpointStopIndex } from '../store/journey';
 import { gameReady } from '../store/app';
 import { DitherOverlay } from './train/DitherOverlay';
 import { LiveTrainOverlay } from './live/LiveTrainOverlay';
+import { resumeAudioContextOnGesture } from './utils/AudioGesture';
 
 export class World {
     private scene!: Scene;
@@ -166,6 +167,7 @@ export class World {
         this.audioListener = new AudioListener();
         this.camera.add(this.audioListener);
         audioListener.value = this.audioListener;
+        resumeAudioContextOnGesture(this.audioListener);
 
         this.mapViewer = new MapViewer();
         this.mapViewer.onInitialized = () => { gameReady.value = true; };

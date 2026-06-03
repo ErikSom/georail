@@ -25,6 +25,7 @@ import Path from './utils/Path';
 import { getCatalogEntry, getDefaultCatalogEntry, resolveTrainEntry } from './train/configs/TrainCatalog';
 import { audioListener } from '../store/globals';
 import { trainVelocityKmh, trainPower, trainTractiveEffort, trainDebugMode } from '../store/train';
+import { resumeAudioContextOnGesture } from './utils/AudioGesture';
 
 const TWEEN_AUDIO_VELOCITY_KMH = 55;
 const TWEEN_AUDIO_POWER = 0.45;
@@ -135,6 +136,7 @@ export class TrainPickerWorld {
         this.listener = new AudioListener();
         this.camera.add(this.listener);
         audioListener.value = this.listener;
+        resumeAudioContextOnGesture(this.listener);
 
         this.ambient = new AmbientLight(0x6080a0, 0.35);
         this.scene.add(this.ambient);

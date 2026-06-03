@@ -25,6 +25,7 @@ import { Input } from './utils/Input';
 import { trainInstance, updateTrainState, trainMaxSpeedKmh, trainDieselRPM, trainPowertrainType } from '../store/train';
 import { audioListener, timeScale } from '../store/globals';
 import { getTrainConfiguration } from './train/configs/TrainConfigurations.secure';
+import { resumeAudioContextOnGesture } from './utils/AudioGesture';
 
 export type PathType = 'straight' | 'circle' | 'oval' | 'figure8' | 'spiral';
 export type CameraMode = 'free' | 'side' | 'top' | 'cinematic' | 'fly';
@@ -109,6 +110,7 @@ export class TrainEditorWorld {
         this.audioListener = new AudioListener();
         this.camera.add(this.audioListener);
         audioListener.value = this.audioListener;
+        resumeAudioContextOnGesture(this.audioListener);
 
         // Lighting
         this.ambientLight = new AmbientLight(0xffffff, 1.0);;
