@@ -616,6 +616,22 @@
       {
         "name": "dm90-engine-idle.wav",
         "url": "train/NS-DM90/dm90-engine-idle.wav"
+      },
+      {
+        "name": "dm90-tyfoon-low.wav",
+        "url": "train/NS-DM90/dm90-tyfoon-low.wav"
+      },
+      {
+        "name": "dm90-tyfoon-high.wav",
+        "url": "train/NS-DM90/dm90-tyfoon-high.wav"
+      },
+      {
+        "name": "dm90-door-open.wav",
+        "url": "train/NS-DM90/dm90-door-open.wav"
+      },
+      {
+        "name": "dm90-door-close.wav",
+        "url": "train/NS-DM90/dm90-door-close.wav"
       }
     ],
     "compositions": [
@@ -845,7 +861,13 @@
           }
         ]
       }
-    ]
+    ],
+    "sounds": {
+      "horn_low": "dm90-tyfoon-low.wav",
+      "horn_high": "dm90-tyfoon-high.wav",
+      "door_open": "dm90-door-open.wav",
+      "door_close": "dm90-door-close.wav"
+    }
   },
   "powertrain": {
     "type": "diesel-electric",

@@ -1,4 +1,5 @@
 import {
+    Box3,
     Group,
     Matrix4,
     Object3D,
@@ -35,13 +36,14 @@ const POSE_HOLD_MS = 20_000;
 
 const MAX_SCREEN_DOTS = 512;
 const MAX_CAR_INSTANCES = 512;
-const LIVE_DOT_SIZE_PX = 9;
+const LIVE_DOT_SIZE_PX = 11;
 const LIVE_DOT_COLOR = '#28b7ff';
-const SELECTED_DOT_SIZE_PX = 15;
+const SELECTED_DOT_SIZE_PX = 17;
 const SELECTED_DOT_COLOR = '#ffbe6b';
-const OWN_ACTIVE_DOT_SIZE_PX = 18;
-const OWN_INACTIVE_DOT_SIZE_PX = 12;
-const OWN_DOT_COLOR = '#7ad7ff';
+const OWN_ACTIVE_DOT_SIZE_PX = 22;
+const OWN_INACTIVE_DOT_SIZE_PX = 16;
+const OWN_DOT_COLOR = '#f8f0ce';
+const FAR_MAP_BOUNDS_PADDING_M = 35_000;
 
 const DEFAULT_CAR_COUNT = 3;
 const MAX_CARS_PER_TRAIN = 12;
@@ -119,6 +121,7 @@ export class LiveTrainOverlay {
     private readonly ownTrainWorldPosition = new Vector3();
     private readonly followTargetWorldPosition = new Vector3();
     private readonly onFollowTargetChanged?: (position: Vector3 | null) => void;
+    private readonly onFarMapPanBoundsChanged?: (enabled: boolean, bounds: Box3 | null) => void;
 
     private summary: LivePositionsResponse | null = null;
     private pollTimer: number | null = null;
@@ -135,6 +138,8 @@ export class LiveTrainOverlay {
     private screenDotsHidden = false;
     private ownTrainVisible = false;
     private selectedTrainId: string | null = null;
+    private ownTrainSelected = true;
+    private readonly farMapBounds = new Box3();
     private readonly consists = new Map<string, LiveTrainConsist | null>();
     private readonly consistInflightIds = new Set<string>();
     private started = false;
@@ -143,17 +148,21 @@ export class LiveTrainOverlay {
         mapViewer: MapViewer,
         camera: PerspectiveCamera,
         onFollowTargetChanged?: (position: Vector3 | null) => void,
+        onFarMapPanBoundsChanged?: (enabled: boolean, bounds: Box3 | null) => void,
         liveTrafficElement?: HTMLElement | null,
+        wheelTargetElement?: HTMLElement | null,
     ) {
         this.mapViewer = mapViewer;
         this.camera = camera;
         this.onFollowTargetChanged = onFollowTargetChanged;
+        this.onFarMapPanBoundsChanged = onFarMapPanBoundsChanged;
 
         this.trafficLayer = new LiveTrafficLayer({
             parent: liveTrafficElement,
+            wheelTarget: wheelTargetElement,
             maxDots: MAX_SCREEN_DOTS,
-            onSelectTrain: id => this.selectTrain(id),
-            onSelectOwnTrain: () => this.selectTrain(null),
+            onSelectTrain: id => this.selectLiveTrain(id),
+            onSelectOwnTrain: () => this.selectOwnTrain(),
         });
 
         this.proxyMeshes = new LiveTrainProxyMeshes({
@@ -212,6 +221,7 @@ export class LiveTrainOverlay {
         this.consistAbort?.abort();
         document.removeEventListener('click', this.boundPickLiveTrain, true);
         this.onFollowTargetChanged?.(null);
+        this.onFarMapPanBoundsChanged?.(false, null);
         this.trafficLayer.dispose();
         this.proxyMeshes.dispose();
         this.group.parent?.remove(this.group);
@@ -257,7 +267,7 @@ export class LiveTrainOverlay {
         try {
             this.summary = await fetchLivePositions({ all: true }, { signal: this.pollAbort.signal });
             if (this.selectedTrainId && !this.summary.trains.some((train) => train.id === this.selectedTrainId)) {
-                this.selectTrain(null);
+                this.selectOwnTrain();
             }
             this.ingestActiveTrains();
         } catch (err) {
@@ -373,19 +383,32 @@ export class LiveTrainOverlay {
         };
     }
 
-    private selectTrain(id: string | null): void {
-        if (id == null) {
-            this.selectedTrainId = null;
-            this.onFollowTargetChanged?.(null);
-            this.activeBBox = null;
-            this.activeCenter = null;
-            this.lastActiveRefreshAt = 0;
-            return;
-        }
-
+    private selectLiveTrain(id: string): void {
         this.selectedTrainId = id;
+        this.ownTrainSelected = false;
         void this.fetchMissingConsists(new Set([id]));
 
+        this.resetActiveWindow();
+        this.updateFarMapPanBounds();
+    }
+
+    private selectOwnTrain(): void {
+        this.selectedTrainId = null;
+        this.ownTrainSelected = true;
+        this.onFollowTargetChanged?.(null);
+        this.resetActiveWindow();
+        this.updateFarMapPanBounds();
+    }
+
+    private deselectTrain(): void {
+        this.selectedTrainId = null;
+        this.ownTrainSelected = false;
+        this.onFollowTargetChanged?.(null);
+        this.resetActiveWindow();
+        this.updateFarMapPanBounds();
+    }
+
+    private resetActiveWindow(): void {
         this.activeBBox = null;
         this.activeCenter = null;
         this.lastActiveRefreshAt = 0;
@@ -416,6 +439,7 @@ export class LiveTrainOverlay {
     private renderInstances(): void {
         this.renderScreenDots();
         this.renderOwnDot();
+        this.updateFarMapPanBounds();
         this.renderCars();
     }
 
@@ -451,12 +475,13 @@ export class LiveTrainOverlay {
                 dot.dataset.trainId = train.id;
                 const selected = train.id === this.selectedTrainId;
                 const size = selected ? SELECTED_DOT_SIZE_PX : LIVE_DOT_SIZE_PX;
+                const visual = this.dotVisual(dot);
                 dot.classList.toggle('is-selected', selected);
-                dot.style.width = `${size}px`;
-                dot.style.height = `${size}px`;
-                dot.style.background = selected ? SELECTED_DOT_COLOR : LIVE_DOT_COLOR;
-                dot.style.border = selected ? '3px solid rgba(255,255,255,0.96)' : '2px solid rgba(255,255,255,0.92)';
-                dot.style.boxShadow = selected
+                visual.style.width = `${size}px`;
+                visual.style.height = `${size}px`;
+                visual.style.background = selected ? SELECTED_DOT_COLOR : LIVE_DOT_COLOR;
+                visual.style.border = selected ? '3px solid rgba(255,255,255,0.96)' : '2px solid rgba(255,255,255,0.92)';
+                visual.style.boxShadow = selected
                     ? '0 0 0 4px rgba(255,190,107,0.34), 0 3px 10px rgba(0,0,0,0.45)'
                     : '0 2px 7px rgba(0,0,0,0.42)';
                 dot.style.zIndex = selected ? '2' : '1';
@@ -527,21 +552,59 @@ export class LiveTrainOverlay {
         const { width, height } = this.trafficLayer.root.getBoundingClientRect();
         const x = (tmpProject.x * 0.5 + 0.5) * width;
         const y = (-tmpProject.y * 0.5 + 0.5) * height;
-        const active = this.selectedTrainId == null;
+        const active = this.ownTrainSelected;
         const size = active ? OWN_ACTIVE_DOT_SIZE_PX : OWN_INACTIVE_DOT_SIZE_PX;
         const ownDot = this.trafficLayer.ownDot;
+        const visual = this.dotVisual(ownDot);
         ownDot.classList.toggle('is-active', active);
-        ownDot.style.width = `${size}px`;
-        ownDot.style.height = `${size}px`;
-        ownDot.style.border = active ? '3px solid rgba(255,255,255,0.96)' : '2px solid rgba(255,255,255,0.88)';
-        ownDot.style.background = OWN_DOT_COLOR;
-        ownDot.style.boxShadow = active
-            ? '0 0 0 5px rgba(122,215,255,0.30), 0 3px 10px rgba(0,0,0,0.45)'
-            : '0 0 0 3px rgba(122,215,255,0.18), 0 2px 7px rgba(0,0,0,0.36)';
-        ownDot.style.opacity = active ? '1' : '0.72';
-        ownDot.style.zIndex = active ? '3' : '1';
+        visual.style.width = `${size}px`;
+        visual.style.height = `${size}px`;
+        visual.style.border = active ? '4px solid rgba(29, 80, 121, 0.96)' : '3px solid rgba(29, 80, 121, 0.9)';
+        visual.style.background = OWN_DOT_COLOR;
+        visual.style.boxShadow = active
+            ? '0 0 0 5px rgba(255, 218, 89, 0.38), 0 0 0 10px rgba(29, 80, 121, 0.18), 0 4px 13px rgba(0,0,0,0.48)'
+            : '0 0 0 4px rgba(255, 218, 89, 0.28), 0 2px 9px rgba(0,0,0,0.4)';
+        ownDot.style.opacity = active ? '1' : '0.9';
+        ownDot.style.zIndex = active ? '4' : '3';
         ownDot.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, -50%)`;
         ownDot.style.display = 'block';
+    }
+
+    private dotVisual(dot: HTMLElement): HTMLElement {
+        return dot.firstElementChild instanceof HTMLElement ? dot.firstElementChild : dot;
+    }
+
+    private updateFarMapPanBounds(): void {
+        if (!this.onFarMapPanBoundsChanged) return;
+        if (this.screenDotsHidden) {
+            this.onFarMapPanBoundsChanged(false, null);
+            return;
+        }
+        if (this.selectedTrainId || this.ownTrainSelected) {
+            this.onFarMapPanBoundsChanged(true, null);
+            return;
+        }
+
+        this.farMapBounds.makeEmpty();
+        if (this.ownTrainVisible) {
+            this.farMapBounds.expandByPoint(this.ownTrainWorldPosition);
+        }
+
+        if (this.summary) {
+            const renderTs = Date.now() - RENDER_DELAY_MS;
+            for (const train of this.summary.trains) {
+                const position = this.dotWorldPositionForTrain(train, renderTs);
+                if (position) this.farMapBounds.expandByPoint(position);
+            }
+        }
+
+        if (this.farMapBounds.isEmpty()) {
+            this.onFarMapPanBoundsChanged(false, null);
+            return;
+        }
+
+        this.farMapBounds.expandByScalar(FAR_MAP_BOUNDS_PADDING_M);
+        this.onFarMapPanBoundsChanged(true, this.farMapBounds);
     }
 
     private renderCars(): void {
@@ -728,8 +791,17 @@ export class LiveTrainOverlay {
     }
 
     private pickLiveTrainFromClick(event: MouseEvent): void {
-        if (!this.started || !this.highDetailActive || this.proxyMeshes.count() <= 0) return;
+        if (!this.started) return;
         if (!(event.target instanceof HTMLCanvasElement)) return;
+
+        if (!this.screenDotsHidden) {
+            event.preventDefault();
+            event.stopPropagation();
+            this.deselectTrain();
+            return;
+        }
+
+        if (!this.highDetailActive || this.proxyMeshes.count() <= 0) return;
 
         const rect = event.target.getBoundingClientRect();
         this.pointerNdc.set(
@@ -741,7 +813,7 @@ export class LiveTrainOverlay {
         if (!id) return;
         event.preventDefault();
         event.stopPropagation();
-        this.selectTrain(id);
+        this.selectLiveTrain(id);
     }
 
     private async fetchMissingConsists(ids: Set<string>): Promise<void> {

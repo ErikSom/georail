@@ -2,6 +2,9 @@ import {
     PerspectiveCamera,
     Vector3,
     Quaternion,
+    Box3,
+    MOUSE,
+    TOUCH,
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { Train } from './train/Train';
@@ -25,6 +28,8 @@ const FREE_PITCH_NEAR_DIST = 80;
 const FREE_PITCH_FAR_DIST = 40_000;
 const FREE_PITCH_MAX_NEAR = Math.PI / 2 - 0.1; // ~89° from up = near-horizontal
 const FREE_PITCH_MAX_FAR = 0.12;               // ~7° from up = nearly top-down
+const FAR_MAP_EDGE_PAN_MARGIN_PX = 96;
+const FAR_MAP_EDGE_PAN_MAX_SPEED_PX = 520;
 
 export class GameCamera {
     public camera: PerspectiveCamera;
@@ -47,7 +52,23 @@ export class GameCamera {
     private _localOffset = new Vector3();
     private _trainUp = new Vector3();
     private _externalTarget = new Vector3();
+    private _panClampDelta = new Vector3();
+    private _panRight = new Vector3();
+    private _panUp = new Vector3();
     private hasExternalTarget = false;
+    private farMapDotViewActive = false;
+    private farMapPanActive = false;
+    private farMapPanBounds = new Box3();
+    private hasFarMapPanBounds = false;
+    private userPannedFarMap = false;
+    private pointerInCanvas = false;
+    private pointerButtons = 0;
+    private pointerX = 0;
+    private pointerY = 0;
+    private boundOnPointerMove: (e: PointerEvent) => void;
+    private boundOnPointerDown: (e: PointerEvent) => void;
+    private boundOnPointerUp: () => void;
+    private boundOnWindowBlur: () => void;
 
     constructor(camera: PerspectiveCamera, domElement: HTMLElement) {
         this.camera = camera;
@@ -61,9 +82,35 @@ export class GameCamera {
         this.controls.enableDamping = true;
         this.controls.autoRotate = false;
         this.controls.enablePan = false;
+        this.controls.enableRotate = true;
 
         this.boundOnWheel = this.onWheel.bind(this);
+        this.boundOnPointerMove = this.onPointerMove.bind(this);
+        this.boundOnPointerDown = (event: PointerEvent) => { this.pointerButtons = event.buttons; };
+        this.boundOnPointerUp = () => { this.pointerButtons = 0; };
+        this.boundOnWindowBlur = () => {
+            this.pointerInCanvas = false;
+            this.pointerButtons = 0;
+        };
         this.domElement.addEventListener('wheel', this.boundOnWheel, { passive: false });
+        window.addEventListener('pointermove', this.boundOnPointerMove, { passive: true });
+        window.addEventListener('pointerdown', this.boundOnPointerDown, { passive: true });
+        window.addEventListener('pointerup', this.boundOnPointerUp, { passive: true });
+        window.addEventListener('pointercancel', this.boundOnPointerUp, { passive: true });
+        window.addEventListener('blur', this.boundOnWindowBlur);
+    }
+
+    private onPointerMove(event: PointerEvent): void {
+        if (event.pointerType && event.pointerType !== 'mouse') return;
+        this.pointerButtons = event.buttons;
+        const rect = this.domElement.getBoundingClientRect();
+        this.pointerInCanvas =
+            event.clientX >= rect.left &&
+            event.clientX <= rect.right &&
+            event.clientY >= rect.top &&
+            event.clientY <= rect.bottom;
+        this.pointerX = event.clientX - rect.left;
+        this.pointerY = event.clientY - rect.top;
     }
 
     private onWheel(event: WheelEvent): void {
@@ -94,6 +141,7 @@ export class GameCamera {
         }
 
         if (mode === 'cockpit') {
+            this.setFarMapDotView(false);
             this.controls.enabled = true;
             this.controls.enableDamping = false;
             this.controls.enableZoom = false;
@@ -108,6 +156,8 @@ export class GameCamera {
             this.controls.enableDamping = true;
             this.controls.enabled = mode === 'free';
             this.controls.enableZoom = true;
+            this.controls.enableRotate = true;
+            this.controls.enablePan = this.farMapPanActive;
             this.controls.minDistance = this.hasExternalTarget
                 ? EXTERNAL_FOLLOW_MIN_DISTANCE
                 : FREE_MIN_DISTANCE;
@@ -138,6 +188,13 @@ export class GameCamera {
             }
             return;
         }
+        if (!this.hasExternalTarget && this.farMapPanActive) {
+            this.currentTarget.copy(this.controls.target);
+            this.farMapPanActive = false;
+            this.hasFarMapPanBounds = false;
+            this.userPannedFarMap = false;
+            this.applyFarMapPanControlState();
+        }
         this._externalTarget.copy(position);
         this.hasExternalTarget = true;
         this.controls.minDistance = EXTERNAL_FOLLOW_MIN_DISTANCE;
@@ -146,11 +203,62 @@ export class GameCamera {
         }
     }
 
+    public setFarMapDotView(enabled: boolean, bounds?: Box3 | null): void {
+        const nextDotViewActive = enabled && this.mode === 'free';
+        const nextPanActive = nextDotViewActive && !this.hasExternalTarget && bounds?.isEmpty() === false;
+
+        if (this.farMapPanActive && !nextPanActive) {
+            this.currentTarget.copy(this.controls.target);
+        }
+
+        if (nextPanActive) {
+            this.hasFarMapPanBounds = bounds?.isEmpty() === false;
+            if (this.hasFarMapPanBounds && bounds) {
+                this.farMapPanBounds.copy(bounds);
+            }
+        } else {
+            this.hasFarMapPanBounds = false;
+        }
+
+        if (this.farMapDotViewActive === nextDotViewActive && this.farMapPanActive === nextPanActive) {
+            this.applyFarMapPanControlState();
+            return;
+        }
+
+        this.farMapDotViewActive = nextDotViewActive;
+        this.farMapPanActive = nextPanActive;
+        this.userPannedFarMap = false;
+        this.applyFarMapPanControlState();
+    }
+
+    public shouldFreezeFarMapYaw(): boolean {
+        return this.farMapDotViewActive && this.pointerButtons === 0;
+    }
+
+    private applyFarMapPanControlState(): void {
+        if (!this.farMapDotViewActive) {
+            this.controls.enablePan = false;
+            this.controls.enableRotate = true;
+            this.controls.screenSpacePanning = true;
+            this.controls.mouseButtons.LEFT = MOUSE.ROTATE;
+            this.controls.touches.ONE = TOUCH.ROTATE;
+            return;
+        }
+
+        this.controls.enabled = this.mode === 'free';
+        this.controls.enablePan = this.farMapPanActive;
+        this.controls.enableRotate = true;
+        this.controls.screenSpacePanning = false;
+        this.controls.mouseButtons.LEFT = MOUSE.ROTATE;
+        this.controls.touches.ONE = TOUCH.ROTATE;
+        this.controls.touches.TWO = TOUCH.DOLLY_PAN;
+    }
+
     public update(dt: number, train: Train): void {
         if (this.hasExternalTarget) {
             const t = 1 - Math.exp(-this.smoothing * dt);
             this.currentTarget.lerp(this._externalTarget, t);
-            this.updateFree();
+            this.updateFree(dt);
             return;
         }
 
@@ -165,7 +273,7 @@ export class GameCamera {
 
         switch (this.mode) {
             case 'free':
-                this.updateFree();
+                this.updateFree(dt);
                 break;
             case 'cockpit':
                 this.updateCockpit(train);
@@ -211,10 +319,12 @@ export class GameCamera {
         this.controls.update();
     }
 
-    private updateFree(): void {
-        this._delta.copy(this.currentTarget).sub(this.controls.target);
-        this.controls.target.add(this._delta);
-        this.camera.position.add(this._delta);
+    private updateFree(dt = 0): void {
+        if (!this.farMapPanActive) {
+            this._delta.copy(this.currentTarget).sub(this.controls.target);
+            this.controls.target.add(this._delta);
+            this.camera.position.add(this._delta);
+        }
 
         const distance = this.camera.position.distanceTo(this.controls.target);
         const logNear = Math.log(FREE_PITCH_NEAR_DIST);
@@ -225,6 +335,70 @@ export class GameCamera {
         this.controls.maxPolarAngle =
             FREE_PITCH_MAX_NEAR + (FREE_PITCH_MAX_FAR - FREE_PITCH_MAX_NEAR) * t;
 
+        this.applyFarMapEdgePan(dt);
+        this.controls.update();
+        this.clampFarMapPan();
+
+        if (this.farMapPanActive && this.controls.target.distanceToSquared(this.currentTarget) > 0.01) {
+            this.userPannedFarMap = true;
+        }
+        if (!this.farMapPanActive || !this.userPannedFarMap) {
+            this.currentTarget.copy(this.controls.target);
+        }
+    }
+
+    private applyFarMapEdgePan(dt: number): void {
+        if (!this.farMapPanActive || !this.pointerInCanvas || this.pointerButtons !== 0 || dt <= 0) return;
+
+        const width = this.domElement.clientWidth;
+        const height = this.domElement.clientHeight;
+        if (width <= 0 || height <= 0) return;
+
+        let edgeX = 0;
+        let edgeY = 0;
+        if (this.pointerX < FAR_MAP_EDGE_PAN_MARGIN_PX) {
+            edgeX = -(1 - Math.max(0, this.pointerX) / FAR_MAP_EDGE_PAN_MARGIN_PX);
+        } else if (this.pointerX > width - FAR_MAP_EDGE_PAN_MARGIN_PX) {
+            edgeX = (this.pointerX - (width - FAR_MAP_EDGE_PAN_MARGIN_PX)) / FAR_MAP_EDGE_PAN_MARGIN_PX;
+        }
+        if (this.pointerY < FAR_MAP_EDGE_PAN_MARGIN_PX) {
+            edgeY = -(1 - Math.max(0, this.pointerY) / FAR_MAP_EDGE_PAN_MARGIN_PX);
+        } else if (this.pointerY > height - FAR_MAP_EDGE_PAN_MARGIN_PX) {
+            edgeY = (this.pointerY - (height - FAR_MAP_EDGE_PAN_MARGIN_PX)) / FAR_MAP_EDGE_PAN_MARGIN_PX;
+        }
+
+        if (edgeX === 0 && edgeY === 0) return;
+
+        const targetDistance = this.camera.position.distanceTo(this.controls.target);
+        const worldUnitsPerPixel =
+            (2 * targetDistance * Math.tan((this.camera.fov / 2) * Math.PI / 180)) /
+            Math.max(1, height);
+        const panDistance = FAR_MAP_EDGE_PAN_MAX_SPEED_PX * Math.min(dt, 0.05) * worldUnitsPerPixel;
+
+        this._panRight.setFromMatrixColumn(this.camera.matrixWorld, 0);
+        this._panRight.y = 0;
+        this._panUp.setFromMatrixColumn(this.camera.matrixWorld, 1);
+        this._panUp.y = 0;
+        if (this._panRight.lengthSq() < 0.0001 || this._panUp.lengthSq() < 0.0001) return;
+
+        this._panClampDelta
+            .copy(this._panRight.normalize())
+            .multiplyScalar(edgeX * panDistance)
+            .addScaledVector(this._panUp.normalize(), -edgeY * panDistance);
+        this.controls.target.add(this._panClampDelta);
+        this.camera.position.add(this._panClampDelta);
+    }
+
+    private clampFarMapPan(): void {
+        if (!this.farMapPanActive || !this.hasFarMapPanBounds) return;
+
+        const x = Math.max(this.farMapPanBounds.min.x, Math.min(this.farMapPanBounds.max.x, this.controls.target.x));
+        const z = Math.max(this.farMapPanBounds.min.z, Math.min(this.farMapPanBounds.max.z, this.controls.target.z));
+        if (x === this.controls.target.x && z === this.controls.target.z) return;
+
+        this._panClampDelta.set(x - this.controls.target.x, 0, z - this.controls.target.z);
+        this.controls.target.add(this._panClampDelta);
+        this.camera.position.add(this._panClampDelta);
         this.controls.update();
     }
 
@@ -290,11 +464,19 @@ export class GameCamera {
         if (this.hasExternalTarget) {
             this._externalTarget.applyMatrix4(matrix);
         }
+        if (this.hasFarMapPanBounds) {
+            this.farMapPanBounds.applyMatrix4(matrix);
+        }
         this.controls.update();
     }
 
     public cleanup(): void {
         this.domElement.removeEventListener('wheel', this.boundOnWheel);
+        window.removeEventListener('pointermove', this.boundOnPointerMove);
+        window.removeEventListener('pointerdown', this.boundOnPointerDown);
+        window.removeEventListener('pointerup', this.boundOnPointerUp);
+        window.removeEventListener('pointercancel', this.boundOnPointerUp);
+        window.removeEventListener('blur', this.boundOnWindowBlur);
         this.controls.dispose();
     }
 }

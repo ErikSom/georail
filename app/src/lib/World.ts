@@ -16,6 +16,7 @@ import {
     NeutralToneMapping,
     LinearSRGBColorSpace,
     AudioListener,
+    Box3,
 } from 'three';
 import { MapViewer } from './MapViewer';
 import { GameCamera } from './GameCamera';
@@ -89,6 +90,7 @@ export class World {
     private _liveOwnTrainPos = new Vector3();
     private _liveFollowTarget = new Vector3();
     private lastCreditsUpdateAt = 0;
+    private lastCameraYawRelativeToTrain = 0;
 
 
     constructor(
@@ -119,7 +121,9 @@ export class World {
             this.mapViewer,
             this.camera,
             (target) => this.handleLiveTrainFollowTarget(target),
+            (enabled, bounds) => this.handleLiveTrainPanBounds(enabled, bounds),
             this.liveTrafficElement,
+            this.renderer.domElement,
         );
         this.scene.add(this.nsLiveOverlay.group);
         this.nsLiveOverlay.start();
@@ -137,6 +141,11 @@ export class World {
             this._liveFollowTarget.applyMatrix4(delta);
         }
         this.gameCamera.setExternalFollowTarget(this._liveFollowTarget);
+    }
+
+    private handleLiveTrainPanBounds(enabled: boolean, bounds: Box3 | null): void {
+        this.mapViewer.setAutoReorientationPaused(enabled);
+        this.gameCamera.setFarMapDotView(enabled, bounds);
     }
 
     public async init(): Promise<void> {
@@ -583,33 +592,38 @@ export class World {
                 trainBackLonE7.value = Math.round(backCoords.lon * 1e7);
             }
 
-            // Camera look direction on ground plane — use forward vector,
-            // fall back to camera up vector when looking nearly straight down
-            dummyVec3.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
-            const fwdX = dummyVec3.x, fwdZ = dummyVec3.z;
-            const fwdHorizSq = fwdX * fwdX + fwdZ * fwdZ;
-
-            let camBearingX: number, camBearingZ: number;
-            if (fwdHorizSq > 0.01) {
-                camBearingX = fwdX;
-                camBearingZ = fwdZ;
+            if (this.gameCamera.shouldFreezeFarMapYaw()) {
+                cameraYawRelativeToTrain.value = this.lastCameraYawRelativeToTrain;
             } else {
-                // Nearly vertical view — screen "up" direction on the ground
-                dummyVec3.set(0, 1, 0).applyQuaternion(this.camera.quaternion);
-                camBearingX = dummyVec3.x;
-                camBearingZ = dummyVec3.z;
+                // Camera look direction on ground plane — use forward vector,
+                // fall back to camera up vector when looking nearly straight down
+                dummyVec3.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
+                const fwdX = dummyVec3.x, fwdZ = dummyVec3.z;
+                const fwdHorizSq = fwdX * fwdX + fwdZ * fwdZ;
+
+                let camBearingX: number, camBearingZ: number;
+                if (fwdHorizSq > 0.01) {
+                    camBearingX = fwdX;
+                    camBearingZ = fwdZ;
+                } else {
+                    // Nearly vertical view — screen "up" direction on the ground
+                    dummyVec3.set(0, 1, 0).applyQuaternion(this.camera.quaternion);
+                    camBearingX = dummyVec3.x;
+                    camBearingZ = dummyVec3.z;
+                }
+
+                const cameraLookAngle = Math.atan2(camBearingX, camBearingZ) * MathUtils.RAD2DEG;
+
+                dummyVec3B.set(0, 0, 1).applyQuaternion(this.train.group.quaternion);
+                dummyVec3B.y = 0;
+                const trainAngle = Math.atan2(dummyVec3B.x, dummyVec3B.z) * MathUtils.RAD2DEG;
+
+                let relativeYaw = cameraLookAngle - trainAngle;
+                if (relativeYaw < 0) relativeYaw += 360;
+                if (relativeYaw >= 360) relativeYaw -= 360;
+                this.lastCameraYawRelativeToTrain = relativeYaw;
+                cameraYawRelativeToTrain.value = relativeYaw;
             }
-
-            const cameraLookAngle = Math.atan2(camBearingX, camBearingZ) * MathUtils.RAD2DEG;
-
-            dummyVec3B.set(0, 0, 1).applyQuaternion(this.train.group.quaternion);
-            dummyVec3B.y = 0;
-            const trainAngle = Math.atan2(dummyVec3B.x, dummyVec3B.z) * MathUtils.RAD2DEG;
-
-            let relativeYaw = cameraLookAngle - trainAngle;
-            if (relativeYaw < 0) relativeYaw += 360;
-            if (relativeYaw >= 360) relativeYaw -= 360;
-            cameraYawRelativeToTrain.value = relativeYaw;
         }
         if (this.mapViewer.initialized) {
             const now = performance.now();

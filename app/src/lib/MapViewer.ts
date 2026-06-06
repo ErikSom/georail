@@ -63,6 +63,7 @@ export class MapViewer {
     private reorientCheckCounter = 0;
     private static readonly REORIENT_CHECK_INTERVAL = 30;
     private lastTilesUpdateAt = 0;
+    private autoReorientationPaused = false;
 
     private tempMatrix = new Matrix4();
     private deltaMatrix = new Matrix4();
@@ -82,6 +83,10 @@ export class MapViewer {
 
     public removeReorientListener(listener: (deltaMatrix: Matrix4) => void): void {
         this.reorientListeners.delete(listener);
+    }
+
+    public setAutoReorientationPaused(paused: boolean): void {
+        this.autoReorientationPaused = paused;
     }
 
     private dispatchReorient(deltaMatrix: Matrix4): void {
@@ -434,7 +439,8 @@ export class MapViewer {
         }
 
         // Auto-reorient when camera moves far from origin (throttled)
-        if ((this.onReorient || this.reorientListeners.size > 0) &&
+        if (!this.autoReorientationPaused &&
+            (this.onReorient || this.reorientListeners.size > 0) &&
             ++this.reorientCheckCounter >= MapViewer.REORIENT_CHECK_INTERVAL) {
             this.reorientCheckCounter = 0;
 
