@@ -1,6 +1,6 @@
 {
   "name": "georail",
-  "version": "0.7.2",
+  "version": "0.9.0",
   "description": "Georail repository for both the App & Server",
   "homepage": "https://github.com/ErikSom/georail#readme",
   "scripts": {

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.0 (2026-06-07)
+
+### Features
+
+* **Game:** improve live train overview interactions
+
 ## 0.7.2 (2026-05-27)
 
 ### docs
