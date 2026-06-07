@@ -136,8 +136,9 @@ import SplashOverlay from "../../components/SplashOverlay.tsx";
     import maplibregl from "maplibre-gl";
     import { ChunkStore } from "../../lib/live/chunkStore.ts";
     import { TrainTracker } from "../../lib/live/trainBuffer.ts";
-    import { fetchLivePositions, type LiveTrainSummary } from "../../lib/live/api.ts";
+    import { fetchLiveConsists, fetchLivePositions, type LiveTrainConsist, type LiveTrainSummary } from "../../lib/live/api.ts";
     import { cellForPoint, cellsCoveringBBox, metersPerDegreeLat, metersPerDegreeLon } from "../../lib/live/geom.ts";
+    import { TRAIN_AVATAR_FAMILIES, trainAvatarImageId, trainAvatarUrl } from "../../lib/live/trainAvatars.ts";
 
     // ============ tuning ============
     const POLL_INTERVAL_MS = 5_000;
@@ -164,6 +165,7 @@ import SplashOverlay from "../../components/SplashOverlay.tsx";
     let selectedWarmSeq = 0;
     let activeBBox: { lonMin: number; latMin: number; lonMax: number; latMax: number } | null = null;
     let activeWindowLabel = "none";
+    const consists = new Map<string, LiveTrainConsist | null>();
 
     // ============ DOM ============
     const followEl = document.getElementById("follow") as HTMLInputElement;
@@ -195,6 +197,33 @@ import SplashOverlay from "../../components/SplashOverlay.tsx";
     function latestRawFor(id: string): LiveTrainSummary["recent"][number] | null {
         const train = summary?.trains.find((t) => t.id === id);
         return train?.recent[train.recent.length - 1] ?? null;
+    }
+
+    function cleanTrainId(id: string): string {
+        return id.replace(/^ns:/i, "");
+    }
+
+    function consistFor(id: string): LiveTrainConsist | null {
+        return consists.get(id) ?? consists.get(cleanTrainId(id)) ?? null;
+    }
+
+    function avatarImageIdFor(id: string): string {
+        const consist = consistFor(id);
+        return trainAvatarImageId(consist?.type ?? consist?.parts?.[0]?.type);
+    }
+
+    async function fetchConsistsForSummary(): Promise<void> {
+        const ids = [...new Set((summary?.trains ?? [])
+            .map((train) => cleanTrainId(train.id))
+            .filter((id) => id && !consists.has(id)))];
+        const batchSize = 40;
+        for (let i = 0; i < ids.length; i += batchSize) {
+            const batch = ids.slice(i, i + batchSize);
+            const response = await fetchLiveConsists(batch);
+            for (const id of batch) {
+                consists.set(id, response.consists[id] ?? null);
+            }
+        }
     }
 
     function trainInActiveWindow(train: LiveTrainSummary): boolean {
@@ -242,6 +271,7 @@ import SplashOverlay from "../../components/SplashOverlay.tsx";
                         speed: latest?.spd ?? 0,
                         selected: t.id === selectedId,
                         active: trainInActiveWindow(t),
+                        avatar: avatarImageIdFor(t.id),
                     },
                 };
             }),
@@ -263,7 +293,13 @@ import SplashOverlay from "../../components/SplashOverlay.tsx";
                 type: "Feature",
                 id,
                 geometry: { type: "Point", coordinates: [frame.lon, frame.lat] },
-                properties: { id, selected: id === selectedId, bearing: frame.bearing, speed: latestRaw?.spd ?? 0 },
+                properties: {
+                    id,
+                    selected: id === selectedId,
+                    bearing: frame.bearing,
+                    speed: latestRaw?.spd ?? 0,
+                    avatar: avatarImageIdFor(id),
+                },
             });
         }
         return { type: "FeatureCollection", features };
@@ -326,6 +362,11 @@ import SplashOverlay from "../../components/SplashOverlay.tsx";
         listAbort = new AbortController();
         try {
             summary = await fetchLivePositions({ all: true }, { signal: listAbort.signal });
+            try {
+                await fetchConsistsForSummary();
+            } catch (consistErr) {
+                console.warn("[debug-live] consist fetch failed", consistErr);
+            }
             lastError = "";
         } catch (err: any) {
             if (err?.name !== "AbortError") {
@@ -547,12 +588,28 @@ import SplashOverlay from "../../components/SplashOverlay.tsx";
         map.fitBounds([[3.25, 50.72], [7.25, 53.65]], { padding: 60, duration: 700 });
     }
 
+    function loadTrainAvatarImages(): void {
+        for (const family of TRAIN_AVATAR_FAMILIES) {
+            const imageId = trainAvatarImageId(family);
+            const url = trainAvatarUrl(family);
+            if (!imageId || !url || map.hasImage(imageId)) continue;
+
+            map.loadImage(url, (error, image) => {
+                if (error || !image || map.hasImage(imageId)) return;
+                map.addImage(imageId, image, { pixelRatio: 2 });
+                setSourceData("live-dots", liveDotsGeoJson());
+                setSourceData("snapped-dots", snappedDotsGeoJson());
+            });
+        }
+    }
+
     // ============ wire up ============
     map.on("load", () => {
         map.addSource("live-dots", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
         map.addSource("snapped-dots", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
         map.addSource("trail", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
         map.addSource("active-window", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+        loadTrainAvatarImages();
         map.addLayer({
             id: "active-window-fill",
             type: "fill",
@@ -576,14 +633,33 @@ import SplashOverlay from "../../components/SplashOverlay.tsx";
             type: "circle",
             source: "live-dots",
             paint: {
-                "circle-radius": ["case", ["get", "selected"], 8, [">", ["get", "speed"], 5], 5, 3.5],
+                "circle-radius": ["case", ["get", "selected"], 14, [">", ["get", "speed"], 5], 10, 8],
                 "circle-color": ["case", ["get", "selected"], "#60df87", ["get", "active"], "#26c6da", "#3388ff"],
                 "circle-stroke-color": "#ffffff",
-                "circle-stroke-width": ["case", ["get", "selected"], 2, ["get", "active"], 1.4, 0.7],
+                "circle-stroke-width": ["case", ["get", "selected"], 2.5, ["get", "active"], 1.6, 1],
                 "circle-opacity": [
                     "interpolate", ["linear"], ["zoom"],
                     MIN_SNAP_ZOOM - 0.5, 0.88,
                     MIN_SNAP_ZOOM + 0.5, 0.16,
+                ],
+            },
+        });
+        map.addLayer({
+            id: "live-dots-avatar",
+            type: "symbol",
+            source: "live-dots",
+            filter: ["!=", ["get", "avatar"], ""],
+            layout: {
+                "icon-image": ["get", "avatar"],
+                "icon-size": ["case", ["get", "selected"], 0.28, 0.2],
+                "icon-allow-overlap": true,
+                "icon-ignore-placement": true,
+            },
+            paint: {
+                "icon-opacity": [
+                    "interpolate", ["linear"], ["zoom"],
+                    MIN_SNAP_ZOOM - 0.5, 0.95,
+                    MIN_SNAP_ZOOM + 0.5, 0.25,
                 ],
             },
         });
@@ -593,18 +669,32 @@ import SplashOverlay from "../../components/SplashOverlay.tsx";
             source: "snapped-dots",
             minzoom: MIN_SNAP_ZOOM,
             paint: {
-                "circle-radius": ["case", ["get", "selected"], 9, [">", ["get", "speed"], 5], 6, 4],
+                "circle-radius": ["case", ["get", "selected"], 15, [">", ["get", "speed"], 5], 11, 9],
                 "circle-color": ["case", ["get", "selected"], "#60df87", "#26c6da"],
                 "circle-stroke-color": "#ffffff",
-                "circle-stroke-width": ["case", ["get", "selected"], 2, 0.9],
+                "circle-stroke-width": ["case", ["get", "selected"], 2.5, 1.1],
                 "circle-opacity": 0.95,
             },
+        });
+        map.addLayer({
+            id: "snapped-dots-avatar",
+            type: "symbol",
+            source: "snapped-dots",
+            minzoom: MIN_SNAP_ZOOM,
+            filter: ["!=", ["get", "avatar"], ""],
+            layout: {
+                "icon-image": ["get", "avatar"],
+                "icon-size": ["case", ["get", "selected"], 0.3, 0.22],
+                "icon-allow-overlap": true,
+                "icon-ignore-placement": true,
+            },
+            paint: { "icon-opacity": 1 },
         });
         function handleTrainClick(event: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }): void {
             const id = event.features?.[0]?.properties?.id as string | undefined;
             if (id) selectTrain(id);
         }
-        for (const layer of ["live-dots-circle", "snapped-dots-circle"]) {
+        for (const layer of ["live-dots-circle", "live-dots-avatar", "snapped-dots-circle", "snapped-dots-avatar"]) {
             map.on("click", layer, handleTrainClick);
             map.on("mouseenter", layer, () => { map.getCanvas().style.cursor = "pointer"; });
             map.on("mouseleave", layer, () => { map.getCanvas().style.cursor = ""; });

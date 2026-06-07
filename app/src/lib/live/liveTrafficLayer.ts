@@ -2,6 +2,8 @@ const DEFAULT_DOT_COUNT = 384;
 const DOTS_TO_CREATE_PER_FRAME = 32;
 const DOT_HIT_SIZE_PX = 32;
 
+export type LiveTrafficLabelVariant = 'default' | 'selected' | 'own';
+
 export interface LiveTrafficLayerOptions {
     parent?: HTMLElement | null;
     wheelTarget?: HTMLElement | null;
@@ -14,11 +16,32 @@ function assignStyles(element: HTMLElement, styles: Partial<CSSStyleDeclaration>
     Object.assign(element.style, styles);
 }
 
+const LABEL_VARIANT_STYLES: Record<LiveTrafficLabelVariant, Partial<CSSStyleDeclaration>> = {
+    default: {
+        border: '1px solid rgba(245, 247, 243, 0.18)',
+        background: 'rgba(30, 31, 36, 0.86)',
+        boxShadow: '0 8px 18px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.06)',
+    },
+    selected: {
+        border: '1px solid rgba(255, 190, 107, 0.96)',
+        background: 'rgba(30, 31, 36, 0.96)',
+        boxShadow: '0 9px 22px rgba(0, 0, 0, 0.42), 0 0 0 2px rgba(255, 190, 107, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
+    },
+    own: {
+        border: '1px solid rgba(52, 115, 230, 0.7)',
+        background: 'rgba(30, 31, 36, 0.96)',
+        boxShadow: '0 9px 22px rgba(0, 0, 0, 0.42), 0 0 0 2px rgba(52, 115, 230, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
+    },
+};
+
 export class LiveTrafficLayer {
     public readonly root: HTMLDivElement;
     public readonly dots: HTMLDivElement[] = [];
+    public readonly labels: HTMLDivElement[] = [];
     public readonly ownDot: HTMLDivElement;
+    public readonly ownLabel: HTMLDivElement;
     private visibleDotCount = 0;
+    private visibleLabelCount = 0;
     private readonly maxDots: number;
     private readonly wheelTarget: HTMLElement | null;
 
@@ -49,7 +72,7 @@ export class LiveTrafficLayer {
                 return;
             }
 
-            const trainDot = target.closest('.live-train-dot') as HTMLElement | null;
+            const trainDot = target.closest('.live-train-dot, .live-train-label') as HTMLElement | null;
             if (!trainDot || !this.root.contains(trainDot)) return;
 
             const id = trainDot.dataset.trainId;
@@ -77,6 +100,9 @@ export class LiveTrafficLayer {
         });
         this.ownDot.appendChild(this.createDotVisual('live-traffic-own-dot-visual'));
         this.root.appendChild(this.ownDot);
+
+        this.ownLabel = this.createLabelElement('live-traffic-own-label live-train-own-dot');
+        this.root.appendChild(this.ownLabel);
     }
 
     private forwardWheelToCanvas(event: WheelEvent): void {
@@ -147,8 +173,109 @@ export class LiveTrafficLayer {
         }
     }
 
+    public ensureLabelCapacity(targetCount: number): void {
+        const wanted = Math.max(0, Math.min(this.maxDots, targetCount));
+        const limit = Math.min(wanted, this.labels.length + DOTS_TO_CREATE_PER_FRAME);
+        while (this.labels.length < limit) {
+            const label = this.createLabelElement('live-traffic-label live-train-label');
+            this.root.appendChild(label);
+            this.labels.push(label);
+        }
+    }
+
+    private createLabelElement(className: string): HTMLDivElement {
+        const label = document.createElement('div');
+        label.className = className;
+        assignStyles(label, {
+            position: 'absolute',
+            left: '0',
+            top: '0',
+            minWidth: '0',
+            height: '34px',
+            boxSizing: 'border-box',
+            display: 'none',
+            alignItems: 'center',
+            gap: '7px',
+            padding: '4px 10px 4px 4px',
+            borderRadius: '999px',
+            border: LABEL_VARIANT_STYLES.default.border ?? '',
+            background: LABEL_VARIANT_STYLES.default.background ?? '',
+            boxShadow: LABEL_VARIANT_STYLES.default.boxShadow ?? '',
+            backdropFilter: 'blur(8px)',
+            webkitBackdropFilter: 'blur(8px)',
+            color: 'var(--menu-light, #f5f7f3)',
+            font: '700 12px/14px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            letterSpacing: '0',
+            whiteSpace: 'nowrap',
+            willChange: 'transform',
+            pointerEvents: 'auto',
+            cursor: 'pointer',
+            touchAction: 'none',
+            userSelect: 'none',
+            transition: 'border-color 120ms ease, background 120ms ease, box-shadow 120ms ease',
+        });
+
+        const img = document.createElement('img');
+        img.className = 'live-traffic-label-avatar';
+        img.alt = '';
+        img.draggable = false;
+        assignStyles(img, {
+            width: '24px',
+            height: '24px',
+            borderRadius: '999px',
+            objectFit: 'cover',
+            background: 'var(--menu-light, #f5f7f3)',
+            border: '1px solid rgba(245, 247, 243, 0.2)',
+            flex: '0 0 auto',
+            pointerEvents: 'none',
+        });
+
+        const text = document.createElement('span');
+        text.className = 'live-traffic-label-text';
+        assignStyles(text, {
+            display: 'block',
+            maxWidth: '86px',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            pointerEvents: 'none',
+            textShadow: '0 1px 2px rgba(0, 0, 0, 0.55)',
+            fontVariantNumeric: 'tabular-nums',
+        });
+
+        label.append(img, text);
+        return label;
+    }
+
+    public setLabelContent(label: HTMLElement, text: string, avatarUrl: string | null): void {
+        const avatar = label.querySelector<HTMLImageElement>('.live-traffic-label-avatar');
+        const textEl = label.querySelector<HTMLElement>('.live-traffic-label-text');
+        if (textEl) textEl.textContent = text;
+        if (!avatar) return;
+        if (avatarUrl) {
+            avatar.src = avatarUrl;
+            avatar.style.display = '';
+            label.style.padding = '4px 10px 4px 4px';
+            label.style.gap = '7px';
+        } else {
+            avatar.removeAttribute('src');
+            avatar.style.display = 'none';
+            label.style.padding = '7px 12px';
+            label.style.gap = '0';
+        }
+    }
+
+    public setLabelVariant(label: HTMLElement, variant: LiveTrafficLabelVariant): void {
+        assignStyles(label, LABEL_VARIANT_STYLES[variant]);
+        label.classList.toggle('is-selected', variant === 'selected');
+        label.classList.toggle('is-own', variant === 'own');
+    }
+
     public hideDots(): void {
         this.setVisibleDotCount(0);
+    }
+
+    public hideLabels(): void {
+        this.setVisibleLabelCount(0);
     }
 
     public setVisibleDotCount(count: number): void {
@@ -160,6 +287,17 @@ export class LiveTrafficLayer {
             dot.style.display = 'none';
         }
         this.visibleDotCount = nextCount;
+    }
+
+    public setVisibleLabelCount(count: number): void {
+        const nextCount = Math.max(0, Math.min(this.labels.length, count));
+        for (let i = nextCount; i < this.visibleLabelCount; i++) {
+            const label = this.labels[i];
+            label.dataset.trainId = '';
+            label.classList.remove('is-selected');
+            label.style.display = 'none';
+        }
+        this.visibleLabelCount = nextCount;
     }
 
     public dispose(): void {

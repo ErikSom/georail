@@ -23,6 +23,7 @@ import {
 import { TrainTracker, type ConsistSample } from './trainBuffer.ts';
 import { LiveTrafficLayer } from './liveTrafficLayer.ts';
 import { LiveTrainProxyMeshes, type ProxyCarShape } from './liveTrainProxyMeshes.ts';
+import { displayTrainId, trainAvatarUrl } from './trainAvatars.ts';
 
 const FAR_POLL_INTERVAL_MS = 15_000;
 const HIGH_DETAIL_POLL_INTERVAL_MS = 5_000;
@@ -44,6 +45,10 @@ const OWN_ACTIVE_DOT_SIZE_PX = 22;
 const OWN_INACTIVE_DOT_SIZE_PX = 16;
 const OWN_DOT_COLOR = '#f8f0ce';
 const FAR_MAP_BOUNDS_PADDING_M = 35_000;
+const AVATAR_DOT_SIZE_PX = 20;
+const SELECTED_AVATAR_DOT_SIZE_PX = 26;
+const MAX_CONSISTS_TO_FETCH_PER_POLL = MAX_SCREEN_DOTS;
+const CONSIST_FETCH_BATCH_SIZE = 40;
 
 const DEFAULT_CAR_COUNT = 3;
 const MAX_CARS_PER_TRAIN = 12;
@@ -118,6 +123,7 @@ export class LiveTrainOverlay {
     private readonly boundPickLiveTrain = (event: MouseEvent) => this.pickLiveTrainFromClick(event);
     private readonly trafficLayer: LiveTrafficLayer;
     private readonly stateByTrain = new Map<string, ConsistRenderState>();
+    private readonly labelAnchorByTrain = new Map<string, ConsistSample>();
     private readonly ownTrainWorldPosition = new Vector3();
     private readonly followTargetWorldPosition = new Vector3();
     private readonly onFollowTargetChanged?: (position: Vector3 | null) => void;
@@ -269,6 +275,10 @@ export class LiveTrainOverlay {
             if (this.selectedTrainId && !this.summary.trains.some((train) => train.id === this.selectedTrainId)) {
                 this.selectOwnTrain();
             }
+            void this.fetchMissingConsists(
+                new Set(this.summary.trains.map(train => train.id)),
+                MAX_CONSISTS_TO_FETCH_PER_POLL,
+            );
             this.ingestActiveTrains();
         } catch (err) {
             if ((err as any)?.name !== 'AbortError') {
@@ -433,7 +443,6 @@ export class LiveTrainOverlay {
         for (const id of this.stateByTrain.keys()) {
             if (id !== this.selectedTrainId && !activeIds.has(id)) this.stateByTrain.delete(id);
         }
-        void this.fetchMissingConsists(activeIds);
     }
 
     private renderInstances(): void {
@@ -441,6 +450,8 @@ export class LiveTrainOverlay {
         this.renderOwnDot();
         this.updateFarMapPanBounds();
         this.renderCars();
+        this.renderTrainLabels();
+        this.renderOwnTrainLabel();
     }
 
     private renderScreenDots(): void {
@@ -474,18 +485,33 @@ export class LiveTrainOverlay {
                 const dot = this.trafficLayer.dots[count++];
                 dot.dataset.trainId = train.id;
                 const selected = train.id === this.selectedTrainId;
-                const size = selected ? SELECTED_DOT_SIZE_PX : LIVE_DOT_SIZE_PX;
+                const avatarUrl = this.avatarUrlForTrain(train.id);
+                const size = avatarUrl
+                    ? selected ? SELECTED_AVATAR_DOT_SIZE_PX : AVATAR_DOT_SIZE_PX
+                    : selected ? SELECTED_DOT_SIZE_PX : LIVE_DOT_SIZE_PX;
                 const visual = this.dotVisual(dot);
                 dot.classList.toggle('is-selected', selected);
                 visual.style.width = `${size}px`;
                 visual.style.height = `${size}px`;
-                visual.style.background = selected ? SELECTED_DOT_COLOR : LIVE_DOT_COLOR;
-                visual.style.border = selected ? '3px solid rgba(255,255,255,0.96)' : '2px solid rgba(255,255,255,0.92)';
-                visual.style.boxShadow = selected
-                    ? '0 0 0 4px rgba(255,190,107,0.34), 0 3px 10px rgba(0,0,0,0.45)'
-                    : '0 2px 7px rgba(0,0,0,0.42)';
-                dot.style.zIndex = selected ? '2' : '1';
-                dot.style.opacity = selected ? '1' : '0.9';
+                if (avatarUrl) {
+                    visual.style.background = '#ffffff';
+                    visual.style.backgroundImage = `url(${avatarUrl})`;
+                    visual.style.backgroundSize = 'cover';
+                    visual.style.backgroundPosition = 'center';
+                    visual.style.border = selected ? '3px solid rgba(255,190,107,0.98)' : '2px solid rgba(255,255,255,0.94)';
+                    visual.style.boxShadow = selected
+                        ? '0 0 0 4px rgba(255,190,107,0.34), 0 4px 12px rgba(0,0,0,0.48)'
+                        : '0 2px 8px rgba(0,0,0,0.45)';
+                } else {
+                    visual.style.background = selected ? SELECTED_DOT_COLOR : LIVE_DOT_COLOR;
+                    visual.style.backgroundImage = '';
+                    visual.style.border = selected ? '3px solid rgba(255,255,255,0.96)' : '2px solid rgba(255,255,255,0.92)';
+                    visual.style.boxShadow = selected
+                        ? '0 0 0 4px rgba(255,190,107,0.34), 0 3px 10px rgba(0,0,0,0.45)'
+                        : '0 2px 7px rgba(0,0,0,0.42)';
+                }
+                dot.style.zIndex = selected ? '6' : '1';
+                dot.style.opacity = selected ? '1' : '0.94';
                 dot.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, -50%)`;
                 dot.style.display = 'block';
             }
@@ -513,9 +539,10 @@ export class LiveTrainOverlay {
         }
 
         const renderTs = Date.now() - RENDER_DELAY_MS;
-        const playback = this.tracker.playbackAt(this.selectedTrainId, renderTs);
-        if (playback) {
-            const snappedFollowTarget = this.followTargetForGeo(playback);
+        const frontCab = this.frontCabSampleForTrain(this.selectedTrainId, renderTs)
+            ?? this.tracker.playbackAt(this.selectedTrainId, renderTs);
+        if (frontCab) {
+            const snappedFollowTarget = this.followTargetForGeo(frontCab);
             if (snappedFollowTarget) {
                 this.onFollowTargetChanged?.(snappedFollowTarget);
                 return;
@@ -574,6 +601,109 @@ export class LiveTrainOverlay {
         return dot.firstElementChild instanceof HTMLElement ? dot.firstElementChild : dot;
     }
 
+    private renderTrainLabels(): void {
+        if (!this.highDetailActive) {
+            this.trafficLayer.hideLabels();
+            return;
+        }
+
+        const renderTs = Date.now() - RENDER_DELAY_MS;
+        const ids = Array.from(this.tracker.allIds()).filter(id => this.shouldRenderHighDetailTrain(id));
+        if (this.selectedTrainId && !ids.includes(this.selectedTrainId)) {
+            ids.unshift(this.selectedTrainId);
+        }
+
+        this.trafficLayer.ensureLabelCapacity(ids.length);
+        this.camera.updateMatrixWorld();
+        const { width, height } = this.trafficLayer.root.getBoundingClientRect();
+        let count = 0;
+
+        for (const id of ids) {
+            if (count >= this.trafficLayer.labels.length) break;
+
+            const anchor = this.labelAnchorByTrain.get(id) ?? this.tracker.playbackAt(id, renderTs);
+            const position = anchor
+                ? this.worldPositionForGeo(anchor)
+                : this.rawWorldPositionForTrain(id, RAW_DOT_HEIGHT_M + FOLLOW_TARGET_LIFT_M);
+            if (!position) continue;
+
+            tmpProject.copy(position).project(this.camera);
+            if (
+                tmpProject.z < -1 || tmpProject.z > 1 ||
+                tmpProject.x < -1.05 || tmpProject.x > 1.05 ||
+                tmpProject.y < -1.05 || tmpProject.y > 1.05
+            ) {
+                continue;
+            }
+
+            const x = (tmpProject.x * 0.5 + 0.5) * width;
+            const y = (-tmpProject.y * 0.5 + 0.5) * height;
+            const selected = id === this.selectedTrainId;
+            const label = this.trafficLayer.labels[count++];
+            label.dataset.trainId = id;
+            this.trafficLayer.setLabelContent(label, displayTrainId(id), this.avatarUrlForTrain(id));
+            this.trafficLayer.setLabelVariant(label, selected ? 'selected' : 'default');
+            label.style.zIndex = selected ? '9' : '7';
+            label.style.transform = `translate3d(${x.toFixed(1)}px, ${(y - 26).toFixed(1)}px, 0) translate(-50%, -100%)`;
+            label.style.display = 'flex';
+        }
+
+        this.trafficLayer.setVisibleLabelCount(count);
+    }
+
+    private renderOwnTrainLabel(): void {
+        const label = this.trafficLayer.ownLabel;
+        if (!this.ownTrainVisible || this.ownTrainSelected) {
+            label.style.display = 'none';
+            return;
+        }
+
+        tmpProject.copy(this.ownTrainWorldPosition).project(this.camera);
+        if (
+            tmpProject.z < -1 || tmpProject.z > 1 ||
+            tmpProject.x < -1.05 || tmpProject.x > 1.05 ||
+            tmpProject.y < -1.05 || tmpProject.y > 1.05
+        ) {
+            label.style.display = 'none';
+            return;
+        }
+
+        const { width, height } = this.trafficLayer.root.getBoundingClientRect();
+        const x = (tmpProject.x * 0.5 + 0.5) * width;
+        const y = (-tmpProject.y * 0.5 + 0.5) * height;
+        this.trafficLayer.setLabelContent(label, 'Your train', null);
+        this.trafficLayer.setLabelVariant(label, 'own');
+        label.style.zIndex = '10';
+        label.style.transform = `translate3d(${x.toFixed(1)}px, ${(y - 28).toFixed(1)}px, 0) translate(-50%, -100%)`;
+        label.style.display = 'flex';
+    }
+
+    private rawWorldPositionForTrain(id: string, heightM: number): Vector3 | null {
+        const train = this.trainById(id);
+        const raw = train ? latestRaw(train) : null;
+        return raw ? this.mapViewer.latLonHeightToWorldPosition(raw.lat, raw.lon, heightM) : null;
+    }
+
+    private consistForTrain(id: string): LiveTrainConsist | null {
+        return this.consists.get(id) ?? this.consists.get(id.replace(/^ns:/i, '')) ?? null;
+    }
+
+    private avatarUrlForTrain(id: string): string | null {
+        const consist = this.consistForTrain(id);
+        return trainAvatarUrl(consist?.type ?? consist?.parts[0]?.type);
+    }
+
+    private frontCabSampleForTrain(id: string, renderTs: number): ConsistSample | null {
+        const cachedAnchor = this.labelAnchorByTrain.get(id);
+        if (cachedAnchor) return cachedAnchor;
+
+        const spec = this.trainRenderSpecFor(id);
+        const poses = this.carPosesFor(id, renderTs, spec);
+        const frontCab = poses?.[0]?.front ?? null;
+        if (frontCab) this.labelAnchorByTrain.set(id, frontCab);
+        return frontCab;
+    }
+
     private updateFarMapPanBounds(): void {
         if (!this.onFarMapPanBoundsChanged) return;
         if (this.screenDotsHidden) {
@@ -608,6 +738,7 @@ export class LiveTrainOverlay {
     }
 
     private renderCars(): void {
+        this.labelAnchorByTrain.clear();
         if (!this.highDetailActive) {
             this.proxyMeshes.clear();
             return;
@@ -631,6 +762,9 @@ export class LiveTrainOverlay {
             if (totalCount + spec.carCount > MAX_CAR_INSTANCES && id !== this.selectedTrainId) continue;
             const poses = this.carPosesFor(id, renderTs, spec);
             if (!poses) continue;
+            if (poses[0]?.front) {
+                this.labelAnchorByTrain.set(id, poses[0].front);
+            }
             for (let poseIndex = 0; poseIndex < poses.length; poseIndex++) {
                 if (totalCount >= MAX_CAR_INSTANCES) break;
                 const pose = poses[poseIndex];
@@ -660,7 +794,7 @@ export class LiveTrainOverlay {
     }
 
     private trainRenderSpecFor(id: string): TrainRenderSpec {
-        const consist = this.consists.get(id) ?? this.consists.get(id.replace(/^ns:/i, '')) ?? null;
+        const consist = this.consistForTrain(id);
         const rawCarCount = Number(consist?.carCount);
         const carCount = Number.isFinite(rawCarCount)
             ? Math.max(1, Math.min(MAX_CARS_PER_TRAIN, Math.round(rawCarCount)))
@@ -816,21 +950,24 @@ export class LiveTrainOverlay {
         this.selectLiveTrain(id);
     }
 
-    private async fetchMissingConsists(ids: Set<string>): Promise<void> {
+    private async fetchMissingConsists(ids: Set<string>, maxCount = 30): Promise<void> {
         const candidates = [...ids]
             .filter(id => id.startsWith('ns:'))
             .filter(id => !this.consists.has(id) && !this.consistInflightIds.has(id))
-            .slice(0, 30);
+            .slice(0, maxCount);
         if (candidates.length === 0) return;
 
         for (const id of candidates) this.consistInflightIds.add(id);
         this.consistAbort?.abort();
         this.consistAbort = new AbortController();
         try {
-            const response = await fetchLiveConsists(candidates, { signal: this.consistAbort.signal });
-            for (const id of candidates) {
-                const ritnummer = id.replace(/^ns:/i, '');
-                this.consists.set(id, response.consists[ritnummer] ?? null);
+            for (let i = 0; i < candidates.length; i += CONSIST_FETCH_BATCH_SIZE) {
+                const batch = candidates.slice(i, i + CONSIST_FETCH_BATCH_SIZE);
+                const response = await fetchLiveConsists(batch, { signal: this.consistAbort.signal });
+                for (const id of batch) {
+                    const ritnummer = id.replace(/^ns:/i, '');
+                    this.consists.set(id, response.consists[ritnummer] ?? null);
+                }
             }
         } catch (err) {
             if ((err as any)?.name !== 'AbortError') {
