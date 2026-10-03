@@ -8,6 +8,7 @@ import {
     formatDistanceKm,
 } from '../store/journey';
 import { computeLevel, getLevelInfo } from '../lib/levels';
+import { getRank, type Rank } from '../lib/ranks';
 import { clearProfileCache } from '../lib/api/profile';
 import { t } from '../i18n';
 import styles from './JourneyComplete.module.css';
@@ -41,6 +42,8 @@ export default function JourneyComplete({ onDismiss }: JourneyCompleteProps) {
     const levelBefore = computeLevel(totalKmBefore);
     const levelAfter = computeLevel(totalKmAfter);
     const didLevelUp = levelAfter > levelBefore;
+    const rankAfter = getRank(levelAfter);
+    const didChangeTier = rankAfter.tierId !== getRank(levelBefore).tierId;
 
     // New stations = route stops that weren't already visited before this journey
     const visited = alreadyVisitedStations.value;
@@ -90,6 +93,7 @@ export default function JourneyComplete({ onDismiss }: JourneyCompleteProps) {
 
     const currentAnimLevel = computeLevel(animatedKm);
     const currentAnimLevelInfo = getLevelInfo(animatedKm);
+    const currentAnimRank = getRank(currentAnimLevel);
 
     return (
         <div className={styles.overlay}>
@@ -125,9 +129,13 @@ export default function JourneyComplete({ onDismiss }: JourneyCompleteProps) {
                 {/* Level progress bar */}
                 <div className={styles.levelSection}>
                     <div className={styles.levelHeader}>
-                        <span className={styles.levelLabel}>
-                            {t('journeyComplete.level', { n: currentAnimLevel })}
-                        </span>
+                        <div className={styles.rankInfo}>
+                            <span className={styles.rankName}>{currentAnimRank.name}</span>
+                            <span className={styles.levelLabel}>
+                                {t('journeyComplete.level', { n: currentAnimLevel })}
+                                <TierBadge rank={currentAnimRank} />
+                            </span>
+                        </div>
                         <span className={styles.levelProgress}>
                             {formatDistanceKm(currentAnimLevelInfo.progressKm)} / {formatDistanceKm(currentAnimLevelInfo.bracketKm)}
                         </span>
@@ -144,6 +152,12 @@ export default function JourneyComplete({ onDismiss }: JourneyCompleteProps) {
                 {showLevelUp && (
                     <div className={styles.levelUp}>
                         {t('journeyComplete.levelUp', { n: levelAfter })}
+                        <div className={styles.levelUpRank}>{rankAfter.name}</div>
+                        {didChangeTier && (
+                            <div className={styles.levelUpTier}>
+                                {t('journeyComplete.newTier', { tier: rankAfter.tier })}
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -174,5 +188,16 @@ export default function JourneyComplete({ onDismiss }: JourneyCompleteProps) {
                 </button>
             </div>
         </div>
+    );
+}
+
+function TierBadge({ rank }: { rank: Rank }) {
+    return (
+        <span
+            className={`${styles.tierBadge} ${rank.isTopTier ? styles.tierBadgeTop : ''}`}
+            style={{ backgroundColor: rank.color }}
+        >
+            {rank.tier}
+        </span>
     );
 }

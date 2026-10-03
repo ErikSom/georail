@@ -90,16 +90,52 @@
 .levelHeader {
     display: flex;
     justify-content: space-between;
+    align-items: flex-end;
+    gap: 12px;
     margin-bottom: 8px;
 }
 
-.levelLabel {
-    font-weight: 600;
+.rankInfo {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    text-align: left;
+}
+
+.rankName {
+    font-weight: 700;
     color: #1a202c;
-    font-size: 16px;
+    font-size: 18px;
+    line-height: 1.2;
+}
+
+.levelLabel {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    color: #4a5568;
+    font-size: 13px;
+}
+
+.tierBadge {
+    padding: 2px 8px;
+    border-radius: 999px;
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.tierBadgeTop {
+    background-image: linear-gradient(135deg, #fbe38e 0%, #e6b422 50%, #b8860b 100%);
+    color: #3b2a00;
 }
 
 .levelProgress {
+    flex-shrink: 0;
     font-size: 13px;
     color: #718096;
 }
@@ -127,6 +163,20 @@
     font-size: 18px;
     font-weight: 700;
     animation: scaleIn 0.5s ease;
+}
+
+.levelUpRank {
+    margin-top: 4px;
+    font-size: 24px;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.levelUpTier {
+    margin-top: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    opacity: 0.9;
 }
 
 @keyframes scaleIn {
